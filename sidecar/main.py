@@ -103,6 +103,15 @@ def main() -> None:
         platform.platform(),
     )
 
+    db_path = os.path.join(args.data_dir, "faces.db")
+    model_dir = os.path.join(args.data_dir, "models", "buffalo_l")
+    model_ready = os.path.isdir(model_dir) and bool(os.listdir(model_dir)) if os.path.isdir(model_dir) else False
+    logger.info(
+        "startup state — db_exists=%s model_ready=%s",
+        os.path.isfile(db_path),
+        model_ready,
+    )
+
     uvicorn.run(
         app,
         host="127.0.0.1",

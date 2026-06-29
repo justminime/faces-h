@@ -130,7 +130,7 @@ pub fn run() {
                 .map_err(|e| e.to_string())?;
 
             let sidecar_pid = child.pid();
-            log::info!("sidecar spawned — waiting for port {port}");
+            log::info!("sidecar spawned — pid={sidecar_pid} waiting for port {port}");
 
             app.manage(SidecarState {
                 url: url.clone(),
@@ -144,11 +144,13 @@ pub fn run() {
             // run after an upgrade, which can delay uvicorn startup by 60+ seconds.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
+                let start = std::time::Instant::now();
                 if wait_for_port(port, Duration::from_secs(90)) {
-                    log::info!("sidecar ready on port {port}");
+                    let elapsed = start.elapsed().as_millis();
+                    log::info!("sidecar ready on port {port} after {elapsed} ms");
                     let _ = handle.emit("sidecar-ready", &url);
                 } else {
-                    log::error!("sidecar did not bind within 90 s");
+                    log::error!("sidecar did not bind on port {port} within 90 s — giving up");
                     let _ = handle.emit("sidecar-error", "Engine failed to start after 90 s");
                     handle.exit(1);
                 }

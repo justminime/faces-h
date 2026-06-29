@@ -66,7 +66,10 @@ async def websocket_endpoint(ws: WebSocket) -> None:
 @router.post("/scan/start")
 async def start_scan(body: StartScanRequest) -> dict[str, str]:
     if get_status().running:
+        logger.info("scan/start: already running — ignoring request for %s", body.root_path)
         return {"status": "already_running"}
+
+    logger.info("scan/start: root_path=%s", body.root_path)
 
     async def _run() -> None:
         async with get_db() as db:
@@ -75,7 +78,9 @@ async def start_scan(body: StartScanRequest) -> dict[str, str]:
                 (body.root_path, int(time.time())),
             )
             await db.commit()
+            logger.info("scan starting: root=%s", body.root_path)
             await run_scan(body.root_path, _manager.broadcast, db)
+            logger.info("scan finished: root=%s", body.root_path)
 
     asyncio.create_task(_run())
     return {"status": "started"}
@@ -85,18 +90,22 @@ async def start_scan(body: StartScanRequest) -> dict[str, str]:
 async def rescan_all() -> dict[str, str]:
     """Re-scan every root folder that has been added previously."""
     if get_status().running:
+        logger.info("scan/rescan: already running — ignoring")
         return {"status": "already_running"}
 
     async def _run() -> None:
         async with get_db() as db:
             cur = await db.execute("SELECT path FROM scan_roots ORDER BY added_at")
             roots = [row["path"] for row in await cur.fetchall()]
+        logger.info("scan/rescan: %d root(s) — %s", len(roots), roots)
         if not roots:
             await _manager.broadcast({"type": "scan_complete"})
             return
         for root in roots:
             async with get_db() as db:
+                logger.info("scan starting: root=%s", root)
                 await run_scan(root, _manager.broadcast, db)
+                logger.info("scan finished: root=%s", root)
 
     asyncio.create_task(_run())
     return {"status": "started"}
