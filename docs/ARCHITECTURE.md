@@ -26,12 +26,12 @@
 
 | # | Question | Blocks | Owner |
 |---|----------|--------|-------|
-| OD-01 | InsightFace buffalo_l vs DeepFace/FaceNet512: which achieves higher precision on family photos with aging? | M1 model selection | Engineering spike (M0) |
-| OD-02 | Default cosine similarity threshold for auto-assign vs uncertain queue | M1 clustering | After OD-01 spike |
-| OD-03 | Cluster merge UX: drag-and-drop medallions vs explicit merge button? | M3 UI | Design |
-| OD-04 | Multiple faces per photo: confirm both are independently clustered | M1 | Product |
-| OD-05 | Delete person: remove labels without deleting photos? | M3 | Product |
-| OD-06 | FAISS index promotion threshold: at what embedding count do we rebuild from Flat → IVFFlat → IVFPQ? | M1 infra | Engineering |
+| ~~OD-01~~ | ~~InsightFace buffalo_l vs DeepFace/FaceNet512~~ | **RESOLVED: InsightFace buffalo_l** (ArcFace/R100 via ONNX Runtime; Immich precedent; strongest for aging + sibling disambiguation) | — |
+| OD-02 | Default cosine similarity threshold for auto-assign vs uncertain queue | M1 clustering | **Placeholder: auto_assign=0.68, uncertain=0.50. Tune after first real-world scan.** |
+| ~~OD-03~~ | ~~Cluster merge UX~~ | **RESOLVED: Explicit "Merge with…" button in person detail panel → person picker → confirmation dialog. No drag-and-drop.** | — |
+| ~~OD-04~~ | ~~Multiple faces per photo~~ | **RESOLVED: Each face detected and clustered independently. A photo with 3 faces creates 3 independent records — appears in all 3 people's galleries. Faces below detection size threshold (~20px) are skipped and logged as a count in the UI.** | — |
+| ~~OD-05~~ | ~~Delete person~~ | **RESOLVED: Deleting a person removes their name and labels only. All associated face embeddings return to the unnamed queue for re-identification. Photos are never touched.** | — |
+| ~~OD-06~~ | ~~FAISS index promotion thresholds~~ | **RESOLVED: Flat (<10K embeddings) → IVFFlat/nlist=256 (10K–250K) → IVFPQ/nlist=2048/PQ16 (250K+). Rebuilds run in background; old index serves queries during rebuild.** | — |
 
 ---
 
