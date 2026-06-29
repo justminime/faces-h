@@ -89,6 +89,16 @@ def test_release_workflow_triggers_on_version_tags_and_dispatch() -> None:
     )
 
 
+def test_build_workflows_rename_sidecar_binary_for_tauri() -> None:
+    """Tauri externalBin requires the binary to carry the target-triple suffix.
+    Both CI workflows must copy faces-sidecar.exe → faces-sidecar-<triple>.exe."""
+    for wf in (".github/workflows/build.yml", ".github/workflows/release.yml"):
+        content = _read(wf)
+        assert "faces-sidecar-x86_64-pc-windows-msvc.exe" in content, (
+            f"{wf} must rename the sidecar binary to include the Tauri target triple"
+        )
+
+
 def test_smoke_test_script_exists_and_is_valid_python() -> None:
     path = os.path.join(REPO_ROOT, "scripts", "smoke_test.py")
     assert os.path.isfile(path), "scripts/smoke_test.py must exist"

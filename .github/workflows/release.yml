@@ -58,6 +58,9 @@ jobs:
         working-directory: sidecar
         run: pyinstaller faces-sidecar.spec
 
+      - name: Rename sidecar binary for Tauri externalBin
+        run: Copy-Item sidecar\dist\faces-sidecar.exe "sidecar\dist\faces-sidecar-x86_64-pc-windows-msvc.exe"
+
       - name: Install Node dependencies
         run: npm ci
 
