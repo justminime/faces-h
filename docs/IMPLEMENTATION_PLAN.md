@@ -5,7 +5,25 @@
 **Last updated:** 2026-06-28  
 **Reference:** `docs/ARCHITECTURE.md`, `docs/PRD.md`
 
-This document is structured for execution by Claude Code specialist subagents. Each issue is self-contained: it lists its dependencies, the exact files to create or modify, and a binary acceptance checklist. Agents should not begin an issue until all listed dependencies are merged to `main`.
+This document is structured for execution by Claude Code specialist subagents. Each issue is self-contained: it lists its dependencies, the exact files to create or modify, required tests, and a binary Definition of Done (DoD) checklist. Agents should not begin an issue until all listed dependencies are merged to `main`.
+
+## Definition of Done (applies to every issue)
+
+Every issue is only complete when **all** of the following are true, in addition to the issue's own acceptance criteria:
+
+- [ ] All acceptance criteria in the issue are met (binary: pass or fail — no "mostly done")
+- [ ] Tests written and passing — every issue must ship at least one test
+- [ ] `ruff check sidecar/` passes (Python changes)
+- [ ] `mypy sidecar/ --ignore-missing-imports` passes (Python changes)
+- [ ] `npm run type-check` passes (TypeScript changes)
+- [ ] `npm run lint` passes (TypeScript changes)
+- [ ] `cargo clippy -- -D warnings` passes (Rust changes)
+- [ ] CI is green on the PR branch before merge
+- [ ] No photo files are read, written, moved, or deleted by this change
+- [ ] No hardcoded ports, paths, or credentials in committed code
+
+Use `/impl-issue {N}` to have a subagent implement an issue. It enforces this DoD before opening the PR.  
+Use `/check-reliability` before merging any PR that touches the ML pipeline, clustering, or corrections.
 
 ---
 
