@@ -85,6 +85,10 @@ export function startScan(rootPath: string): Promise<{ status: string }> {
   });
 }
 
+export function rescan(): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>("/scan/rescan", { method: "POST" });
+}
+
 export function correctFace(
   photoId: number,
   faceId: number,

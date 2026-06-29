@@ -57,12 +57,21 @@ CREATE TABLE IF NOT EXISTS scan_state (
 )
 """
 
+SCAN_ROOTS = """
+CREATE TABLE IF NOT EXISTS scan_roots (
+    id          INTEGER PRIMARY KEY,
+    path        TEXT    NOT NULL UNIQUE,
+    added_at    INTEGER NOT NULL
+)
+"""
+
 INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_faces_photo     ON faces(photo_id)",
     "CREATE INDEX IF NOT EXISTS idx_faces_person    ON faces(person_id)",
     "CREATE INDEX IF NOT EXISTS idx_faces_status    ON faces(assign_status)",
     "CREATE INDEX IF NOT EXISTS idx_photos_path     ON photos(path)",
     "CREATE INDEX IF NOT EXISTS idx_photos_taken_at ON photos(taken_at)",
+    "CREATE INDEX IF NOT EXISTS idx_scan_roots_path ON scan_roots(path)",
 ]
 
-ALL_TABLES = [PHOTOS, FACES, PEOPLE, CORRECTIONS, SCAN_STATE]
+ALL_TABLES = [PHOTOS, FACES, PEOPLE, CORRECTIONS, SCAN_STATE, SCAN_ROOTS]
