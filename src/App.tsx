@@ -89,7 +89,20 @@ function App() {
         setQueueCount(queueResp.count);
       })
       .catch(() => {
-        // not running in Tauri — no-op (no mock data in production)
+        // Not running inside Tauri (browser dev mode). Use the dev sidecar URL
+        // from the env var set in .env.development so the UI is fully testable
+        // without a packaged build.
+        const devUrl = import.meta.env.VITE_DEV_SIDECAR_URL as string | undefined;
+        if (devUrl) {
+          initClient(devUrl);
+          initWs(devUrl);
+          Promise.all([fetchPeople(), fetchQueueCount()])
+            .then(([apiPeople, queueResp]) => {
+              setPeople(apiPeople.map(mapPerson));
+              setQueueCount(queueResp.count);
+            })
+            .catch(() => {});
+        }
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setPeople, setQueueCount]);

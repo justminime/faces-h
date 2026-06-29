@@ -36,13 +36,23 @@ pub fn allocate_port() -> u16 {
 }
 
 /// Poll until the TCP port accepts connections or the timeout elapses.
-/// Using raw TCP rather than HTTP so we add no extra runtime dependency.
+/// Logs a progress line every 10 s so the app.log shows the wait is alive.
 fn wait_for_port(port: u16, timeout: Duration) -> bool {
     use std::net::TcpStream;
-    let deadline = Instant::now() + timeout;
+    let start = Instant::now();
+    let deadline = start + timeout;
+    let mut next_log = start + Duration::from_secs(10);
     while Instant::now() < deadline {
         if TcpStream::connect(("127.0.0.1", port)).is_ok() {
             return true;
+        }
+        let now = Instant::now();
+        if now >= next_log {
+            log::info!(
+                "waiting for sidecar on port {port} — {} s elapsed",
+                now.duration_since(start).as_secs()
+            );
+            next_log += Duration::from_secs(10);
         }
         std::thread::sleep(Duration::from_millis(200));
     }
@@ -140,18 +150,19 @@ pub fn run() {
 
             // Health-check the sidecar in a background thread; emit "sidecar-ready"
             // once it accepts TCP connections so the frontend knows to proceed.
-            // 90 s timeout: Windows Defender scans new PyInstaller binaries on first
-            // run after an upgrade, which can delay uvicorn startup by 60+ seconds.
+            // 180 s timeout: on first run after an upgrade Windows Defender scans
+            // the PyInstaller binary; UPX is disabled so this now takes < 30 s,
+            // but we keep a generous limit for slow / heavily locked-down machines.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let start = std::time::Instant::now();
-                if wait_for_port(port, Duration::from_secs(90)) {
+                if wait_for_port(port, Duration::from_secs(180)) {
                     let elapsed = start.elapsed().as_millis();
                     log::info!("sidecar ready on port {port} after {elapsed} ms");
                     let _ = handle.emit("sidecar-ready", &url);
                 } else {
-                    log::error!("sidecar did not bind on port {port} within 90 s — giving up");
-                    let _ = handle.emit("sidecar-error", "Engine failed to start after 90 s");
+                    log::error!("sidecar did not bind on port {port} within 180 s — giving up");
+                    let _ = handle.emit("sidecar-error", "Engine failed to start after 3 min");
                     handle.exit(1);
                 }
             });

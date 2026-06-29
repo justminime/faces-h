@@ -139,7 +139,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             <div className="onboarding__progress-bar onboarding__progress-bar--pulse" />
           </div>
           <p className="onboarding__progress-label">
-            First launch after an update may take up to a minute.
+            This may take 1–2 minutes on first launch after an update.
           </p>
         </div>
       </div>
