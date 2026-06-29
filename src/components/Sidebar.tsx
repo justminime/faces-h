@@ -10,6 +10,7 @@ interface SidebarProps {
   unnamedCount: number;
   scanProgress: number | null;
   onQueueClick?: () => void;
+  onSearchClick?: () => void;
 }
 
 export function Sidebar({
@@ -19,6 +20,7 @@ export function Sidebar({
   unnamedCount,
   scanProgress,
   onQueueClick,
+  onSearchClick,
 }: SidebarProps) {
   const queueCount = useQueueStore((s) => s.queueCount);
 
@@ -34,6 +36,15 @@ export function Sidebar({
       )}
 
       <h1 className="sidebar__app-name">faces-h</h1>
+
+      <button
+        type="button"
+        className="sidebar__nav-btn"
+        onClick={onSearchClick}
+        aria-label="Search"
+      >
+        Search
+      </button>
 
       <button
         type="button"

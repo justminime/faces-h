@@ -1,5 +1,5 @@
-import type { ApiPerson, ApiPhoto, QueueItem } from "./types";
-export type { ApiPerson, ApiPhoto, QueueItem };
+import type { ApiPerson, ApiPhoto, QueueItem, SearchRequest } from "./types";
+export type { ApiPerson, ApiPhoto, QueueItem, SearchRequest };
 
 let _baseUrl = "";
 
@@ -55,6 +55,13 @@ export function mergePeople(
       }),
     },
   );
+}
+
+export function searchPhotos(req: SearchRequest): Promise<ApiPhoto[]> {
+  return apiFetch<ApiPhoto[]>("/search", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
 }
 
 export function fetchQueueCount(): Promise<{ count: number }> {

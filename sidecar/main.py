@@ -9,6 +9,7 @@ from api.faces import router as faces_router
 from api.people import router as people_router
 from api.queue import router as queue_router
 from api.scan import router as scan_router
+from api.search import router as search_router
 
 app = FastAPI(title="faces-h sidecar", version="0.1.0")
 
@@ -25,6 +26,7 @@ app.include_router(scan_router)   # owns GET /ws WebSocket
 app.include_router(people_router)
 app.include_router(queue_router)
 app.include_router(faces_router)
+app.include_router(search_router)
 
 
 @app.get("/health")
