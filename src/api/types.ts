@@ -17,3 +17,12 @@ export interface ApiPhoto {
   taken_at: number | null;
   faces: ApiFace[];
 }
+
+export interface QueueItem {
+  face_id: number;
+  photo_id: number;
+  face_crop_url: string;
+  suggested_person_id: number | null;
+  suggested_person_name: string | null;
+  assign_conf: number | null;
+}

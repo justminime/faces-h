@@ -70,20 +70,34 @@ class ClusteringService:
         if best_person_id is None:
             status: AssignStatus = "unreviewed"
             person_id_out: int | None = None
+            suggested_person_id_out: int | None = None
             conf_out: float | None = None
         else:
             status = self._status(best_conf)
-            # Rule 1: only link to a person when definitively assigned
+            # Rule 1: only link person_id when definitively assigned
             person_id_out = best_person_id if status == "assigned" else None
+            # Store the best candidate for uncertain faces so the review queue can show it
+            suggested_person_id_out = best_person_id if status == "uncertain" else None
             conf_out = best_conf
 
         await db.execute(
             """
             UPDATE faces
-               SET person_id = ?, assign_conf = ?, assign_status = ?
+               SET person_id = ?,
+                   suggested_person_id = ?,
+                   assign_conf = ?,
+                   assign_status = ?,
+                   embedding = ?
              WHERE id = ?
             """,
-            (person_id_out, conf_out, status, face_id),
+            (
+                person_id_out,
+                suggested_person_id_out,
+                conf_out,
+                status,
+                embedding.astype(np.float32).tobytes(),
+                face_id,
+            ),
         )
         await db.commit()
         return status

@@ -1,5 +1,5 @@
-import type { ApiPerson, ApiPhoto } from "./types";
-export type { ApiPerson, ApiPhoto };
+import type { ApiPerson, ApiPhoto, QueueItem } from "./types";
+export type { ApiPerson, ApiPhoto, QueueItem };
 
 let _baseUrl = "";
 
@@ -53,6 +53,32 @@ export function mergePeople(
         target_id: targetId,
         confirmed: true,
       }),
+    },
+  );
+}
+
+export function fetchQueueCount(): Promise<{ count: number }> {
+  return apiFetch<{ count: number }>("/queue/count");
+}
+
+export function fetchUncertainQueue(
+  offset = 0,
+  limit = 50,
+): Promise<QueueItem[]> {
+  return apiFetch<QueueItem[]>(
+    `/queue/uncertain?offset=${offset}&limit=${limit}`,
+  );
+}
+
+export function confirmFace(
+  faceId: number,
+  personId: number,
+): Promise<{ face_id: number; person_id: number; assign_status: string }> {
+  return apiFetch<{ face_id: number; person_id: number; assign_status: string }>(
+    `/queue/${faceId}/confirm`,
+    {
+      method: "POST",
+      body: JSON.stringify({ person_id: personId }),
     },
   );
 }

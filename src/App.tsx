@@ -7,9 +7,10 @@ import { DetailPanel } from "./components/DetailPanel";
 import { useUIStore } from "./store/ui";
 import { MOCK_PHOTOS, MOCK_UNNAMED_COUNT } from "./mocks/data";
 import type { Person, Photo } from "./mocks/data";
-import { initClient, fetchPeople, fetchPersonPhotos } from "./api/client";
+import { initClient, fetchPeople, fetchPersonPhotos, fetchQueueCount } from "./api/client";
 import { initWs } from "./api/ws";
 import type { ApiPerson, ApiPhoto } from "./api/types";
+import { useQueueStore } from "./store/queue";
 
 function mapPerson(p: ApiPerson): Person {
   return {
@@ -48,6 +49,7 @@ function App() {
     setThumbnailSize,
   } = useUIStore();
 
+  const setQueueCount = useQueueStore((s) => s.setQueueCount);
   const [photos, setPhotos] = useState<Photo[]>(MOCK_PHOTOS);
 
   useEffect(() => {
@@ -55,13 +57,16 @@ function App() {
       .then((url) => {
         initClient(url);
         initWs(url);
-        return fetchPeople();
+        return Promise.all([fetchPeople(), fetchQueueCount()]);
       })
-      .then((apiPeople) => setPeople(apiPeople.map(mapPerson)))
+      .then(([apiPeople, queueResp]) => {
+        setPeople(apiPeople.map(mapPerson));
+        setQueueCount(queueResp.count);
+      })
       .catch(() => {
         // not running in Tauri — keep mock data
       });
-  }, [setPeople]);
+  }, [setPeople, setQueueCount]);
 
   useEffect(() => {
     if (selectedPersonId === null) {
