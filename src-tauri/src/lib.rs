@@ -1,7 +1,7 @@
 use std::net::TcpListener;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
 pub struct SidecarState {
