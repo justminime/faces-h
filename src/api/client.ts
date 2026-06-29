@@ -64,6 +64,23 @@ export function searchPhotos(req: SearchRequest): Promise<ApiPhoto[]> {
   });
 }
 
+export function fetchModelsStatus(): Promise<{
+  ready: boolean;
+  downloading: boolean;
+  progress: number;
+}> {
+  return apiFetch<{ ready: boolean; downloading: boolean; progress: number }>(
+    "/models/status",
+  );
+}
+
+export function startScan(rootPath: string): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>("/scan/start", {
+    method: "POST",
+    body: JSON.stringify({ root_path: rootPath }),
+  });
+}
+
 export function correctFace(
   photoId: number,
   faceId: number,
