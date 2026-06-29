@@ -16,9 +16,6 @@ from main import _setup_logging  # noqa: E402
 
 def test_log_file_created(tmp_path: object) -> None:
     """_setup_logging creates sidecar.log inside {data_dir}/logs/."""
-    import importlib
-    import main as main_mod
-
     # Reset root logger between test runs
     root = logging.getLogger()
     original_handlers = root.handlers[:]
