@@ -18,6 +18,14 @@ export interface ApiPhoto {
   faces: ApiFace[];
 }
 
+export interface SearchRequest {
+  people_ids: number[];
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface QueueItem {
   face_id: number;
   photo_id: number;

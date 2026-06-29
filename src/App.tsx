@@ -4,6 +4,7 @@ import "./App.css";
 import { Sidebar } from "./components/Sidebar";
 import { PhotoGrid } from "./components/PhotoGrid";
 import { DetailPanel } from "./components/DetailPanel";
+import { SearchView } from "./components/SearchView";
 import { useUIStore } from "./store/ui";
 import { MOCK_PHOTOS, MOCK_UNNAMED_COUNT } from "./mocks/data";
 import type { Person, Photo } from "./mocks/data";
@@ -51,6 +52,7 @@ function App() {
 
   const setQueueCount = useQueueStore((s) => s.setQueueCount);
   const [photos, setPhotos] = useState<Photo[]>(MOCK_PHOTOS);
+  const [view, setView] = useState<"gallery" | "search">("gallery");
 
   useEffect(() => {
     invoke<string>("get_sidecar_url")
@@ -85,18 +87,26 @@ function App() {
       <Sidebar
         people={people}
         selectedPersonId={selectedPersonId}
-        onPersonSelect={setSelectedPerson}
+        onPersonSelect={(id) => { setSelectedPerson(id); setView("gallery"); }}
         unnamedCount={MOCK_UNNAMED_COUNT}
         scanProgress={scanProgress}
+        onQueueClick={() => setView("gallery")}
+        onSearchClick={() => setView("search")}
       />
-      <PhotoGrid
-        photos={photos}
-        thumbnailSize={thumbnailSize}
-        onSizeChange={setThumbnailSize}
-        onSelect={setSelectedPhoto}
-        selectedPhotoId={selectedPhotoId}
-      />
-      <DetailPanel photo={selectedPhoto} />
+      {view === "search" ? (
+        <SearchView people={people} />
+      ) : (
+        <>
+          <PhotoGrid
+            photos={photos}
+            thumbnailSize={thumbnailSize}
+            onSizeChange={setThumbnailSize}
+            onSelect={setSelectedPhoto}
+            selectedPhotoId={selectedPhotoId}
+          />
+          <DetailPanel photo={selectedPhoto} />
+        </>
+      )}
     </div>
   );
 }
