@@ -15,17 +15,19 @@ CREATE TABLE IF NOT EXISTS photos (
 
 FACES = """
 CREATE TABLE IF NOT EXISTS faces (
-    id              INTEGER PRIMARY KEY,
-    photo_id        INTEGER NOT NULL REFERENCES photos(id),
-    bbox_x          REAL,
-    bbox_y          REAL,
-    bbox_w          REAL,
-    bbox_h          REAL,
-    detection_conf  REAL    NOT NULL,
-    embedding_id    INTEGER,
-    person_id       INTEGER REFERENCES people(id),
-    assign_conf     REAL,
-    assign_status   TEXT    NOT NULL
+    id                  INTEGER PRIMARY KEY,
+    photo_id            INTEGER NOT NULL REFERENCES photos(id),
+    bbox_x              REAL,
+    bbox_y              REAL,
+    bbox_w              REAL,
+    bbox_h              REAL,
+    detection_conf      REAL    NOT NULL,
+    embedding           BLOB,
+    embedding_id        INTEGER,
+    person_id           INTEGER REFERENCES people(id),
+    suggested_person_id INTEGER REFERENCES people(id),
+    assign_conf         REAL,
+    assign_status       TEXT    NOT NULL
 )
 """
 

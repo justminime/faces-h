@@ -2,10 +2,12 @@ import argparse
 import os
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.faces import router as faces_router
 from api.people import router as people_router
+from api.queue import router as queue_router
 from api.scan import router as scan_router
 
 app = FastAPI(title="faces-h sidecar", version="0.1.0")
@@ -19,42 +21,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(scan_router)
+app.include_router(scan_router)   # owns GET /ws WebSocket
 app.include_router(people_router)
-
-
-class _ConnectionManager:
-    """Tracks active WebSocket connections for server-push events."""
-
-    def __init__(self) -> None:
-        self._active: list[WebSocket] = []
-
-    async def connect(self, ws: WebSocket) -> None:
-        await ws.accept()
-        self._active.append(ws)
-
-    def disconnect(self, ws: WebSocket) -> None:
-        self._active = [w for w in self._active if w is not ws]
-
-    async def broadcast(self, message: str) -> None:
-        for ws in list(self._active):
-            try:
-                await ws.send_text(message)
-            except Exception:
-                self.disconnect(ws)
-
-
-_ws_manager = _ConnectionManager()
-
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket) -> None:
-    await _ws_manager.connect(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        _ws_manager.disconnect(websocket)
+app.include_router(queue_router)
+app.include_router(faces_router)
 
 
 @app.get("/health")

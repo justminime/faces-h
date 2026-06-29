@@ -1,5 +1,6 @@
 import { Medallion } from "./Medallion";
 import type { Person } from "../mocks/data";
+import { useQueueStore } from "../store/queue";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -8,6 +9,7 @@ interface SidebarProps {
   onPersonSelect: (id: number | null) => void;
   unnamedCount: number;
   scanProgress: number | null;
+  onQueueClick?: () => void;
 }
 
 export function Sidebar({
@@ -16,7 +18,10 @@ export function Sidebar({
   onPersonSelect,
   unnamedCount,
   scanProgress,
+  onQueueClick,
 }: SidebarProps) {
+  const queueCount = useQueueStore((s) => s.queueCount);
+
   return (
     <nav className="sidebar" aria-label="People">
       {scanProgress !== null && (
@@ -29,6 +34,18 @@ export function Sidebar({
       )}
 
       <h1 className="sidebar__app-name">faces-h</h1>
+
+      <button
+        type="button"
+        className="sidebar__queue-btn"
+        onClick={onQueueClick}
+        aria-label={`Uncertain faces: ${queueCount}`}
+      >
+        <span className="sidebar__queue-label">To review</span>
+        <span className="sidebar__queue-badge" aria-live="polite">
+          {queueCount}
+        </span>
+      </button>
 
       <div className="sidebar__section-label">People</div>
       <ul className="sidebar__list">
