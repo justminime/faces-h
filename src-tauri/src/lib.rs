@@ -84,6 +84,17 @@ fn reveal_in_explorer(_path: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("app".into()),
+                    },
+                ))
+                .max_file_size(5 * 1024 * 1024)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                .build(),
+        )
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -102,6 +113,8 @@ pub fn run() {
                 .to_string_lossy()
                 .to_string();
 
+            log::info!("faces-h starting — port={port} data_dir={data_dir}");
+
             // Spawn the Python sidecar; the binary is resolved from externalBin in tauri.conf.json.
             let (_, child) = app
                 .shell()
@@ -112,6 +125,8 @@ pub fn run() {
                 .map_err(|e| e.to_string())?;
 
             let sidecar_pid = child.pid();
+            log::info!("sidecar spawned — waiting for port {port}");
+
             app.manage(SidecarState {
                 url: url.clone(),
                 child: Mutex::new(Some(child)),
@@ -123,9 +138,10 @@ pub fn run() {
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 if wait_for_port(port, Duration::from_secs(30)) {
+                    log::info!("sidecar ready on port {port}");
                     let _ = handle.emit("sidecar-ready", &url);
                 } else {
-                    eprintln!("Sidecar did not start within 30 s — exiting");
+                    log::error!("sidecar did not bind within 30 s — exiting");
                     handle.exit(1);
                 }
             });
@@ -136,6 +152,7 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 let app = window.app_handle();
                 if let Some(state) = app.try_state::<SidecarState>() {
+                    log::info!("window closing — killing sidecar");
                     // Kill the full process tree so PyInstaller's bootstrap AND
                     // its Python worker subprocess are both terminated (#54).
                     kill_sidecar_tree(state.pid);
