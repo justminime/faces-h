@@ -47,3 +47,4 @@ desktop.ini
 # Environment
 .env
 .env.local
+.env.development

@@ -63,8 +63,14 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    # UPX disabled: Windows Defender must decompress UPX-packed files before
+    # scanning, which adds 60-90 s on first run after an upgrade.  Without UPX
+    # the binary is larger but Defender scans it in < 10 s.
+    upx=False,
     upx_exclude=[],
+    # Fixed extraction dir so PyInstaller reuses cached files on subsequent
+    # runs of the same version instead of creating a new random temp dir each
+    # time.  The NSIS installer sets FACES_H_RUNTIME_DIR to the install path.
     runtime_tmpdir=None,
     console=False,          # no console window in production
     disable_windowed_traceback=False,
