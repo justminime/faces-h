@@ -21,8 +21,9 @@
     "externalBin": ["../sidecar/dist/faces-sidecar"],
     "windows": {
       "nsis": {
-        "installMode": "currentUser",
-        "displayLanguageSelector": false
+        "installMode": "perMachine",
+        "displayLanguageSelector": false,
+        "installerHooks": "./nsis/hooks.nsi"
       }
     }
   },
