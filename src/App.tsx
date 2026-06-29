@@ -9,9 +9,9 @@ import { CorrectionModal } from "./components/CorrectionModal";
 import { ToastContainer } from "./components/Toast";
 import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
 import { useUIStore } from "./store/ui";
-import { MOCK_PHOTOS, MOCK_UNNAMED_COUNT } from "./mocks/data";
+import { MOCK_UNNAMED_COUNT } from "./mocks/data";
 import type { Person, Photo } from "./mocks/data";
-import { initClient, fetchPeople, fetchPersonPhotos, fetchQueueCount } from "./api/client";
+import { initClient, fetchPeople, fetchPersonPhotos, fetchQueueCount, fetchModelsStatus } from "./api/client";
 import { initWs } from "./api/ws";
 import type { ApiPerson, ApiPhoto } from "./api/types";
 import { useQueueStore } from "./store/queue";
@@ -54,7 +54,7 @@ function App() {
   } = useUIStore();
 
   const setQueueCount = useQueueStore((s) => s.setQueueCount);
-  const [photos, setPhotos] = useState<Photo[]>(MOCK_PHOTOS);
+  const [photos, setPhotos] = useState<Photo[]>([]);
   const [view, setView] = useState<"gallery" | "search">("gallery");
   const [onboardingDone, setOnboardingDone] = useState(
     () => localStorage.getItem(ONBOARDING_KEY) !== null,
@@ -66,23 +66,36 @@ function App() {
 
   useEffect(() => {
     invoke<string>("get_sidecar_url")
-      .then((url) => {
+      .then(async (url) => {
         initClient(url);
         initWs(url);
-        return Promise.all([fetchPeople(), fetchQueueCount()]);
-      })
-      .then(([apiPeople, queueResp]) => {
+        // If onboarding was previously marked done but the model never downloaded,
+        // reset onboarding so the user goes through setup properly.
+        if (onboardingDone) {
+          try {
+            const modelStatus = await fetchModelsStatus();
+            if (!modelStatus.ready) {
+              localStorage.removeItem(ONBOARDING_KEY);
+              setOnboardingDone(false);
+              return;
+            }
+          } catch {
+            // sidecar still starting — leave onboarding state as-is
+          }
+        }
+        const [apiPeople, queueResp] = await Promise.all([fetchPeople(), fetchQueueCount()]);
         setPeople(apiPeople.map(mapPerson));
         setQueueCount(queueResp.count);
       })
       .catch(() => {
-        // not running in Tauri — keep mock data
+        // not running in Tauri — no-op (no mock data in production)
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setPeople, setQueueCount]);
 
   useEffect(() => {
     if (selectedPersonId === null) {
-      setPhotos(MOCK_PHOTOS);
+      setPhotos([]);
       return;
     }
     fetchPersonPhotos(selectedPersonId)

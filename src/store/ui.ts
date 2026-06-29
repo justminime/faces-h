@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { MOCK_PEOPLE } from "../mocks/data";
 import type { Person } from "../mocks/data";
 
 const SIZE_KEY = "faces-h:thumbnailSize";
@@ -27,7 +26,7 @@ interface UIStore {
 }
 
 export const useUIStore = create<UIStore>((set) => ({
-  people: MOCK_PEOPLE,
+  people: [],
   selectedPersonId: null,
   selectedPhotoId: null,
   thumbnailSize: loadSize(),

@@ -113,14 +113,19 @@ pub fn run() {
                 .to_string_lossy()
                 .to_string();
 
-            log::info!("faces-h starting — port={port} data_dir={data_dir}");
+            let app_version = app.package_info().version.to_string();
+            log::info!("faces-h starting — version={app_version} port={port} data_dir={data_dir}");
 
             // Spawn the Python sidecar; the binary is resolved from externalBin in tauri.conf.json.
             let (_, child) = app
                 .shell()
                 .sidecar("faces-sidecar")
                 .map_err(|e| e.to_string())?
-                .args(["--port", &port.to_string(), "--data-dir", &data_dir])
+                .args([
+                    "--port", &port.to_string(),
+                    "--data-dir", &data_dir,
+                    "--app-version", &app_version,
+                ])
                 .spawn()
                 .map_err(|e| e.to_string())?;
 

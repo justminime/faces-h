@@ -6,7 +6,7 @@ import "./Onboarding.css";
 
 export const ONBOARDING_KEY = "onboarding_complete";
 
-type Step = "welcome" | "folder" | "download" | "starting";
+type Step = "welcome" | "folder" | "download" | "starting" | "error";
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -29,6 +29,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     }
   }
 
+  const [errorMessage, setErrorMessage] = useState<string>("");
+
   async function handleStartScanning() {
     try {
       const status = await fetchModelsStatus();
@@ -38,7 +40,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         return;
       }
     } catch {
-      // sidecar not up — proceed optimistically
+      setErrorMessage(
+        "Cannot reach the faces-h engine. Make sure the app is fully started and try again.",
+      );
+      setStep("error");
+      return;
     }
     setModelsReady(true);
     await triggerScan();
@@ -52,11 +58,14 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     setStep("starting");
     try {
       await startScan(folderPath);
+      localStorage.setItem(ONBOARDING_KEY, "1");
+      onComplete();
     } catch {
-      // sidecar not reachable — still complete onboarding
+      setErrorMessage(
+        "Could not start the scan. The engine may still be loading — please wait a moment and try again.",
+      );
+      setStep("error");
     }
-    localStorage.setItem(ONBOARDING_KEY, "1");
-    onComplete();
   }
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -186,6 +195,23 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               Skip and start scanning
             </button>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "error") {
+    return (
+      <div className="onboarding" data-testid="onboarding-error">
+        <div className="onboarding__card">
+          <h2 className="onboarding__title">Something went wrong</h2>
+          <p className="onboarding__tagline onboarding__tagline--error">{errorMessage}</p>
+          <button
+            className="onboarding__btn onboarding__btn--primary"
+            onClick={() => setStep("folder")}
+          >
+            Try again
+          </button>
         </div>
       </div>
     );
