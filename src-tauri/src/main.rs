@@ -2,15 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    tauri::Builder::default()
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn placeholder_passes() {
-        assert!(true);
-    }
+    faces_h_lib::run();
 }
