@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { fetchModelsStatus, startScan } from "../api/client";
+import { fetchModelsStatus, preloadModels, startScan } from "../api/client";
 import { useUIStore } from "../store/ui";
 import "./Onboarding.css";
 
@@ -72,8 +72,17 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelDownloadProgress, step]);
 
-  // Polling fallback: if WebSocket events aren't arriving (sidecar still booting),
-  // poll /models/status every 2 s so we still advance when the download finishes.
+  // When the download step appears, trigger the actual model download.
+  // Without this call nothing starts — InsightFace only downloads on first use.
+  useEffect(() => {
+    if (step !== "download") return;
+    void preloadModels().catch(() => {
+      // sidecar not yet reachable — polling below will retry
+    });
+  }, [step]);
+
+  // Polling fallback: if WebSocket events aren't arriving, poll /models/status
+  // every 2 s so we still advance when the download finishes.
   useEffect(() => {
     if (step !== "download") return;
     pollRef.current = setInterval(async () => {
@@ -84,7 +93,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           void handleDownloadComplete();
         }
       } catch {
-        // sidecar not yet reachable — keep polling
+        // sidecar not yet reachable — keep polling and retry preload
+        void preloadModels().catch(() => {});
       }
     }, 2_000);
     return () => {
