@@ -5,6 +5,7 @@ survive across reconnects. Schema DDL is applied on first connect — idempotent
 because every statement uses CREATE … IF NOT EXISTS.
 """
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
@@ -12,6 +13,8 @@ from typing import AsyncIterator
 import aiosqlite
 
 from db.schema import ALL_TABLES, INDEXES
+
+logger = logging.getLogger(__name__)
 
 
 def _db_path() -> str:

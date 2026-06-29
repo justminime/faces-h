@@ -71,21 +71,25 @@ async def preload_models() -> dict[str, str]:
     data_dir = os.environ.get("FACES_H_DATA_DIR", ".")
 
     if _is_ready(data_dir):
+        logger.info("models/preload: model already present — skipping")
         return {"status": "ready"}
 
     with _preload_lock:
         if _preload_running:
+            logger.info("models/preload: download already in progress")
             return {"status": "downloading"}
         _preload_running = True
+
+    logger.info("models/preload: starting buffalo_l download into %s", _model_dir(data_dir))
 
     def _download() -> None:
         global _preload_running
         try:
             from ml.insightface_recognizer import InsightFaceRecognizer  # noqa: PLC0415
             InsightFaceRecognizer(data_dir)
-            logger.info("buffalo_l model download complete")
+            logger.info("models/preload: buffalo_l download complete")
         except Exception:
-            logger.exception("buffalo_l model preload failed")
+            logger.exception("models/preload: buffalo_l download failed")
         finally:
             _preload_running = False
 
@@ -95,12 +99,18 @@ async def preload_models() -> dict[str, str]:
     async def _monitor() -> None:
         from api.scan import broadcast_ws  # noqa: PLC0415 — lazy to avoid circular import
         mdir = _model_dir(data_dir)
+        last_pct = -1
         while _preload_running:
             size = _dir_size(mdir)
             progress = min(size / _BUFFALO_L_BYTES, 0.99)
+            pct = int(progress * 100)
+            if pct != last_pct and pct % 10 == 0:
+                logger.info("models/preload: progress %d%% (%d MB)", pct, size // (1024 * 1024))
+                last_pct = pct
             await broadcast_ws({"type": "model_download_progress", "progress": progress})
             await asyncio.sleep(1)
         # Final event: 1.0 so the frontend auto-advances
+        logger.info("models/preload: broadcasting completion")
         await broadcast_ws({"type": "model_download_progress", "progress": 1.0})
 
     asyncio.create_task(_monitor())
