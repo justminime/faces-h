@@ -34,6 +34,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Inject version from release tag
+        shell: pwsh
+        run: |
+          $version = "$env:RELEASE_TAG" -replace '^v', ''
+          $conf = Get-Content src-tauri/tauri.conf.json -Raw
+          $conf = $conf -replace '"version":\s*"[^"]*"', ('"version": "' + $version + '"')
+          Set-Content src-tauri/tauri.conf.json $conf
+          $cargo = Get-Content src-tauri/Cargo.toml -Raw
+          $cargo = $cargo -replace '(?m)^version\s*=\s*"[^"]*"', ('version = "' + $version + '"')
+          Set-Content src-tauri/Cargo.toml $cargo
+          Write-Host "Patched to $version"
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"

@@ -89,6 +89,17 @@ def test_release_workflow_triggers_on_version_tags_and_dispatch() -> None:
     )
 
 
+def test_release_workflow_injects_version_from_tag() -> None:
+    """release.yml must patch tauri.conf.json and Cargo.toml before building
+    so that releases triggered via the GitHub UI (no code version bump) still
+    embed the correct version in the installer."""
+    workflow = _read(".github/workflows/release.yml")
+    assert "RELEASE_TAG" in workflow and "tauri.conf.json" in workflow and "Cargo.toml" in workflow, (
+        "release.yml must have an inject-version step that patches tauri.conf.json "
+        "and Cargo.toml from the RELEASE_TAG env var"
+    )
+
+
 def test_build_workflows_rename_sidecar_binary_for_tauri() -> None:
     """Tauri externalBin requires the binary to carry the target-triple suffix.
     Both CI workflows must copy faces-sidecar.exe → faces-sidecar-<triple>.exe."""
