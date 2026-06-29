@@ -49,7 +49,7 @@ async def list_person_photos(
     limit: int = 50,
     offset: int = 0,
 ) -> list[dict[str, Any]]:
-    """Return photos for a person — Rule 5: only 'assigned' faces returned."""
+    """Return photos for a person, grouped with nested faces — Rule 5: only 'assigned'."""
     async with get_db() as db:
         row = await (
             await db.execute("SELECT id FROM people WHERE id = ?", (person_id,))
@@ -57,26 +57,50 @@ async def list_person_photos(
         if row is None:
             raise HTTPException(status_code=404, detail="Person not found")
 
+        # Paginate at the photo level, then gather each photo's assigned faces.
         async with db.execute(
             """
-            SELECT ph.id,
+            SELECT ph.id        AS photo_id,
                    ph.path,
                    ph.taken_at,
-                   ph.width,
-                   ph.height,
-                   f.id        AS face_id,
-                   f.bbox_x, f.bbox_y, f.bbox_w, f.bbox_h,
+                   f.id         AS face_id,
                    f.assign_conf
-              FROM faces f
-              JOIN photos ph ON ph.id = f.photo_id
-             WHERE f.person_id = ?
-               AND f.assign_status = 'assigned'
+              FROM (
+                  SELECT DISTINCT f2.photo_id
+                    FROM faces f2
+                   WHERE f2.person_id = ?
+                     AND f2.assign_status = 'assigned'
+                   ORDER BY f2.photo_id ASC
+                   LIMIT ? OFFSET ?
+              ) page
+              JOIN photos ph ON ph.id = page.photo_id
+              JOIN faces  f  ON f.photo_id = ph.id
+                             AND f.person_id = ?
+                             AND f.assign_status = 'assigned'
              ORDER BY ph.taken_at ASC NULLS LAST, ph.id ASC
-             LIMIT ? OFFSET ?
             """,
-            (person_id, limit, offset),
+            (person_id, limit, offset, person_id),
         ) as cur:
-            return [dict(row) for row in await cur.fetchall()]
+            rows = await cur.fetchall()
+
+        photo_map: dict[int, dict[str, Any]] = {}
+        for r in rows:
+            pid = int(r["photo_id"])
+            if pid not in photo_map:
+                photo_map[pid] = {
+                    "id": pid,
+                    "path": r["path"],
+                    "taken_at": r["taken_at"],
+                    "faces": [],
+                }
+            photo_map[pid]["faces"].append(
+                {
+                    "face_id": int(r["face_id"]),
+                    "person_id": person_id,
+                    "assign_conf": r["assign_conf"],
+                }
+            )
+        return list(photo_map.values())
 
 
 @router.post("/{person_id}/name")
@@ -103,8 +127,18 @@ async def merge_people_endpoint(body: MergeRequest) -> dict[str, Any]:
             ).fetchone()
             if row is None:
                 raise HTTPException(status_code=404, detail=f"Person {pid} not found")
+
+        count_row = await (
+            await db.execute(
+                "SELECT COUNT(*) AS cnt FROM faces WHERE person_id = ?",
+                (body.source_id,),
+            )
+        ).fetchone()
+        assert count_row is not None
+        merged_count = int(count_row["cnt"])
+
         await _svc.merge_people(body.source_id, body.target_id, body.confirmed, db)
-    return {"merged": True, "target_id": body.target_id}
+    return {"surviving_id": body.target_id, "merged_count": merged_count}
 
 
 @router.delete("/{person_id}")
