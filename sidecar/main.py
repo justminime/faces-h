@@ -79,6 +79,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="faces-h Python sidecar")
     parser.add_argument("--port", type=int, default=51423)
     parser.add_argument("--data-dir", type=str, required=True)
+    parser.add_argument("--app-version", type=str, default="unknown")
     parser.add_argument(
         "--log-level",
         type=str,
@@ -94,7 +95,8 @@ def main() -> None:
 
     logger = logging.getLogger(__name__)
     logger.info(
-        "faces-h sidecar starting — port=%d data_dir=%s python=%s platform=%s",
+        "faces-h sidecar starting — version=%s port=%d data_dir=%s python=%s platform=%s",
+        args.app_version,
         args.port,
         args.data_dir,
         sys.version.split()[0],

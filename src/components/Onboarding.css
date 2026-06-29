@@ -116,3 +116,7 @@
   font-size: 13px;
   color: var(--color-text-secondary);
 }
+
+.onboarding__tagline--error {
+  color: #c0392b;
+}
