@@ -6,6 +6,11 @@ __pycache__/
 sidecar/dist/
 sidecar/*.spec.bak
 *.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
 
 # Node
 node_modules/

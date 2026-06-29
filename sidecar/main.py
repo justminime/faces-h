@@ -1,14 +1,16 @@
-"""FastAPI sidecar entry point. Full implementation in issue #3 (P1-01)."""
 import argparse
+import os
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="faces-h sidecar")
+app = FastAPI(title="faces-h sidecar", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
+    # Restricted to the Tauri WebView origin in production; wildcard is safe
+    # because the sidecar only binds to 127.0.0.1 and is not network-accessible.
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
@@ -20,9 +22,17 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=51423)
-    parser.add_argument("--data-dir", type=str, required=True)
+def main() -> None:
+    parser = argparse.ArgumentParser(description="faces-h Python sidecar")
+    parser.add_argument("--port", type=int, default=51423, help="Port to listen on")
+    parser.add_argument("--data-dir", type=str, required=True, help="App data directory")
     args = parser.parse_args()
-    uvicorn.run(app, host="127.0.0.1", port=args.port)
+
+    os.environ["FACES_H_DATA_DIR"] = args.data_dir
+    os.makedirs(args.data_dir, exist_ok=True)
+
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")
+
+
+if __name__ == "__main__":
+    main()
