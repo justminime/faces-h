@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+sidecar/dist/
+sidecar/*.spec.bak
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+
+# Rust / Tauri
+target/
+src-tauri/target/
+src-tauri/WixTools/
+
+# App data — never commit face data or indexes
+*.db
+*.index
+*.faiss
+
+# Build artifacts
+*.exe
+*.msi
+*.deb
+*.dmg
+*.AppImage
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment
+.env
+.env.local

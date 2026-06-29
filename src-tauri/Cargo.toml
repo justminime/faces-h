@@ -1,0 +1,26 @@
+[package]
+name = "faces-h"
+version = "0.1.0"
+description = "Local face recognition photo organizer"
+authors = []
+edition = "2021"
+
+[lib]
+name = "faces_h_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "faces-h"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
