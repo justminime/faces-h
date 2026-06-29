@@ -7,11 +7,27 @@ interface SidebarProps {
   selectedPersonId: number | null;
   onPersonSelect: (id: number | null) => void;
   unnamedCount: number;
+  scanProgress: number | null;
 }
 
-export function Sidebar({ people, selectedPersonId, onPersonSelect, unnamedCount }: SidebarProps) {
+export function Sidebar({
+  people,
+  selectedPersonId,
+  onPersonSelect,
+  unnamedCount,
+  scanProgress,
+}: SidebarProps) {
   return (
     <nav className="sidebar" aria-label="People">
+      {scanProgress !== null && (
+        <div className="sidebar__scan-progress" role="progressbar" aria-valuenow={Math.round(scanProgress * 100)} aria-valuemin={0} aria-valuemax={100}>
+          <div
+            className="sidebar__scan-progress-bar"
+            style={{ width: `${scanProgress * 100}%` }}
+          />
+        </div>
+      )}
+
       <h1 className="sidebar__app-name">faces-h</h1>
 
       <div className="sidebar__section-label">People</div>

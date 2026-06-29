@@ -361,8 +361,11 @@ async def test_people_photos_endpoint_excludes_uncertain_and_unreviewed(
 
     assert resp.status_code == 200
     photos = resp.json()
-    face_ids_returned = [p["face_id"] for p in photos]
+    # Response is now grouped: each photo has a "faces" list (Rule 5)
+    face_ids_returned = [
+        face["face_id"] for photo in photos for face in photo["faces"]
+    ]
     assert assigned_id in face_ids_returned
-    assert all(p["face_id"] == assigned_id for p in photos), (
+    assert all(face_id == assigned_id for face_id in face_ids_returned), (
         f"Non-assigned faces returned: {face_ids_returned}"
     )
