@@ -72,10 +72,14 @@ def test_pyinstaller_spec_uvicorn_hidden_imports() -> None:
         assert module in spec, f"faces-sidecar.spec missing hiddenimport: {module}"
 
 
-def test_release_workflow_triggers_on_version_tags() -> None:
+def test_release_workflow_triggers_on_version_tags_and_dispatch() -> None:
     workflow = _read(".github/workflows/release.yml")
     assert "v*.*.*" in workflow, (
         "release.yml must trigger on v*.*.* tag pushes"
+    )
+    assert "workflow_dispatch" in workflow, (
+        "release.yml must support workflow_dispatch so the build can be triggered "
+        "from the GitHub Actions UI without pushing a tag from the command line"
     )
     assert "windows-latest" in workflow, (
         "release.yml must run on windows-latest"
