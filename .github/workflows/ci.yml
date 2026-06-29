@@ -24,7 +24,7 @@ jobs:
           cache-dependency-path: sidecar/requirements.txt
 
       - name: Install dependencies
-        run: pip install fastapi uvicorn[standard] aiosqlite Pillow pillow-heif piexif numpy ruff mypy pytest pytest-cov pytest-asyncio httpx
+        run: pip install fastapi uvicorn[standard] aiosqlite Pillow pillow-heif piexif numpy faiss-cpu ruff mypy pytest pytest-cov pytest-asyncio httpx
 
       - name: Lint (ruff)
         run: ruff check .
