@@ -1,0 +1,33 @@
+name: Spike
+description: Time-boxed investigation — no required code output
+labels: [spike]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question to answer
+      description: The specific decision or uncertainty this spike resolves.
+    validations:
+      required: true
+  - type: input
+    id: timebox
+    attributes:
+      label: Time budget
+      placeholder: "e.g. 4 hours"
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Expected output
+      description: What deliverable closes this spike?
+      placeholder: "A written summary, benchmark numbers, a recommendation, a prototype, ..."
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Relevant architecture decisions, PRD sections, or prior work.
+    validations:
+      required: false

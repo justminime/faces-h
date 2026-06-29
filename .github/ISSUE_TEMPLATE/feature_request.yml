@@ -1,0 +1,38 @@
+name: Feature request
+description: New capability or enhancement
+labels: [feature]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the user need this addresses.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Binary checklist — each item must be unambiguously pass or fail.
+      placeholder: "- [ ] ...\n- [ ] ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Suggested milestone
+      options:
+        - "M1 — Foundation"
+        - "M2 — Core ML"
+        - "M4 — Search"
+        - "M5 — Corrections"
+        - "M6 — Ship"
+        - "Post-v1"
+    validations:
+      required: false
