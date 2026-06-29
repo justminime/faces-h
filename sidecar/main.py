@@ -5,6 +5,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.corrections import router as corrections_router
 from api.faces import router as faces_router
 from api.people import router as people_router
 from api.queue import router as queue_router
@@ -27,6 +28,7 @@ app.include_router(people_router)
 app.include_router(queue_router)
 app.include_router(faces_router)
 app.include_router(search_router)
+app.include_router(corrections_router)
 
 
 @app.get("/health")

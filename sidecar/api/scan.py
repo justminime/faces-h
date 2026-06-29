@@ -43,6 +43,11 @@ class _ConnectionManager:
 _manager = _ConnectionManager()
 
 
+async def broadcast_ws(message: dict[str, Any]) -> None:
+    """Broadcast a JSON message to all connected WebSocket clients."""
+    await _manager.broadcast(message)
+
+
 class StartScanRequest(BaseModel):
     root_path: str
 

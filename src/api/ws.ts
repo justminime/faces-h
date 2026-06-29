@@ -1,4 +1,5 @@
 import { useUIStore } from "../store/ui";
+import { useToastStore } from "../store/toast";
 
 const RECONNECT_MS = 3_000;
 
@@ -13,13 +14,22 @@ function handleMessage(event: MessageEvent): void {
     return;
   }
   if (
-    typeof payload === "object" &&
-    payload !== null &&
-    "type" in payload &&
-    (payload as { type: unknown }).type === "scan_progress"
+    typeof payload !== "object" ||
+    payload === null ||
+    !("type" in payload)
   ) {
-    const { progress } = payload as { type: string; progress: number };
-    useUIStore.getState().setScanProgress(progress);
+    return;
+  }
+  const p = payload as { type: string; [k: string]: unknown };
+  if (p.type === "scan_progress") {
+    useUIStore.getState().setScanProgress(p.progress as number);
+  } else if (p.type === "reeval_complete") {
+    const moved = p.moved as number;
+    const uncertain = p.newly_uncertain as number;
+    const name = (p.person_name as string | null) ?? "Unknown";
+    const parts: string[] = [`${moved} photo${moved !== 1 ? "s" : ""} moved from ${name}`];
+    if (uncertain > 0) parts.push(`${uncertain} flagged for review`);
+    useToastStore.getState().addToast(parts.join(", "));
   }
 }
 
