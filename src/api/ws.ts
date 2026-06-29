@@ -23,6 +23,8 @@ function handleMessage(event: MessageEvent): void {
   const p = payload as { type: string; [k: string]: unknown };
   if (p.type === "scan_progress") {
     useUIStore.getState().setScanProgress(p.progress as number);
+  } else if (p.type === "model_download_progress") {
+    useUIStore.getState().setModelDownloadProgress(p.progress as number);
   } else if (p.type === "reeval_complete") {
     const moved = p.moved as number;
     const uncertain = p.newly_uncertain as number;

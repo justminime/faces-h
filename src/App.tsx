@@ -7,6 +7,7 @@ import { DetailPanel } from "./components/DetailPanel";
 import { SearchView } from "./components/SearchView";
 import { CorrectionModal } from "./components/CorrectionModal";
 import { ToastContainer } from "./components/Toast";
+import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
 import { useUIStore } from "./store/ui";
 import { MOCK_PHOTOS, MOCK_UNNAMED_COUNT } from "./mocks/data";
 import type { Person, Photo } from "./mocks/data";
@@ -55,6 +56,9 @@ function App() {
   const setQueueCount = useQueueStore((s) => s.setQueueCount);
   const [photos, setPhotos] = useState<Photo[]>(MOCK_PHOTOS);
   const [view, setView] = useState<"gallery" | "search">("gallery");
+  const [onboardingDone, setOnboardingDone] = useState(
+    () => localStorage.getItem(ONBOARDING_KEY) !== null,
+  );
   const [correctionTarget, setCorrectionTarget] = useState<{
     faceId: number;
     photoId: number;
@@ -87,6 +91,10 @@ function App() {
   }, [selectedPersonId]);
 
   const selectedPhoto = photos.find((p) => p.id === selectedPhotoId) ?? null;
+
+  if (!onboardingDone) {
+    return <Onboarding onComplete={() => setOnboardingDone(true)} />;
+  }
 
   function handleCorrectionRequest(faceId: number) {
     if (!selectedPhoto) return;

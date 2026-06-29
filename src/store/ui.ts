@@ -17,11 +17,13 @@ interface UIStore {
   selectedPhotoId: number | null;
   thumbnailSize: number;
   scanProgress: number | null;
+  modelDownloadProgress: number | null;
   setPeople: (people: Person[]) => void;
   setSelectedPerson: (id: number | null) => void;
   setSelectedPhoto: (id: number | null) => void;
   setThumbnailSize: (size: number) => void;
   setScanProgress: (progress: number | null) => void;
+  setModelDownloadProgress: (progress: number | null) => void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -30,6 +32,7 @@ export const useUIStore = create<UIStore>((set) => ({
   selectedPhotoId: null,
   thumbnailSize: loadSize(),
   scanProgress: null,
+  modelDownloadProgress: null,
   setPeople: (people) => set({ people }),
   setSelectedPerson: (id) => set({ selectedPersonId: id, selectedPhotoId: null }),
   setSelectedPhoto: (id) => set({ selectedPhotoId: id }),
@@ -38,4 +41,5 @@ export const useUIStore = create<UIStore>((set) => ({
     set({ thumbnailSize: size });
   },
   setScanProgress: (scanProgress) => set({ scanProgress }),
+  setModelDownloadProgress: (progress) => set({ modelDownloadProgress: progress }),
 }));
