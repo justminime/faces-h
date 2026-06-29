@@ -7,6 +7,24 @@ use tauri_plugin_shell::{process::CommandChild, ShellExt};
 pub struct SidecarState {
     pub url: String,
     pub child: Mutex<Option<CommandChild>>,
+    pub pid: u32,
+}
+
+/// Kill the sidecar process tree on Windows so PyInstaller's bootstrap and
+/// its Python worker subprocess are both terminated (child.kill() only kills
+/// the bootstrap, leaving the worker as an orphan that holds the port).
+#[cfg(target_os = "windows")]
+fn kill_sidecar_tree(pid: u32) {
+    let _ = std::process::Command::new("taskkill")
+        .args(["/F", "/T", "/PID", &pid.to_string()])
+        .output();
+}
+
+#[cfg(not(target_os = "windows"))]
+fn kill_sidecar_tree(pid: u32) {
+    let _ = std::process::Command::new("kill")
+        .args(["-9", &pid.to_string()])
+        .output();
 }
 
 /// Bind a TCP listener on port 0 to let the OS pick a free port, read it, then
@@ -93,9 +111,11 @@ pub fn run() {
                 .spawn()
                 .map_err(|e| e.to_string())?;
 
+            let sidecar_pid = child.pid();
             app.manage(SidecarState {
                 url: url.clone(),
                 child: Mutex::new(Some(child)),
+                pid: sidecar_pid,
             });
 
             // Health-check the sidecar in a background thread; emit "sidecar-ready"
@@ -116,10 +136,11 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 let app = window.app_handle();
                 if let Some(state) = app.try_state::<SidecarState>() {
+                    // Kill the full process tree so PyInstaller's bootstrap AND
+                    // its Python worker subprocess are both terminated (#54).
+                    kill_sidecar_tree(state.pid);
                     if let Ok(mut guard) = state.child.lock() {
-                        if let Some(child) = guard.take() {
-                            let _ = child.kill();
-                        }
+                        guard.take(); // drop the CommandChild handle
                     }
                 }
             }
