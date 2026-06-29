@@ -6,17 +6,34 @@ import "./Onboarding.css";
 
 export const ONBOARDING_KEY = "onboarding_complete";
 
-type Step = "welcome" | "folder" | "download" | "starting" | "error";
+type Step = "engine-wait" | "welcome" | "folder" | "download" | "starting" | "error";
 
 interface OnboardingProps {
   onComplete: () => void;
 }
 
 export function Onboarding({ onComplete }: OnboardingProps) {
-  const [step, setStep] = useState<Step>("welcome");
+  const [step, setStep] = useState<Step>("engine-wait");
   const [folderPath, setFolderPath] = useState<string>("");
   const [modelsReady, setModelsReady] = useState<boolean | null>(null);
   const modelDownloadProgress = useUIStore((s) => s.modelDownloadProgress);
+
+  // Poll until the sidecar HTTP server is reachable, then advance to welcome.
+  // On first run after an upgrade Windows Defender scans the new binary which
+  // can delay startup by 60+ seconds.
+  useEffect(() => {
+    if (step !== "engine-wait") return;
+    const poll = setInterval(async () => {
+      try {
+        await fetchModelsStatus();
+        clearInterval(poll);
+        setStep("welcome");
+      } catch {
+        // sidecar not yet reachable — keep waiting
+      }
+    }, 2_000);
+    return () => clearInterval(poll);
+  }, [step]);
 
   async function handlePickFolder() {
     try {
@@ -111,6 +128,23 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
+
+  if (step === "engine-wait") {
+    return (
+      <div className="onboarding" data-testid="onboarding-engine-wait">
+        <div className="onboarding__card">
+          <h1 className="onboarding__title">faces-h</h1>
+          <p className="onboarding__tagline">Starting engine…</p>
+          <div className="onboarding__progress-track onboarding__progress-track--indeterminate">
+            <div className="onboarding__progress-bar onboarding__progress-bar--pulse" />
+          </div>
+          <p className="onboarding__progress-label">
+            First launch after an update may take up to a minute.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (step === "welcome") {
     return (
