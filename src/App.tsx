@@ -5,6 +5,8 @@ import { Sidebar } from "./components/Sidebar";
 import { PhotoGrid } from "./components/PhotoGrid";
 import { DetailPanel } from "./components/DetailPanel";
 import { SearchView } from "./components/SearchView";
+import { CorrectionModal } from "./components/CorrectionModal";
+import { ToastContainer } from "./components/Toast";
 import { useUIStore } from "./store/ui";
 import { MOCK_PHOTOS, MOCK_UNNAMED_COUNT } from "./mocks/data";
 import type { Person, Photo } from "./mocks/data";
@@ -53,6 +55,10 @@ function App() {
   const setQueueCount = useQueueStore((s) => s.setQueueCount);
   const [photos, setPhotos] = useState<Photo[]>(MOCK_PHOTOS);
   const [view, setView] = useState<"gallery" | "search">("gallery");
+  const [correctionTarget, setCorrectionTarget] = useState<{
+    faceId: number;
+    photoId: number;
+  } | null>(null);
 
   useEffect(() => {
     invoke<string>("get_sidecar_url")
@@ -82,6 +88,11 @@ function App() {
 
   const selectedPhoto = photos.find((p) => p.id === selectedPhotoId) ?? null;
 
+  function handleCorrectionRequest(faceId: number) {
+    if (!selectedPhoto) return;
+    setCorrectionTarget({ faceId, photoId: selectedPhoto.id });
+  }
+
   return (
     <div className="app-shell">
       <Sidebar
@@ -104,9 +115,22 @@ function App() {
             onSelect={setSelectedPhoto}
             selectedPhotoId={selectedPhotoId}
           />
-          <DetailPanel photo={selectedPhoto} />
+          <DetailPanel
+            photo={selectedPhoto}
+            onCorrectionRequest={handleCorrectionRequest}
+          />
         </>
       )}
+      {correctionTarget && (
+        <CorrectionModal
+          faceId={correctionTarget.faceId}
+          photoId={correctionTarget.photoId}
+          people={people}
+          onCorrected={() => setCorrectionTarget(null)}
+          onClose={() => setCorrectionTarget(null)}
+        />
+      )}
+      <ToastContainer />
     </div>
   );
 }

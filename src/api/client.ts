@@ -64,6 +64,20 @@ export function searchPhotos(req: SearchRequest): Promise<ApiPhoto[]> {
   });
 }
 
+export function correctFace(
+  photoId: number,
+  faceId: number,
+  newPersonId: number | null,
+): Promise<{ status: string; face_id: number }> {
+  return apiFetch<{ status: string; face_id: number }>(
+    `/photos/${photoId}/faces/${faceId}/correct`,
+    {
+      method: "POST",
+      body: JSON.stringify({ new_person_id: newPersonId }),
+    },
+  );
+}
+
 export function fetchQueueCount(): Promise<{ count: number }> {
   return apiFetch<{ count: number }>("/queue/count");
 }
