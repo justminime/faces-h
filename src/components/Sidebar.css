@@ -86,6 +86,44 @@
   padding: 0 5px;
 }
 
+.sidebar__actions {
+  display: flex;
+  gap: 4px;
+  margin: 0 8px 8px;
+}
+
+.sidebar__action-btn {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-align: center;
+  transition: background-color 100ms ease, color 100ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__action-btn:hover:not(:disabled) {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.sidebar__action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sidebar__action-btn--icon {
+  flex: 0 0 32px;
+  font-size: 14px;
+}
+
 .sidebar__section-label {
   font-size: 11px;
   font-weight: 500;

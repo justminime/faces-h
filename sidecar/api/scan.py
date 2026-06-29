@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import time
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -69,10 +70,45 @@ async def start_scan(body: StartScanRequest) -> dict[str, str]:
 
     async def _run() -> None:
         async with get_db() as db:
+            await db.execute(
+                "INSERT INTO scan_roots(path, added_at) VALUES(?, ?) ON CONFLICT(path) DO NOTHING",
+                (body.root_path, int(time.time())),
+            )
+            await db.commit()
             await run_scan(body.root_path, _manager.broadcast, db)
 
     asyncio.create_task(_run())
     return {"status": "started"}
+
+
+@router.post("/scan/rescan")
+async def rescan_all() -> dict[str, str]:
+    """Re-scan every root folder that has been added previously."""
+    if get_status().running:
+        return {"status": "already_running"}
+
+    async def _run() -> None:
+        async with get_db() as db:
+            cur = await db.execute("SELECT path FROM scan_roots ORDER BY added_at")
+            roots = [row["path"] for row in await cur.fetchall()]
+        if not roots:
+            await _manager.broadcast({"type": "scan_complete"})
+            return
+        for root in roots:
+            async with get_db() as db:
+                await run_scan(root, _manager.broadcast, db)
+
+    asyncio.create_task(_run())
+    return {"status": "started"}
+
+
+@router.get("/scan/roots")
+async def list_roots() -> list[dict[str, Any]]:
+    """Return all configured scan root folders."""
+    async with get_db() as db:
+        cur = await db.execute("SELECT id, path, added_at FROM scan_roots ORDER BY added_at")
+        rows = await cur.fetchall()
+        return [{"id": row["id"], "path": row["path"], "added_at": row["added_at"]} for row in rows]
 
 
 @router.get("/scan/status")

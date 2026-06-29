@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 import { Sidebar } from "./components/Sidebar";
 import { PhotoGrid } from "./components/PhotoGrid";
@@ -11,7 +12,7 @@ import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
 import { useUIStore } from "./store/ui";
 import { MOCK_UNNAMED_COUNT } from "./mocks/data";
 import type { Person, Photo } from "./mocks/data";
-import { initClient, fetchPeople, fetchPersonPhotos, fetchQueueCount, fetchModelsStatus } from "./api/client";
+import { initClient, fetchPeople, fetchPersonPhotos, fetchQueueCount, fetchModelsStatus, startScan, rescan } from "./api/client";
 import { initWs } from "./api/ws";
 import type { ApiPerson, ApiPhoto } from "./api/types";
 import { useQueueStore } from "./store/queue";
@@ -109,6 +110,25 @@ function App() {
     return <Onboarding onComplete={() => setOnboardingDone(true)} />;
   }
 
+  async function handleAddFolder() {
+    try {
+      const selected = await open({ directory: true, multiple: false });
+      if (typeof selected === "string" && selected.length > 0) {
+        await startScan(selected);
+      }
+    } catch {
+      // not in Tauri or user cancelled
+    }
+  }
+
+  async function handleRescan() {
+    try {
+      await rescan();
+    } catch {
+      // sidecar not reachable
+    }
+  }
+
   function handleCorrectionRequest(faceId: number) {
     if (!selectedPhoto) return;
     setCorrectionTarget({ faceId, photoId: selectedPhoto.id });
@@ -124,6 +144,8 @@ function App() {
         scanProgress={scanProgress}
         onQueueClick={() => setView("gallery")}
         onSearchClick={() => setView("search")}
+        onAddFolder={() => void handleAddFolder()}
+        onRescan={() => void handleRescan()}
       />
       {view === "search" ? (
         <SearchView people={people} />

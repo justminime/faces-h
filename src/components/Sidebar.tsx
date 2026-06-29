@@ -11,6 +11,8 @@ interface SidebarProps {
   scanProgress: number | null;
   onQueueClick?: () => void;
   onSearchClick?: () => void;
+  onAddFolder?: () => void;
+  onRescan?: () => void;
 }
 
 export function Sidebar({
@@ -21,6 +23,8 @@ export function Sidebar({
   scanProgress,
   onQueueClick,
   onSearchClick,
+  onAddFolder,
+  onRescan,
 }: SidebarProps) {
   const queueCount = useQueueStore((s) => s.queueCount);
 
@@ -57,6 +61,28 @@ export function Sidebar({
           {queueCount}
         </span>
       </button>
+
+      <div className="sidebar__actions">
+        <button
+          type="button"
+          className="sidebar__action-btn"
+          onClick={onAddFolder}
+          aria-label="Add folder"
+          title="Add a folder to scan"
+        >
+          + Add folder
+        </button>
+        <button
+          type="button"
+          className="sidebar__action-btn sidebar__action-btn--icon"
+          onClick={onRescan}
+          disabled={scanProgress !== null}
+          aria-label="Scan now"
+          title="Re-scan all folders"
+        >
+          ↻
+        </button>
+      </div>
 
       <div className="sidebar__section-label">People</div>
       <ul className="sidebar__list">
