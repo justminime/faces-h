@@ -1,9 +1,24 @@
 name: Release
 
+# Two ways to trigger a release build:
+#
+# 1. GitHub Releases UI  — go to Releases → "Create a new release",
+#    choose / create tag v0.1.0, fill in notes, click "Publish release".
+#    GitHub creates the tag, the release, and this workflow fires automatically.
+#
+# 2. Actions tab  — go to Actions → Release → "Run workflow",
+#    enter the version (e.g. v0.1.0), click Run.
+
 on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version tag (e.g. v0.1.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -12,6 +27,9 @@ jobs:
   release-windows:
     name: Build and release Windows installer
     runs-on: windows-latest
+
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
 
     steps:
       - uses: actions/checkout@v4
@@ -43,25 +61,32 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Build Tauri app and create release
+      - name: Build Tauri app (binary only — no release creation)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tauriScript: npm run tauri
-          tagName: ${{ github.ref_name }}
-          releaseName: "faces-h ${{ github.ref_name }}"
-          releaseBody: |
+
+      - name: Publish installer to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: "faces-h ${{ env.RELEASE_TAG }}"
+          body: |
             ## Installation
 
             Download `faces-h-setup-*.exe` and run it. No additional software required.
 
             The app will download the face recognition model (~300 MB) on first launch.
-          releaseDraft: false
-          prerelease: false
 
-      - name: Attach installer to release
-        uses: softprops/action-gh-release@v2
-        with:
+            ## Post-install verification
+
+            Run the bundled smoke test against the running sidecar:
+            ```
+            python scripts/smoke_test.py
+            ```
+          draft: false
+          prerelease: false
           files: src-tauri/target/release/bundle/nsis/*.exe
           generate_release_notes: true
