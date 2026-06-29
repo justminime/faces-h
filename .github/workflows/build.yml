@@ -36,7 +36,6 @@ jobs:
       - name: Build Python sidecar (PyInstaller)
         working-directory: sidecar
         run: pyinstaller faces-sidecar.spec
-        continue-on-error: true  # spec does not exist yet — added in issue #3
 
       - name: Install Node dependencies
         run: npm ci
@@ -47,7 +46,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tauriScript: npm run tauri
-        continue-on-error: true  # placeholder shell until issue #9
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
