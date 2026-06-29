@@ -140,13 +140,16 @@ pub fn run() {
 
             // Health-check the sidecar in a background thread; emit "sidecar-ready"
             // once it accepts TCP connections so the frontend knows to proceed.
+            // 90 s timeout: Windows Defender scans new PyInstaller binaries on first
+            // run after an upgrade, which can delay uvicorn startup by 60+ seconds.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
-                if wait_for_port(port, Duration::from_secs(30)) {
+                if wait_for_port(port, Duration::from_secs(90)) {
                     log::info!("sidecar ready on port {port}");
                     let _ = handle.emit("sidecar-ready", &url);
                 } else {
-                    log::error!("sidecar did not bind within 30 s — exiting");
+                    log::error!("sidecar did not bind within 90 s");
+                    let _ = handle.emit("sidecar-error", "Engine failed to start after 90 s");
                     handle.exit(1);
                 }
             });
