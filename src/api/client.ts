@@ -74,6 +74,10 @@ export function fetchModelsStatus(): Promise<{
   );
 }
 
+export function preloadModels(): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>("/models/preload", { method: "POST" });
+}
+
 export function startScan(rootPath: string): Promise<{ status: string }> {
   return apiFetch<{ status: string }>("/scan/start", {
     method: "POST",
