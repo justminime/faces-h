@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { fetchModelsStatus, startScan } from "../api/client";
 import { useUIStore } from "../store/ui";
@@ -59,16 +59,39 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     onComplete();
   }
 
-  const downloadPct =
-    modelDownloadProgress !== null ? Math.round(modelDownloadProgress * 100) : 0;
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Auto-advance from download step once progress reaches 100%
+  const downloadPct =
+    modelDownloadProgress !== null ? Math.round(modelDownloadProgress * 100) : null;
+
+  // Auto-advance when WebSocket reports 100%
   useEffect(() => {
     if (step === "download" && modelDownloadProgress !== null && modelDownloadProgress >= 1) {
       void handleDownloadComplete();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelDownloadProgress, step]);
+
+  // Polling fallback: if WebSocket events aren't arriving (sidecar still booting),
+  // poll /models/status every 2 s so we still advance when the download finishes.
+  useEffect(() => {
+    if (step !== "download") return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const status = await fetchModelsStatus();
+        if (status.ready) {
+          clearInterval(pollRef.current!);
+          void handleDownloadComplete();
+        }
+      } catch {
+        // sidecar not yet reachable — keep polling
+      }
+    }, 2_000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   if (step === "welcome") {
     return (
@@ -122,32 +145,35 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }
 
   if (step === "download") {
+    const isIndeterminate = downloadPct === null;
+    const pctLabel = downloadPct !== null ? `${downloadPct}%` : "Starting…";
     return (
       <div className="onboarding" data-testid="onboarding-download">
         <div className="onboarding__card">
-          <h2 className="onboarding__title">Downloading face recognition model</h2>
+          <h2 className="onboarding__title">Downloading face model</h2>
           <p className="onboarding__tagline">
-            Downloading face recognition model (300 MB) — this happens only once.
+            ~300 MB — this happens only once. Keep the app open.
           </p>
           <div
-            className="onboarding__progress-track"
+            className={`onboarding__progress-track${isIndeterminate ? " onboarding__progress-track--indeterminate" : ""}`}
             role="progressbar"
-            aria-valuenow={downloadPct}
+            aria-valuenow={downloadPct ?? undefined}
             aria-valuemin={0}
             aria-valuemax={100}
+            aria-label="Model download progress"
           >
             <div
-              className="onboarding__progress-bar"
-              style={{ width: `${downloadPct}%` }}
+              className={`onboarding__progress-bar${isIndeterminate ? " onboarding__progress-bar--pulse" : ""}`}
+              style={isIndeterminate ? undefined : { width: `${downloadPct}%` }}
             />
           </div>
-          <p className="onboarding__progress-label">{downloadPct}%</p>
-          {modelsReady === false && downloadPct < 100 && (
+          <p className="onboarding__progress-label" data-testid="download-pct">{pctLabel}</p>
+          {modelsReady === false && downloadPct !== null && downloadPct < 100 && (
             <button
               className="onboarding__btn onboarding__btn--ghost"
               onClick={() => void handleDownloadComplete()}
             >
-              Continue anyway
+              Skip and start scanning
             </button>
           )}
         </div>

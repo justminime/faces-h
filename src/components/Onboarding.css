@@ -100,6 +100,17 @@
   transition: width 0.3s ease;
 }
 
+/* Indeterminate (pre-first-event) state: full-width pulsing bar */
+.onboarding__progress-bar--pulse {
+  width: 100%;
+  animation: progress-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes progress-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
 .onboarding__progress-label {
   margin: 0;
   font-size: 13px;
