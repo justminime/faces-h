@@ -13,8 +13,8 @@ pub struct SidecarState {
 /// drop the listener so the port is available for the sidecar.
 pub fn allocate_port() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").expect("failed to bind ephemeral port");
-    let port = listener.local_addr().expect("no local addr").port();
-    port // listener drops here, freeing the port
+    listener.local_addr().expect("no local addr").port()
+    // listener is dropped here, freeing the port before the caller can use it
 }
 
 /// Poll until the TCP port accepts connections or the timeout elapses.
