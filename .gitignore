@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 .venv/
 sidecar/dist/
+sidecar/build/
 sidecar/*.spec.bak
 *.egg-info/
 .mypy_cache/
