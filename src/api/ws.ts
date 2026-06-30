@@ -22,7 +22,15 @@ function handleMessage(event: MessageEvent): void {
   }
   const p = payload as { type: string; [k: string]: unknown };
   if (p.type === "scan_progress") {
-    useUIStore.getState().setScanProgress(p.progress as number);
+    // Backend sends scanned/total (not a precomputed progress fraction).
+    const scanned = p.scanned as number | undefined;
+    const total = p.total as number | undefined;
+    if (typeof scanned === "number" && typeof total === "number" && total > 0) {
+      useUIStore.getState().setScanProgress(scanned / total);
+    }
+    // Refresh the sidebar live as faces are detected — don't wait for the whole
+    // scan to finish before showing anything.
+    useUIStore.getState().bumpScanVersion();
   } else if (p.type === "model_download_progress") {
     useUIStore.getState().setModelDownloadProgress(p.progress as number);
   } else if (p.type === "scan_complete") {
