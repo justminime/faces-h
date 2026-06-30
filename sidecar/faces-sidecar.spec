@@ -1,35 +1,25 @@
 # -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 block_cipher = None
 
-# InsightFace loads its detection/recognition handlers and reads packaged data
-# files dynamically, and it leans on native extensions in cv2 / scikit-image /
-# scipy / onnx(runtime) during inference. PyInstaller's static analysis misses
-# these, so a frozen build can import InsightFace and load models yet still
-# return None from detection at runtime. collect_all pulls each package's
-# submodules, data files, and binaries so the frozen sidecar matches a normal
-# venv. (Resolves the "bundle InsightFace" TODO from issue #7.)
-_ml_datas = []
-_ml_binaries = []
-_ml_hiddenimports = []
-for _pkg in ("insightface", "cv2", "skimage", "scipy", "onnx", "onnxruntime", "sklearn"):
-    try:
-        _d, _b, _h = collect_all(_pkg)
-    except Exception:
-        # Optional/transitive package not installed in this build env — skip it
-        # rather than failing the whole build (e.g. sklearn is not a hard dep).
-        continue
-    _ml_datas += _d
-    _ml_binaries += _b
-    _ml_hiddenimports += _h
+# We only run InsightFace's detection + recognition models (see allowed_modules
+# in ml/insightface_recognizer.py). PyInstaller's static analysis already bundles
+# the directly-imported deps (onnxruntime, cv2, numpy, insightface). The one gap
+# is scikit-image: insightface aligns faces via skimage.transform, and skimage
+# uses lazy_loader so its submodules are invisible to static analysis. We collect
+# just skimage's submodules + data files (and its scipy backend) — NOT the whole
+# scientific stack via collect_all, which previously bloated the onefile bundle
+# so much that extraction blew past the sidecar startup timeout.
+_ml_hiddenimports = collect_submodules("skimage") + collect_submodules("scipy")
+_ml_datas = collect_data_files("skimage")
 
 a = Analysis(
     ["main.py"],
     pathex=[str(Path(".").resolve())],
-    binaries=_ml_binaries,
+    binaries=[],
     datas=_ml_datas,
     hiddenimports=_ml_hiddenimports + [
         # uvicorn dynamic imports that PyInstaller misses
