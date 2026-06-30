@@ -15,6 +15,7 @@ from api.corrections import router as corrections_router
 from api.faces import router as faces_router
 from api.models import router as models_router
 from api.people import router as people_router
+from api.photos import router as photos_router
 from api.queue import router as queue_router
 from api.scan import router as scan_router
 from api.search import router as search_router
@@ -30,6 +31,7 @@ app.add_middleware(
 
 app.include_router(scan_router)
 app.include_router(people_router)
+app.include_router(photos_router)
 app.include_router(queue_router)
 app.include_router(faces_router)
 app.include_router(search_router)

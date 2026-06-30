@@ -6,7 +6,8 @@ const RECONNECT_MS = 3_000;
 let _ws: WebSocket | null = null;
 let _wsUrl = "";
 
-function handleMessage(event: MessageEvent): void {
+// Exported for unit testing; also used as the WebSocket onmessage handler.
+export function handleMessage(event: MessageEvent): void {
   let payload: unknown;
   try {
     payload = JSON.parse(event.data as string);

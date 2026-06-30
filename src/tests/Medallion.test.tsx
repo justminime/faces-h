@@ -31,4 +31,10 @@ describe("Medallion", () => {
     expect(medallion.style.width).toBe("96px");
     expect(medallion.style.height).toBe("96px");
   });
+
+  it("renders a placeholder instead of a broken image when src is empty", () => {
+    const { container } = render(<Medallion src="" alt={ALT} />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector(".medallion__placeholder")).not.toBeNull();
+  });
 });

@@ -14,7 +14,11 @@ export function Medallion({ src, alt, selected = false, size = 48 }: MedallionPr
       style={{ width: size, height: size }}
       aria-label={alt}
     >
-      <img src={src} alt={alt} />
+      {src ? (
+        <img src={src} alt={alt} />
+      ) : (
+        <span className="medallion__placeholder" aria-hidden="true" />
+      )}
     </div>
   );
 }

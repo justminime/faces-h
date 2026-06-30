@@ -6,6 +6,7 @@ import type { QueueItem } from "../api/types";
 
 vi.mock("../api/client", () => ({
   confirmFace: vi.fn(),
+  faceCropUrl: (faceId: number) => `http://test/faces/${faceId}/crop`,
 }));
 
 vi.mock("../store/ui", () => ({

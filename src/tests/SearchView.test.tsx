@@ -7,6 +7,7 @@ import type { ApiPhoto } from "../api/types";
 
 vi.mock("../api/client", () => ({
   searchPhotos: vi.fn(),
+  photoThumbUrl: (photoId: number) => `http://test/photos/${photoId}/thumbnail?size=256`,
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({

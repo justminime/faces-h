@@ -161,8 +161,11 @@ async def test_assign_mid_range_is_uncertain(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_assign_below_uncertain_threshold_is_unreviewed(tmp_path: Path) -> None:
-    """assign_conf < 0.50 → assign_status = 'unreviewed'."""
+async def test_assign_below_uncertain_threshold_seeds_new_cluster(tmp_path: Path) -> None:
+    """A face dissimilar to every existing cluster (sim < 0.50) is NOT attached to
+    the closest person as uncertain/unreviewed — since #68 it seeds its own new
+    unnamed cluster (assign_conf 1.0 to its own centroid) so it surfaces in the
+    gallery. It must never be linked to the dissimilar existing person."""
     svc = ClusteringService(auto_assign_threshold=0.68, uncertain_threshold=0.50)
     conn = await _open_db(tmp_path)
 
@@ -172,18 +175,22 @@ async def test_assign_below_uncertain_threshold_is_unreviewed(tmp_path: Path) ->
 
     photo_id = await _insert_photo(conn)
     face_id = await _insert_face(conn, photo_id)
-    await _insert_person(conn, "Carol", centroid)
+    carol_id = await _insert_person(conn, "Carol", centroid)
 
     status = await svc.assign_face(face_id, embedding, conn)
-    assert status == "unreviewed"
+    assert status == "assigned"
 
     row = await (
         await conn.execute(
-            "SELECT assign_status FROM faces WHERE id = ?", (face_id,)
+            "SELECT assign_status, person_id FROM faces WHERE id = ?", (face_id,)
         )
     ).fetchone()
     assert row is not None
-    assert row["assign_status"] == "unreviewed"
+    assert row["assign_status"] == "assigned"
+    assert row["person_id"] != carol_id   # seeded a new cluster, not attached to Carol
+
+    prow = await (await conn.execute("SELECT COUNT(*) AS c FROM people")).fetchone()
+    assert prow is not None and prow["c"] == 2
     await conn.close()
 
 
@@ -369,3 +376,67 @@ async def test_people_photos_endpoint_excludes_uncertain_and_unreviewed(
     assert all(face_id == assigned_id for face_id in face_ids_returned), (
         f"Non-assigned faces returned: {face_ids_returned}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Singleton seeding: a face with no good cluster starts its own unnamed person
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_no_existing_clusters_seeds_new_person(tmp_path: Path) -> None:
+    """First face ever scanned → a new unnamed person is created and the face is
+    assigned to it (conf 1.0), so it shows in the gallery immediately."""
+    svc = ClusteringService()
+    conn = await _open_db(tmp_path)
+
+    photo_id = await _insert_photo(conn)
+    face_id = await _insert_face(conn, photo_id)
+
+    status = await svc.assign_face(face_id, _unit_vec(seed=3), conn)
+    assert status == "assigned"
+
+    people = list(await (await conn.execute("SELECT id, name, centroid FROM people")).fetchall())
+    assert len(people) == 1
+    assert people[0]["name"] == ""            # unnamed
+    assert people[0]["centroid"] is not None  # seeded with the face embedding
+
+    row = await (
+        await conn.execute(
+            "SELECT assign_status, assign_conf, person_id FROM faces WHERE id = ?", (face_id,)
+        )
+    ).fetchone()
+    assert row is not None
+    assert row["assign_status"] == "assigned"
+    assert row["assign_conf"] == pytest.approx(1.0)
+    assert row["person_id"] == people[0]["id"]
+    await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_low_similarity_seeds_new_person_not_existing(tmp_path: Path) -> None:
+    """A face dissimilar to every cluster (sim < uncertain threshold) seeds a NEW
+    person rather than being attached to the closest (wrong) one."""
+    svc = ClusteringService()
+    conn = await _open_db(tmp_path)
+
+    existing_centroid = _unit_vec(seed=1)
+    existing_id = await _insert_person(conn, "Alice", existing_centroid)
+
+    photo_id = await _insert_photo(conn)
+    face_id = await _insert_face(conn, photo_id)
+
+    # cosine similarity 0.30 < uncertain threshold (0.50)
+    far_embedding = _vec_at_sim(existing_centroid, 0.30)
+    status = await svc.assign_face(face_id, far_embedding, conn)
+    assert status == "assigned"
+
+    people = list(await (await conn.execute("SELECT id FROM people ORDER BY id")).fetchall())
+    assert len(people) == 2, "a new cluster should have been seeded"
+
+    row = await (
+        await conn.execute("SELECT person_id FROM faces WHERE id = ?", (face_id,))
+    ).fetchone()
+    assert row is not None
+    assert row["person_id"] != existing_id
+    await conn.close()

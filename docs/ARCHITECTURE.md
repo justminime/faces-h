@@ -158,6 +158,13 @@ Both models output 512-dimensional L2-normalized embeddings. Downstream clusteri
 - `GET /queue/uncertain` — faces pending user confirmation
 - `POST /photos/{id}/correct` — submit a correction
 
+#### 3f. Image Serving
+
+The webview cannot load `C:\…` file paths directly, so all imagery is served as JPEG over the sidecar HTTP API from the original files (opened **read-only** — never modified, moved, or deleted):
+
+- `GET /photos/{id}/thumbnail?size=N` — downscaled JPEG of a photo for the gallery and search grids (EXIF-orientation aware; `size` bounded 16–1024, default 256). The frontend builds the absolute URL via `photoThumbUrl(id)` against the sidecar origin.
+- `GET /faces/{id}/crop` — bounding-box crop of a single face, used for person medallions/avatars and the uncertain-review queue. Frontend helper: `faceCropUrl(id)`.
+
 ---
 
 ## Data Model
