@@ -1,14 +1,37 @@
 # -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_all
+
 block_cipher = None
+
+# InsightFace loads its detection/recognition handlers and reads packaged data
+# files dynamically, and it leans on native extensions in cv2 / scikit-image /
+# scipy / onnx(runtime) during inference. PyInstaller's static analysis misses
+# these, so a frozen build can import InsightFace and load models yet still
+# return None from detection at runtime. collect_all pulls each package's
+# submodules, data files, and binaries so the frozen sidecar matches a normal
+# venv. (Resolves the "bundle InsightFace" TODO from issue #7.)
+_ml_datas = []
+_ml_binaries = []
+_ml_hiddenimports = []
+for _pkg in ("insightface", "cv2", "skimage", "scipy", "onnx", "onnxruntime", "sklearn"):
+    try:
+        _d, _b, _h = collect_all(_pkg)
+    except Exception:
+        # Optional/transitive package not installed in this build env — skip it
+        # rather than failing the whole build (e.g. sklearn is not a hard dep).
+        continue
+    _ml_datas += _d
+    _ml_binaries += _b
+    _ml_hiddenimports += _h
 
 a = Analysis(
     ["main.py"],
     pathex=[str(Path(".").resolve())],
-    binaries=[],
-    datas=[],
-    hiddenimports=[
+    binaries=_ml_binaries,
+    datas=_ml_datas,
+    hiddenimports=_ml_hiddenimports + [
         # uvicorn dynamic imports that PyInstaller misses
         "uvicorn.logging",
         "uvicorn.loops",
@@ -38,9 +61,8 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Exclude heavy ML packages from the base sidecar build;
-        # they are installed into the venv and picked up at runtime.
-        # Remove these exclusions once InsightFace is bundled in issue #7.
+        # InsightFace runs on onnxruntime, not torch/tensorflow, so keep these
+        # heavy frameworks out of the bundle to limit size and Defender scan time.
         "torch",
         "tensorflow",
     ],

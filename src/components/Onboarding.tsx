@@ -17,6 +17,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [folderPath, setFolderPath] = useState<string>("");
   const [modelsReady, setModelsReady] = useState<boolean | null>(null);
   const modelDownloadProgress = useUIStore((s) => s.modelDownloadProgress);
+  const setModelDownloadProgress = useUIStore((s) => s.setModelDownloadProgress);
 
   // Poll until the sidecar HTTP server is reachable, then advance to welcome.
   // On first run after an upgrade Windows Defender scans the new binary which
@@ -116,7 +117,14 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         const status = await fetchModelsStatus();
         if (status.ready) {
           clearInterval(pollRef.current!);
+          setModelDownloadProgress(1);
           void handleDownloadComplete();
+        } else if (typeof status.progress === "number") {
+          // Drive the bar from polling too, so it still advances if WebSocket
+          // progress events aren't arriving. Only ever move forward, so this
+          // never fights a WebSocket update that's further ahead.
+          const current = useUIStore.getState().modelDownloadProgress ?? 0;
+          if (status.progress > current) setModelDownloadProgress(status.progress);
         }
       } catch {
         // sidecar not yet reachable — keep polling and retry preload

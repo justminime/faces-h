@@ -23,6 +23,10 @@ class InsightFaceRecognizer(FaceRecognizer):
     and L2-normalised. The constructor triggers model download on first use.
     """
 
+    # Set true after the first detect_and_embed failure so we log one full
+    # traceback per process instead of one per image.
+    _first_failure_logged: bool = False
+
     def __init__(self, data_dir: str, _app: Any = None) -> None:
         models_root = data_dir
         os.makedirs(os.path.join(data_dir, "models"), exist_ok=True)
@@ -75,6 +79,15 @@ class InsightFaceRecognizer(FaceRecognizer):
 
             return results
 
-        except Exception as exc:
-            logger.warning("detect_and_embed failed for %s: %s", image_path, exc)
+        except Exception:
+            # Log the full traceback once so a systemic failure (e.g. a model
+            # that mis-loads in a frozen build and returns None) is diagnosable,
+            # then fall back to terse per-image warnings to avoid flooding.
+            if not InsightFaceRecognizer._first_failure_logged:
+                InsightFaceRecognizer._first_failure_logged = True
+                logger.exception(
+                    "detect_and_embed failed for %s (full traceback logged once)", image_path
+                )
+            else:
+                logger.warning("detect_and_embed failed for %s", image_path)
             return []

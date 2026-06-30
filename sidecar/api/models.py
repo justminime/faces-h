@@ -13,14 +13,27 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/models", tags=["models"])
 logger = logging.getLogger(__name__)
 
-_MODEL_SUBDIR = os.path.join("models", "buffalo_l")
+_MODELS_SUBDIR = "models"
+_MODEL_SUBDIR = os.path.join(_MODELS_SUBDIR, "buffalo_l")
 
-# buffalo_l pack is ~250 MB total; used to estimate download progress
-# from directory size without needing InsightFace download callbacks.
-_BUFFALO_L_BYTES = 250 * 1024 * 1024
+# buffalo_l is delivered as a single ~288 MB zip that InsightFace then extracts
+# into buffalo_l/. Download progress is tracked against the bytes landing under
+# models/ (the growing zip) so the bar advances during the slow network phase,
+# instead of sitting at 0 % until extraction begins (the old behaviour measured
+# only the still-empty buffalo_l/ folder).
+_BUFFALO_L_DOWNLOAD_BYTES = 290 * 1024 * 1024
+
+# The extracted pack is ~333 MB. Require most of it on disk before reporting the
+# model "ready", so a partially-extracted buffalo_l/ can't trip a scan that then
+# fails to load a half-written ONNX file.
+_BUFFALO_L_READY_BYTES = 300 * 1024 * 1024
 
 _preload_lock = threading.Lock()
 _preload_running = False
+
+
+def _models_root(data_dir: str) -> str:
+    return os.path.join(data_dir, _MODELS_SUBDIR)
 
 
 def _model_dir(data_dir: str) -> str:
@@ -42,11 +55,28 @@ def _dir_size(directory: str) -> int:
 
 
 def _is_ready(data_dir: str) -> bool:
+    """True only once the buffalo_l pack is fully extracted.
+
+    Checks the extracted size rather than mere directory existence: InsightFace
+    creates buffalo_l/ and writes the ONNX files one at a time, so a non-empty
+    folder does not yet mean the model is loadable.
+    """
     d = _model_dir(data_dir)
     try:
-        return os.path.isdir(d) and bool(os.listdir(d))
+        return os.path.isdir(d) and _dir_size(d) >= _BUFFALO_L_READY_BYTES
     except OSError:
         return False
+
+
+def _download_fraction(data_dir: str) -> float:
+    """Approximate download progress (0–0.99) from bytes on disk.
+
+    Sums everything under models/ — the streaming zip plus any extracted files —
+    so progress climbs steadily during the download instead of jumping from 0 %
+    straight to done when extraction finishes.
+    """
+    size = _dir_size(_models_root(data_dir))
+    return min(size / _BUFFALO_L_DOWNLOAD_BYTES, 0.99)
 
 
 @router.get("/status")
@@ -55,8 +85,8 @@ async def models_status() -> dict[str, Any]:
     data_dir = os.environ.get("FACES_H_DATA_DIR", ".")
     ready = _is_ready(data_dir)
     downloading = _preload_running and not ready
-    progress = _dir_size(_model_dir(data_dir)) / _BUFFALO_L_BYTES if downloading else (1.0 if ready else 0.0)
-    return {"ready": ready, "downloading": downloading, "progress": min(progress, 1.0)}
+    progress = _download_fraction(data_dir) if downloading else (1.0 if ready else 0.0)
+    return {"ready": ready, "downloading": downloading, "progress": progress}
 
 
 @router.post("/preload")
@@ -98,13 +128,12 @@ async def preload_models() -> dict[str, str]:
     # Monitor directory growth and emit WebSocket progress events until done.
     async def _monitor() -> None:
         from api.scan import broadcast_ws  # noqa: PLC0415 — lazy to avoid circular import
-        mdir = _model_dir(data_dir)
         last_pct = -1
         while _preload_running:
-            size = _dir_size(mdir)
-            progress = min(size / _BUFFALO_L_BYTES, 0.99)
+            progress = _download_fraction(data_dir)
             pct = int(progress * 100)
             if pct != last_pct and pct % 10 == 0:
+                size = _dir_size(_models_root(data_dir))
                 logger.info("models/preload: progress %d%% (%d MB)", pct, size // (1024 * 1024))
                 last_pct = pct
             await broadcast_ws({"type": "model_download_progress", "progress": progress})
