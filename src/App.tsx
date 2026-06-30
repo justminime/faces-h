@@ -16,11 +16,12 @@ import { initClient, fetchPeople, fetchPersonPhotos, fetchQueueCount, fetchModel
 import { initWs } from "./api/ws";
 import type { ApiPerson, ApiPhoto } from "./api/types";
 import { useQueueStore } from "./store/queue";
+import { useToastStore } from "./store/toast";
 
 function mapPerson(p: ApiPerson): Person {
   return {
     id: p.id,
-    name: p.name,
+    name: (p.name ?? "").trim() !== "" ? (p.name as string) : "Unnamed",
     avatarSrc: "",
     photoCount: p.photo_count,
   };
@@ -55,6 +56,7 @@ function App() {
   } = useUIStore();
 
   const setQueueCount = useQueueStore((s) => s.setQueueCount);
+  const scanVersion = useUIStore((s) => s.scanVersion);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [view, setView] = useState<"gallery" | "search">("gallery");
   const [onboardingDone, setOnboardingDone] = useState(
@@ -107,6 +109,18 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setPeople, setQueueCount]);
 
+  // Refresh sidebar when a scan completes (ws.ts bumps scanVersion on scan_complete).
+  useEffect(() => {
+    if (scanVersion === 0) return;
+    Promise.all([fetchPeople(), fetchQueueCount()])
+      .then(([apiPeople, queueResp]) => {
+        setPeople(apiPeople.map(mapPerson));
+        setQueueCount(queueResp.count);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanVersion]);
+
   useEffect(() => {
     if (selectedPersonId === null) {
       setPhotos([]);
@@ -128,6 +142,8 @@ function App() {
       const selected = await open({ directory: true, multiple: false });
       if (typeof selected === "string" && selected.length > 0) {
         await startScan(selected);
+        const folderName = selected.replace(/\\/g, "/").split("/").pop() ?? selected;
+        useToastStore.getState().addToast(`Scanning "${folderName}"…`);
       }
     } catch {
       // not in Tauri or user cancelled

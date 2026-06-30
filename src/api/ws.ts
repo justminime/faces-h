@@ -25,6 +25,15 @@ function handleMessage(event: MessageEvent): void {
     useUIStore.getState().setScanProgress(p.progress as number);
   } else if (p.type === "model_download_progress") {
     useUIStore.getState().setModelDownloadProgress(p.progress as number);
+  } else if (p.type === "scan_complete") {
+    const scanned = p.scanned as number | undefined;
+    const msg =
+      scanned != null && scanned > 0
+        ? `Scan complete — ${scanned} new photo${scanned !== 1 ? "s" : ""} added`
+        : "Scan complete";
+    useToastStore.getState().addToast(msg);
+    useUIStore.getState().setScanProgress(null);
+    useUIStore.getState().bumpScanVersion();
   } else if (p.type === "reeval_complete") {
     const moved = p.moved as number;
     const uncertain = p.newly_uncertain as number;

@@ -37,7 +37,7 @@ async def list_people() -> list[dict[str, Any]]:
                                  AND f.assign_status = 'assigned'
               LEFT JOIN photos ph ON ph.id = f.photo_id
              GROUP BY p.id, p.name
-             ORDER BY p.name
+             ORDER BY photo_count DESC, p.name
             """
         ) as cur:
             return [dict(row) for row in await cur.fetchall()]
