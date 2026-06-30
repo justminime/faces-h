@@ -75,6 +75,27 @@ def _setup_logging(data_dir: str, log_level: str = "INFO") -> None:
         root.addHandler(console)
 
 
+def _run_selftest(image_path: str, data_dir: str, logger: logging.Logger) -> None:
+    """Load the recognizer and run detection on one image, logging the outcome.
+
+    Used to verify a frozen build's ML stack end-to-end without a full scan:
+        faces-sidecar.exe --selftest path/to/photo.jpg --data-dir <dir>
+    Results land in {data_dir}/logs/sidecar.log.
+    """
+    try:
+        from ml.insightface_recognizer import InsightFaceRecognizer
+
+        recognizer = InsightFaceRecognizer(data_dir)
+        results = recognizer.detect_and_embed(image_path)
+        logger.info("selftest: detected %d face(s) in %s", len(results), image_path)
+        for i, face in enumerate(results):
+            logger.info(
+                "selftest:   face %d — bbox=%s det_conf=%.3f", i, face.bbox, face.detection_confidence
+            )
+    except Exception:
+        logger.exception("selftest: recognizer failed to initialise for %s", image_path)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="faces-h Python sidecar")
     parser.add_argument("--port", type=int, default=51423)
@@ -85,6 +106,14 @@ def main() -> None:
         type=str,
         default=os.environ.get("FACES_H_LOG_LEVEL", "INFO"),
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+    )
+    parser.add_argument(
+        "--selftest",
+        type=str,
+        default=None,
+        metavar="IMAGE",
+        help="Run face detection on a single image, log the result, and exit. "
+        "Diagnostic for verifying the bundled ML stack works in a frozen build.",
     )
     args = parser.parse_args()
 
@@ -102,6 +131,10 @@ def main() -> None:
         sys.version.split()[0],
         platform.platform(),
     )
+
+    if args.selftest is not None:
+        _run_selftest(args.selftest, args.data_dir, logger)
+        return
 
     db_path = os.path.join(args.data_dir, "faces.db")
     model_dir = os.path.join(args.data_dir, "models", "buffalo_l")
