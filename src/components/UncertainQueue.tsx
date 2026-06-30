@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { QueueItem } from "../api/types";
-import { confirmFace } from "../api/client";
+import { confirmFace, faceCropUrl } from "../api/client";
 import { useUIStore } from "../store/ui";
 import "./UncertainQueue.css";
 
@@ -37,11 +37,10 @@ function PersonPicker({ people, onPick, onClose }: PickerProps) {
 
 interface CardProps {
   item: QueueItem;
-  baseUrl: string;
   onReviewed: (faceId: number) => void;
 }
 
-function QueueCard({ item, baseUrl, onReviewed }: CardProps) {
+function QueueCard({ item, onReviewed }: CardProps) {
   const people = useUIStore((s) => s.people);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -70,7 +69,7 @@ function QueueCard({ item, baseUrl, onReviewed }: CardProps) {
     >
       <img
         className="uq-card__crop"
-        src={`${baseUrl}${item.face_crop_url}`}
+        src={faceCropUrl(item.face_id)}
         alt={`Face ${item.face_id} crop`}
       />
       <div className="uq-card__info">
@@ -118,8 +117,6 @@ function QueueCard({ item, baseUrl, onReviewed }: CardProps) {
 }
 
 export function UncertainQueue({ items, onReviewed }: UncertainQueueProps) {
-  const baseUrl = "";
-
   if (items.length === 0) {
     return (
       <div className="uq-empty">
@@ -134,7 +131,6 @@ export function UncertainQueue({ items, onReviewed }: UncertainQueueProps) {
         <QueueCard
           key={item.face_id}
           item={item}
-          baseUrl={baseUrl}
           onReviewed={onReviewed}
         />
       ))}

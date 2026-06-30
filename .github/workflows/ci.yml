@@ -33,7 +33,7 @@ jobs:
         run: mypy . --ignore-missing-imports
 
       - name: Tests (pytest)
-        run: pytest tests/ --cov=. --cov-report=xml -q || echo "No tests yet — will enforce coverage in M1"
+        run: pytest tests/ -m "not slow" --cov=. --cov-report=xml -q
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -58,13 +58,13 @@ jobs:
         run: npm ci
 
       - name: Lint (eslint)
-        run: npm run lint || echo "No source to lint yet"
+        run: npm run lint
 
       - name: Type check
         run: npm run type-check
 
       - name: Tests (vitest)
-        run: npm test || echo "No tests yet"
+        run: npm test
 
   rust:
     name: Rust — clippy, test

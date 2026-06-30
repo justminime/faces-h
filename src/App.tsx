@@ -12,7 +12,7 @@ import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
 import { useUIStore } from "./store/ui";
 import { MOCK_UNNAMED_COUNT } from "./mocks/data";
 import type { Person, Photo } from "./mocks/data";
-import { initClient, fetchPeople, fetchPersonPhotos, fetchQueueCount, fetchModelsStatus, startScan, rescan } from "./api/client";
+import { initClient, fetchPeople, fetchPersonPhotos, fetchQueueCount, fetchModelsStatus, startScan, rescan, photoThumbUrl, faceCropUrl } from "./api/client";
 import { initWs } from "./api/ws";
 import type { ApiPerson, ApiPhoto } from "./api/types";
 import { useQueueStore } from "./store/queue";
@@ -22,7 +22,7 @@ function mapPerson(p: ApiPerson): Person {
   return {
     id: p.id,
     name: (p.name ?? "").trim() !== "" ? (p.name as string) : "Unnamed",
-    avatarSrc: "",
+    avatarSrc: p.medallion_face_id !== null ? faceCropUrl(p.medallion_face_id) : "",
     photoCount: p.photo_count,
   };
 }
@@ -30,14 +30,14 @@ function mapPerson(p: ApiPerson): Person {
 function mapPhoto(p: ApiPhoto): Photo {
   return {
     id: p.id,
-    src: "",
+    src: photoThumbUrl(p.id),
     path: p.path,
     takenAt: p.taken_at !== null ? String(p.taken_at) : "",
     faces: p.faces.map((f) => ({
       faceId: f.face_id,
       personId: f.person_id,
       personName: null,
-      faceSrc: "",
+      faceSrc: faceCropUrl(f.face_id),
     })),
   };
 }

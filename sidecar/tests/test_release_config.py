@@ -45,8 +45,8 @@ def test_tauri_conf_has_required_build_fields() -> None:
         f"bundle.externalBin must include faces-sidecar path; got {ext}"
     )
     nsis = conf.get("bundle", {}).get("windows", {}).get("nsis", {})
-    assert nsis.get("installMode") == "currentUser", (
-        "nsis.installMode must be 'currentUser'"
+    assert nsis.get("installMode") == "perMachine", (
+        "nsis.installMode must be 'perMachine' (Defender exclusion needs machine scope, #66)"
     )
 
 

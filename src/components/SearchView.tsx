@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { searchPhotos } from "../api/client";
+import { searchPhotos, photoThumbUrl } from "../api/client";
 import type { ApiPhoto } from "../api/types";
 import type { Person } from "../mocks/data";
 import "./SearchView.css";
@@ -185,7 +185,7 @@ export function SearchView({ people }: SearchViewProps) {
                   >
                     <img
                       className="search-grid__img"
-                      src={photo.path}
+                      src={photoThumbUrl(photo.id)}
                       alt={photo.path}
                       loading="lazy"
                     />

@@ -6,6 +6,7 @@ on InsightFaceRecognizer enables clean dependency injection without
 monkey-patching insightface internals.
 """
 
+import logging
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -166,3 +167,59 @@ def test_factory_returns_insightface_recognizer(tmp_path: Path) -> None:
 def test_factory_raises_for_unknown_model(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Unknown face model"):
         get_recognizer({"face_model": "mystery_model_v99"}, str(tmp_path))
+
+
+# ---------------------------------------------------------------------------
+# Model loading: only detection + recognition (the frozen-build landmark fix)
+# ---------------------------------------------------------------------------
+
+
+def test_loads_only_detection_and_recognition_modules(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """FaceAnalysis must be created with allowed_modules limited to detection +
+    recognition. The 3D-landmark model crashes in frozen builds and we don't use
+    it, so it must never be loaded.
+
+    Injects a fake `insightface.app` module so the test runs even where the real
+    (300 MB) insightface package isn't installed — e.g. the CI test job.
+    """
+    import sys
+    import types
+
+    mock_fa = MagicMock()
+    fake_app = types.ModuleType("insightface.app")
+    fake_app.FaceAnalysis = mock_fa  # type: ignore[attr-defined]
+    fake_insightface = types.ModuleType("insightface")
+    fake_insightface.app = fake_app  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "insightface", fake_insightface)
+    monkeypatch.setitem(sys.modules, "insightface.app", fake_app)
+
+    InsightFaceRecognizer(str(tmp_path))
+
+    mock_fa.assert_called_once()
+    assert mock_fa.call_args.kwargs.get("allowed_modules") == ["detection", "recognition"]
+
+
+def test_first_detect_failure_logs_traceback_once(tmp_path: Path, caplog: Any) -> None:
+    """The first detect_and_embed failure logs a full traceback (ERROR); later
+    failures are terse warnings — so a systemic failure is diagnosable without
+    flooding the log on every photo."""
+    InsightFaceRecognizer._first_failure_logged = False  # reset class state
+    app = MagicMock()
+    app.get.side_effect = RuntimeError("inference exploded")
+    recognizer = InsightFaceRecognizer(str(tmp_path), _app=app)
+
+    img_path = tmp_path / "img.jpg"
+    Image.new("RGB", (50, 50)).save(str(img_path))
+
+    with caplog.at_level(logging.DEBUG, logger="ml.insightface_recognizer"):
+        assert recognizer.detect_and_embed(str(img_path)) == []
+        assert recognizer.detect_and_embed(str(img_path)) == []
+
+    assert InsightFaceRecognizer._first_failure_logged is True
+    errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(errors) == 1            # exactly one full-traceback log
+    assert errors[0].exc_info is not None
+    assert len(warnings) >= 1          # subsequent failures are terse

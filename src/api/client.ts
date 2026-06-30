@@ -7,6 +7,16 @@ export function initClient(url: string): void {
   _baseUrl = url;
 }
 
+/** Absolute URL of a downscaled JPEG thumbnail for a photo. */
+export function photoThumbUrl(photoId: number, size = 256): string {
+  return `${_baseUrl}/photos/${photoId}/thumbnail?size=${size}`;
+}
+
+/** Absolute URL of a face bounding-box crop, used for medallions and avatars. */
+export function faceCropUrl(faceId: number): string {
+  return `${_baseUrl}/faces/${faceId}/crop`;
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${_baseUrl}${path}`, {
     headers: { "Content-Type": "application/json" },

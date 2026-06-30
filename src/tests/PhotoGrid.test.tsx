@@ -35,4 +35,16 @@ describe("PhotoGrid", () => {
     fireEvent.click(screen.getAllByRole("img")[0]);
     expect(onSelect).toHaveBeenCalledWith(MOCK_PHOTOS[0].id);
   });
+
+  it("renders each thumbnail with its src (regression: thumbnails were blank)", () => {
+    const photos = [
+      { ...MOCK_PHOTOS[0], id: 1, src: "http://127.0.0.1:51423/photos/1/thumbnail?size=256" },
+    ];
+    renderGrid({ photos });
+    const img = screen.getByRole("img");
+    expect(img).toHaveAttribute(
+      "src",
+      "http://127.0.0.1:51423/photos/1/thumbnail?size=256",
+    );
+  });
 });
