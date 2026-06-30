@@ -14,7 +14,6 @@ from typing import Any
 import aiosqlite
 import faiss  # type: ignore[import-untyped]
 import numpy as np
-import psutil
 import pytest
 from PIL import Image
 
@@ -142,6 +141,8 @@ def test_faiss_memory_at_1m_embeddings() -> None:
         batch = rng.random((batch_size, dim), dtype=np.float32)
         norms = np.linalg.norm(batch, axis=1, keepdims=True)
         idx.add((batch / norms).astype(np.float32))
+
+    import psutil  # local: a slow-only dep, not installed in CI's default run
 
     rss_mb = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
     assert rss_mb < 600, f"RSS {rss_mb:.0f} MB exceeds 600 MB threshold"
