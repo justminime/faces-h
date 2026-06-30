@@ -261,8 +261,10 @@ async def run_scan(
         else:
             _status.error_count += 1
 
-        # Broadcast every 100 files and at the very end
-        if i % 100 == 0 or i == len(paths):
+        # Broadcast every 10 files and at the very end. Face detection is slow
+        # (~seconds per photo), so a coarser interval would leave the UI without
+        # an update — and a progress event — for minutes at a time.
+        if i % 10 == 0 or i == len(paths):
             await broadcast(
                 {
                     "type": "scan_progress",

@@ -245,11 +245,17 @@ The frontend connects to `http://127.0.0.1:51423` for HTTP and `ws://127.0.0.1:5
 
 **WebSocket event types:**
 ```json
-{ "type": "scan_progress",     "scanned": 1200, "total": 45000, "eta_seconds": 3600 }
-{ "type": "faces_ready",       "count": 14 }
-{ "type": "reeval_complete",   "moved": 5, "newly_uncertain": 3, "person": "Mom" }
-{ "type": "scan_complete" }
+{ "type": "scan_progress",          "scanned": 1200, "total": 45000, "eta_seconds": 3600 }
+{ "type": "model_download_progress","progress": 0.42 }
+{ "type": "reeval_complete",        "moved": 5, "newly_uncertain": 3, "person": "Mom" }
+{ "type": "scan_complete",          "scanned": 1200, "total": 45000 }
 ```
+
+`scan_progress` is broadcast every 10 processed files (face detection is
+seconds-per-photo, so a coarser interval would leave the UI without an update
+for minutes). The frontend refreshes the people sidebar on **every**
+`scan_progress` — not only on `scan_complete` — so clusters appear live as the
+scan runs rather than all at once at the end.
 
 ---
 
@@ -257,10 +263,32 @@ The frontend connects to `http://127.0.0.1:51423` for HTTP and `ws://127.0.0.1:5
 
 ### Default: InsightFace buffalo_l
 
-- Detection: RetinaFace (part of buffalo_l pack)
-- Recognition: ArcFace (buffalo_l) — 512-dim L2-normalized embeddings
+- Detection: SCRFD (`det_10g`, part of buffalo_l pack) — bbox + 5-point keypoints
+- Recognition: ArcFace (`w600k_r50`) — 512-dim L2-normalized embeddings
 - Runtime: ONNX Runtime (CPU execution provider)
-- Model files: bundled inside the PyInstaller sidecar (~300MB models included)
+- Model files: **downloaded on first run** (~300 MB zip → `{data_dir}/models/buffalo_l/`), not bundled in the executable. Onboarding shows a download progress bar driven by the bytes landing under `models/`.
+
+**Only the detection + recognition models are loaded** via
+`FaceAnalysis(allowed_modules=["detection", "recognition"])`. The buffalo_l pack
+also ships 3D-landmark (`1k3d68`), 2D-landmark (`2d106det`), and gender-age
+models that we never read. Loading them is wasteful and, critically, the
+3D-landmark model's `mean_lmk` data loads as `None` in a frozen (PyInstaller)
+build — crashing detection on every face with `'NoneType' object has no
+attribute 'shape'`. Restricting `allowed_modules` skips those models entirely.
+
+### Packaging notes (frozen / PyInstaller build)
+
+- InsightFace aligns faces with `skimage.transform`, and scikit-image uses
+  `lazy_loader`, so its submodules are invisible to PyInstaller's static
+  analysis. The spec must `collect_submodules("skimage")` (+ its `scipy`
+  backend) and `collect_data_files("skimage")`. Do **not** `collect_all` the
+  whole scientific stack — it bloats the onefile bundle enough that extraction
+  exceeds the sidecar's startup timeout, and the app appears to crash on launch.
+- The Rust shell waits up to 180 s for the sidecar to bind its port; onefile
+  extraction + first-run Defender scan must finish within that window.
+- `faces-sidecar.exe --selftest <image> --data-dir <dir>` runs detection on one
+  image and logs the result (+ a full traceback on failure) — use it to verify a
+  frozen build's ML stack without a full library scan.
 
 ### Alternative: DeepFace + FaceNet512
 
