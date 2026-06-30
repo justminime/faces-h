@@ -24,8 +24,8 @@ class InsightFaceRecognizer(FaceRecognizer):
     """
 
     def __init__(self, data_dir: str, _app: Any = None) -> None:
-        models_root = os.path.join(data_dir, "models")
-        os.makedirs(models_root, exist_ok=True)
+        models_root = data_dir
+        os.makedirs(os.path.join(data_dir, "models"), exist_ok=True)
 
         if _app is not None:
             self._app = _app
