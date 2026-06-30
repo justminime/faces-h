@@ -199,6 +199,7 @@ async def _extract_faces(
              face.embedding.astype(np.float32).tobytes()),
         )
         await db.commit()
+        assert cur.lastrowid is not None
         await clustering.assign_face(int(cur.lastrowid), face.embedding, db)
 
 
