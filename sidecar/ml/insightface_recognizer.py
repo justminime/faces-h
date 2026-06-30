@@ -36,10 +36,17 @@ class InsightFaceRecognizer(FaceRecognizer):
         else:
             import insightface.app  # lazy — expensive import deferred to first use
 
+            # Load only the models we actually use: detection (bbox + 5-point
+            # keypoints for alignment) and recognition (the 512-d embedding).
+            # buffalo_l also ships 3D/2D landmark and gender-age models that we
+            # never read — and the 3D-landmark model crashes in a frozen build
+            # (its mean_lmk data loads as None → 'NoneType' has no 'shape' on
+            # every face). Restricting modules sidesteps that and is faster.
             self._app = insightface.app.FaceAnalysis(
                 name="buffalo_l",
                 root=models_root,
                 providers=["CPUExecutionProvider"],
+                allowed_modules=["detection", "recognition"],
             )
             self._app.prepare(ctx_id=0, det_size=(640, 640))
 

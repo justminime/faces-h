@@ -72,13 +72,22 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     await triggerScan();
   }
 
+  // Guards against starting the scan more than once: model-ready can be
+  // signalled by both the WebSocket progress event and the status poll, which
+  // would otherwise fire two concurrent scans — and two recognizers loading the
+  // same ONNX model at once fails on Windows with a file-sharing error.
+  const scanTriggeredRef = useRef(false);
+
   async function triggerScan() {
+    if (scanTriggeredRef.current) return;
+    scanTriggeredRef.current = true;
     setStep("starting");
     try {
       await startScan(folderPath);
       localStorage.setItem(ONBOARDING_KEY, "1");
       onComplete();
     } catch {
+      scanTriggeredRef.current = false;
       setErrorMessage(
         "Could not start the scan. The engine may still be loading — please wait a moment and try again.",
       );
