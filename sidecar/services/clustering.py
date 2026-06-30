@@ -53,6 +53,10 @@ class ClusteringService:
 
         Rule 1: assign_status is never 'assigned' unless
         assign_conf >= auto_assign_threshold.
+
+        When no existing person is a good match (conf < uncertain_threshold),
+        a new unnamed person cluster is seeded so the face appears in the
+        gallery immediately, ordered by photo count.
         """
         best_person_id: int | None = None
         best_conf: float = -1.0
@@ -67,39 +71,49 @@ class ClusteringService:
                     best_conf = sim
                     best_person_id = int(row["id"])
 
-        if best_person_id is None:
-            status: AssignStatus = "unreviewed"
-            person_id_out: int | None = None
-            suggested_person_id_out: int | None = None
-            conf_out: float | None = None
-        else:
-            status = self._status(best_conf)
-            # Rule 1: only link person_id when definitively assigned
-            person_id_out = best_person_id if status == "assigned" else None
-            # Store the best candidate for uncertain faces so the review queue can show it
-            suggested_person_id_out = best_person_id if status == "uncertain" else None
-            conf_out = best_conf
+        if best_person_id is None or best_conf < self.uncertain_threshold:
+            # No suitable cluster — seed a new unnamed person with this face as centroid.
+            new_id = await self.create_person("", db, initial_embedding=embedding)
+            await db.execute(
+                """UPDATE faces
+                      SET person_id = ?,
+                          assign_conf = 1.0,
+                          assign_status = 'assigned',
+                          embedding = ?
+                    WHERE id = ?""",
+                (new_id, embedding.astype(np.float32).tobytes(), face_id),
+            )
+            await db.commit()
+            return "assigned"
+
+        status = self._status(best_conf)
+        # Rule 1: only link person_id when definitively assigned
+        person_id_out: int | None = best_person_id if status == "assigned" else None
+        suggested_person_id_out: int | None = best_person_id if status == "uncertain" else None
 
         await db.execute(
-            """
-            UPDATE faces
-               SET person_id = ?,
-                   suggested_person_id = ?,
-                   assign_conf = ?,
-                   assign_status = ?,
-                   embedding = ?
-             WHERE id = ?
-            """,
+            """UPDATE faces
+                  SET person_id = ?,
+                      suggested_person_id = ?,
+                      assign_conf = ?,
+                      assign_status = ?,
+                      embedding = ?
+                WHERE id = ?""",
             (
                 person_id_out,
                 suggested_person_id_out,
-                conf_out,
+                best_conf,
                 status,
                 embedding.astype(np.float32).tobytes(),
                 face_id,
             ),
         )
         await db.commit()
+
+        # Update centroid so future faces cluster more accurately.
+        if status == "assigned":
+            await self.update_centroid(best_person_id, embedding, db)
+
         return status
 
     async def update_centroid(

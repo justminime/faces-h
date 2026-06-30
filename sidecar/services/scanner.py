@@ -1,9 +1,11 @@
 """File scanner service.
 
 Walks a directory tree, discovers supported images, persists records to SQLite,
-and streams progress events via a caller-supplied broadcast callback.
+runs face detection on new/unindexed photos, and streams progress events via a
+caller-supplied broadcast callback.
 Incremental: files already recorded with the same mtime are skipped without
-re-opening or re-inserting them.
+re-opening or re-inserting them. Face detection is skipped for photos that
+already have face records.
 """
 
 import asyncio
@@ -16,6 +18,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal
 
 import aiosqlite
+import numpy as np
 import piexif
 
 try:
@@ -172,17 +175,68 @@ async def _process_file(path: str, db: aiosqlite.Connection) -> ProcessResult:
     return "ok"
 
 
+async def _extract_faces(
+    path: str,
+    photo_id: int,
+    recognizer: Any,
+    clustering: Any,
+    db: aiosqlite.Connection,
+) -> None:
+    """Detect faces in path, insert into DB, run clustering assignment."""
+    try:
+        results = await asyncio.to_thread(recognizer.detect_and_embed, path)
+    except Exception as exc:
+        logger.warning("detect_and_embed failed for %s: %s", path, exc)
+        return
+
+    for face in results:
+        x, y, w, h = face.bbox
+        cur = await db.execute(
+            """INSERT INTO faces
+               (photo_id, bbox_x, bbox_y, bbox_w, bbox_h, detection_conf, embedding, assign_status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'unreviewed')""",
+            (photo_id, x, y, w, h, face.detection_confidence,
+             face.embedding.astype(np.float32).tobytes()),
+        )
+        await db.commit()
+        await clustering.assign_face(int(cur.lastrowid), face.embedding, db)
+
+
 async def run_scan(
     root_path: str,
     broadcast: BroadcastFn,
     db: aiosqlite.Connection,
 ) -> None:
-    """Walk root_path, record new/changed images in db, broadcast progress events."""
+    """Walk root_path, record new/changed images in db, run face detection, broadcast progress."""
     global _status
     _status = ScanStatus(running=True, root_path=root_path, start_time=time.monotonic())
 
     paths = await asyncio.to_thread(_collect_files, root_path)
     _status.total = len(paths)
+
+    # Load the face recognizer once for the whole scan (expensive ONNX init).
+    # Falls back to metadata-only mode if the model hasn't been downloaded yet.
+    data_dir = os.environ.get("FACES_H_DATA_DIR", ".")
+    recognizer = None
+    clustering = None
+    try:
+        from ml.insightface_recognizer import InsightFaceRecognizer  # noqa: PLC0415
+        from services.clustering import ClusteringService  # noqa: PLC0415
+        recognizer = await asyncio.to_thread(InsightFaceRecognizer, data_dir)
+        clustering = ClusteringService()
+        logger.info("face recognizer loaded — face detection active")
+    except Exception as exc:
+        logger.warning("face recognizer unavailable, metadata-only scan: %s", exc)
+
+    # Pre-fetch photos that exist in the DB but have no face records yet so
+    # that a rescan after an earlier metadata-only pass fills in face data.
+    unindexed: dict[str, int] = {}
+    if recognizer is not None:
+        cur = await db.execute(
+            """SELECT id, path FROM photos
+               WHERE NOT EXISTS (SELECT 1 FROM faces WHERE photo_id = photos.id)"""
+        )
+        unindexed = {row["path"]: int(row["id"]) for row in await cur.fetchall()}
 
     for i, path in enumerate(paths, 1):
         while _status.paused:
@@ -191,8 +245,18 @@ async def run_scan(
         result = await _process_file(path, db)
         if result == "ok":
             _status.scanned += 1
+            if recognizer is not None:
+                row = await (await db.execute(
+                    "SELECT id FROM photos WHERE path = ?", (path,)
+                )).fetchone()
+                if row:
+                    await _extract_faces(path, int(row["id"]), recognizer, clustering, db)
         elif result == "skip":
             _status.skipped += 1
+            # Run face detection on previously-scanned photos that were missed
+            # (e.g., a prior scan ran before the model was downloaded).
+            if recognizer is not None and path in unindexed:
+                await _extract_faces(path, unindexed[path], recognizer, clustering, db)
         else:
             _status.error_count += 1
 
@@ -212,4 +276,4 @@ async def run_scan(
             await asyncio.sleep(0)
 
     _status.running = False
-    await broadcast({"type": "scan_complete"})
+    await broadcast({"type": "scan_complete", "scanned": _status.scanned, "total": _status.total})
