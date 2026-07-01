@@ -22,6 +22,7 @@ export interface SearchRequest {
   people_ids: number[];
   date_from?: string;
   date_to?: string;
+  match?: "contains" | "exact";
   limit?: number;
   offset?: number;
 }
