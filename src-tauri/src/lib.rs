@@ -27,6 +27,25 @@ fn kill_sidecar_tree(pid: u32) {
         .output();
 }
 
+/// Best-effort cleanup of orphaned sidecar processes left by a previous run that
+/// crashed or was force-closed without our window-close handler running. Such an
+/// orphan holds the SQLite WAL and would shadow the fresh sidecar. Called once at
+/// startup before spawning our own; faces-h is effectively single-instance, so
+/// there is no legitimately-running sidecar to preserve at this point.
+#[cfg(target_os = "windows")]
+fn kill_orphaned_sidecars() {
+    let _ = std::process::Command::new("taskkill")
+        .args(["/F", "/T", "/IM", "faces-sidecar.exe"])
+        .output();
+}
+
+#[cfg(not(target_os = "windows"))]
+fn kill_orphaned_sidecars() {
+    let _ = std::process::Command::new("pkill")
+        .args(["-9", "-f", "faces-sidecar"])
+        .output();
+}
+
 /// Bind a TCP listener on port 0 to let the OS pick a free port, read it, then
 /// drop the listener so the port is available for the sidecar.
 pub fn allocate_port() -> u16 {
@@ -113,6 +132,10 @@ pub fn run() {
             reveal_in_explorer,
         ])
         .setup(|app| {
+            // Clear any sidecar orphaned by a prior crash before starting ours,
+            // so it can't hold the DB/WAL lock or shadow the new one.
+            kill_orphaned_sidecars();
+
             let port = allocate_port();
             let url = format!("http://127.0.0.1:{port}");
 

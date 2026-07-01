@@ -318,6 +318,24 @@ attribute 'shape'`. Restricting `allowed_modules` skips those models entirely.
   image and logs the result (+ a full traceback on failure) — use it to verify a
   frozen build's ML stack without a full library scan.
 
+### Upgrade & user-data location
+
+- All user data lives in the Tauri per-user app-data directory,
+  `%APPDATA%\com.faces-h.app\` (`faces.db`, `models/`, `logs/`). This path is
+  derived from the app **identifier** (`com.faces-h.app`), not the version, so it
+  is stable across upgrades — the library and named people survive reinstalls.
+- The NSIS installer hooks (`src-tauri/nsis/hooks.nsi`) terminate a running
+  `faces-h.exe` **and** `faces-sidecar.exe` before copying files, so an in-place
+  upgrade isn't blocked by a locked sidecar binary. Tauri's own running-app check
+  only covers `faces-h.exe`; the Python sidecar is a separate process we must kill
+  explicitly.
+- Uninstall removes only the install directory and the Defender exclusion; it
+  **never** deletes `%APPDATA%\com.faces-h.app`, so uninstall/reinstall preserves
+  the library. To fully reset, delete that folder manually.
+- On startup the Rust shell kills any orphaned `faces-sidecar.exe` from a prior
+  crash before spawning a fresh one, so a stale sidecar can't hold the SQLite WAL
+  or shadow the new instance.
+
 ### Alternative: DeepFace + FaceNet512
 
 - Detection: MTCNN or RetinaFace (configurable)
