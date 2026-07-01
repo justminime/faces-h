@@ -103,6 +103,17 @@ Key views:
 - Search with multi-person AND + date range
 - Scan progress indicator
 
+**Naming & identity workflow.** Selecting a person in the sidebar shows their
+gallery with a header carrying that person's medallion, name, and a
+**Name this person / Rename** action. The action opens `NamingModal`
+(`POST /people/{id}/name`); on save the sidebar/people list is refetched so the
+new name propagates everywhere. In the Detail Panel, each face's `person_id` is
+resolved to a display name (the real name, or "Unnamed") rather than a bare
+"Unknown", and the face belonging to the person currently being viewed is
+enlarged and highlighted with a "this person" badge so it is identifiable in
+group photos. Person names are resolved client-side from the loaded people
+list, so a rename updates the panel without an extra round-trip.
+
 ### 3. Python Sidecar
 
 #### 3a. Scanner Service
