@@ -16,6 +16,35 @@
   flex-shrink: 0;
 }
 
+.photo-grid-toolbar__person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+}
+
+.photo-grid-toolbar__person-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.photo-grid-toolbar__rename-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  cursor: pointer;
+  transition: background-color 100ms ease;
+}
+
+.photo-grid-toolbar__rename-btn:hover {
+  background: var(--color-surface-2, #efeae2);
+}
+
 .photo-grid-toolbar__label {
   font-size: 12px;
   font-weight: 500;

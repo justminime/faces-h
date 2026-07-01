@@ -6,21 +6,32 @@ import "./DetailPanel.css";
 interface FaceEntryProps {
   face: FaceInfo;
   onCorrectionRequest?: (faceId: number) => void;
+  resolvePersonName?: (personId: number | null) => string;
+  highlighted?: boolean;
 }
 
-function FaceEntry({ face, onCorrectionRequest }: FaceEntryProps) {
+function FaceEntry({
+  face,
+  onCorrectionRequest,
+  resolvePersonName,
+  highlighted = false,
+}: FaceEntryProps) {
   const [hovered, setHovered] = useState(false);
-  const displayName = face.personName ?? "Unknown";
+  const displayName =
+    face.personName ?? resolvePersonName?.(face.personId) ?? "Unknown";
 
   return (
     <div
-      className="face-entry"
+      className={`face-entry${highlighted ? " face-entry--highlighted" : ""}`}
       data-testid={`face-entry-${face.faceId}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <Medallion src={face.faceSrc} alt={displayName} size={32} />
-      <span className="face-entry__name">{displayName}</span>
+      <Medallion src={face.faceSrc} alt={displayName} size={48} selected={highlighted} />
+      <span className="face-entry__name">
+        {displayName}
+        {highlighted && <span className="face-entry__badge">this person</span>}
+      </span>
       {hovered && (
         <button
           type="button"
@@ -37,9 +48,16 @@ function FaceEntry({ face, onCorrectionRequest }: FaceEntryProps) {
 interface DetailPanelProps {
   photo: Photo | null;
   onCorrectionRequest?: (faceId: number) => void;
+  resolvePersonName?: (personId: number | null) => string;
+  highlightPersonId?: number | null;
 }
 
-export function DetailPanel({ photo, onCorrectionRequest }: DetailPanelProps) {
+export function DetailPanel({
+  photo,
+  onCorrectionRequest,
+  resolvePersonName,
+  highlightPersonId = null,
+}: DetailPanelProps) {
   if (photo === null) {
     return (
       <aside className="detail-panel detail-panel--empty">
@@ -65,6 +83,10 @@ export function DetailPanel({ photo, onCorrectionRequest }: DetailPanelProps) {
               key={face.faceId}
               face={face}
               onCorrectionRequest={onCorrectionRequest}
+              resolvePersonName={resolvePersonName}
+              highlighted={
+                highlightPersonId !== null && face.personId === highlightPersonId
+              }
             />
           ))}
         </div>
