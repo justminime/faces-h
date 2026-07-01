@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
@@ -7,6 +7,7 @@ import { PhotoGrid } from "./components/PhotoGrid";
 import { DetailPanel } from "./components/DetailPanel";
 import { SearchView } from "./components/SearchView";
 import { CorrectionModal } from "./components/CorrectionModal";
+import { NamingModal } from "./components/NamingModal";
 import { ToastContainer } from "./components/Toast";
 import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
 import { useUIStore } from "./store/ui";
@@ -66,6 +67,16 @@ function App() {
     faceId: number;
     photoId: number;
   } | null>(null);
+  const [namingPersonId, setNamingPersonId] = useState<number | null>(null);
+
+  // Resolve a face's person_id to a display name for the detail panel.
+  const nameByPersonId = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const p of people) m.set(p.id, p.name ?? "Unnamed");
+    return m;
+  }, [people]);
+  const resolvePersonName = (personId: number | null): string =>
+    personId !== null ? (nameByPersonId.get(personId) ?? "Unknown") : "Unknown";
 
   useEffect(() => {
     invoke<string>("get_sidecar_url")
@@ -132,6 +143,25 @@ function App() {
   }, [selectedPersonId]);
 
   const selectedPhoto = photos.find((p) => p.id === selectedPhotoId) ?? null;
+  const selectedPerson = people.find((p) => p.id === selectedPersonId) ?? null;
+  const selectedPersonIsNamed =
+    selectedPerson !== null && selectedPerson.name !== "Unnamed";
+
+  // Face crops of the selected person, shown as samples in the naming modal.
+  const namingSampleSrcs = photos
+    .flatMap((p) => p.faces)
+    .filter((f) => f.personId === namingPersonId)
+    .slice(0, 6)
+    .map((f) => f.faceSrc);
+
+  function refreshPeople() {
+    Promise.all([fetchPeople(), fetchQueueCount()])
+      .then(([apiPeople, queueResp]) => {
+        setPeople(apiPeople.map(mapPerson));
+        setQueueCount(queueResp.count);
+      })
+      .catch(() => {});
+  }
 
   if (!onboardingDone) {
     return <Onboarding onComplete={() => setOnboardingDone(true)} />;
@@ -186,10 +216,20 @@ function App() {
             onSizeChange={setThumbnailSize}
             onSelect={setSelectedPhoto}
             selectedPhotoId={selectedPhotoId}
+            personName={selectedPerson?.name ?? null}
+            personAvatarSrc={selectedPerson?.avatarSrc}
+            isNamed={selectedPersonIsNamed}
+            onRenamePerson={
+              selectedPersonId !== null
+                ? () => setNamingPersonId(selectedPersonId)
+                : undefined
+            }
           />
           <DetailPanel
             photo={selectedPhoto}
             onCorrectionRequest={handleCorrectionRequest}
+            resolvePersonName={resolvePersonName}
+            highlightPersonId={selectedPersonId}
           />
         </>
       )}
@@ -201,6 +241,27 @@ function App() {
           onCorrected={() => setCorrectionTarget(null)}
           onClose={() => setCorrectionTarget(null)}
         />
+      )}
+      {namingPersonId !== null && (
+        <div
+          className="naming-modal-overlay"
+          onClick={() => setNamingPersonId(null)}
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <NamingModal
+              personId={namingPersonId}
+              sampleFaceSrcs={namingSampleSrcs}
+              existingNames={people
+                .map((p) => p.name)
+                .filter((n): n is string => n !== null && n !== "Unnamed")}
+              onSaved={() => {
+                setNamingPersonId(null);
+                refreshPeople();
+              }}
+              onSkip={() => setNamingPersonId(null)}
+            />
+          </div>
+        </div>
       )}
       <ToastContainer />
     </div>

@@ -1,3 +1,4 @@
+import { Medallion } from "./Medallion";
 import type { Photo } from "../mocks/data";
 import "./PhotoGrid.css";
 
@@ -7,6 +8,10 @@ interface PhotoGridProps {
   onSizeChange: (size: number) => void;
   onSelect: (photoId: number) => void;
   selectedPhotoId: number | null;
+  personName?: string | null;
+  personAvatarSrc?: string;
+  isNamed?: boolean;
+  onRenamePerson?: () => void;
 }
 
 export function PhotoGrid({
@@ -15,10 +20,29 @@ export function PhotoGrid({
   onSizeChange,
   onSelect,
   selectedPhotoId,
+  personName,
+  personAvatarSrc,
+  isNamed,
+  onRenamePerson,
 }: PhotoGridProps) {
   return (
     <div className="photo-grid-wrapper">
       <div className="photo-grid-toolbar">
+        {personName != null && (
+          <div className="photo-grid-toolbar__person">
+            <Medallion src={personAvatarSrc ?? ""} alt={personName} size={36} />
+            <span className="photo-grid-toolbar__person-name">{personName}</span>
+            {onRenamePerson && (
+              <button
+                type="button"
+                className="photo-grid-toolbar__rename-btn"
+                onClick={onRenamePerson}
+              >
+                {isNamed ? "Rename" : "Name this person"}
+              </button>
+            )}
+          </div>
+        )}
         <label htmlFor="size-slider" className="photo-grid-toolbar__label">
           Size
         </label>
