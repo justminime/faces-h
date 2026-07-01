@@ -14,6 +14,9 @@ class SearchRequest(BaseModel):
     people_ids: list[int]
     date_from: str | None = None
     date_to: str | None = None
+    # "contains": photo includes all selected people (others allowed, default).
+    # "exact": the photo's set of assigned people equals exactly the selection.
+    match: str = "contains"
     limit: int = 100
     offset: int = 0
 
@@ -33,10 +36,15 @@ def _date_to_unix(date_str: str, end_of_day: bool = False) -> int:
 
 @router.post("")
 async def search_photos(body: SearchRequest) -> list[dict[str, Any]]:
-    """Return photos where ALL requested people appear with assign_status='assigned'.
+    """Return photos matching the requested people (assign_status='assigned').
 
-    AND logic is implemented as nested subqueries — one per person_id — so the
-    query planner can use the idx_faces_person index on each subquery independently.
+    - match="contains" (default): every selected person appears in the photo
+      (others allowed). AND logic via one nested subquery per person_id so the
+      planner can use idx_faces_person on each independently.
+    - match="exact": additionally the photo's set of distinct *assigned* people
+      equals exactly the selection — no other named person is present. Uncertain
+      or unassigned faces don't count, so they never disqualify an exact match.
+
     Only photos whose taken_at falls within the optional date range are returned.
     """
     if not body.people_ids:
@@ -48,6 +56,14 @@ async def search_photos(body: SearchRequest) -> list[dict[str, Any]]:
         for _ in body.people_ids
     )
 
+    # For exact match, require the photo to contain no *other* assigned people.
+    exact_clause = ""
+    if body.match == "exact":
+        exact_clause = (
+            "AND (SELECT COUNT(DISTINCT person_id) FROM faces "
+            "WHERE photo_id = p.id AND assign_status = 'assigned') = ?"
+        )
+
     ts_from: int | None = _date_to_unix(body.date_from) if body.date_from else None
     ts_to: int | None = _date_to_unix(body.date_to, end_of_day=True) if body.date_to else None
 
@@ -56,6 +72,7 @@ async def search_photos(body: SearchRequest) -> list[dict[str, Any]]:
           FROM photos p
          WHERE 1=1
         {subqueries}
+        {exact_clause}
            AND (p.taken_at >= ? OR ? IS NULL)
            AND (p.taken_at <= ? OR ? IS NULL)
          ORDER BY p.taken_at DESC NULLS LAST
@@ -63,6 +80,7 @@ async def search_photos(body: SearchRequest) -> list[dict[str, Any]]:
     """
     params: list[Any] = [
         *body.people_ids,
+        *([len(set(body.people_ids))] if body.match == "exact" else []),
         ts_from, ts_from,
         ts_to, ts_to,
         body.limit,

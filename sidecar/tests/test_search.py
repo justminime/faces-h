@@ -114,3 +114,47 @@ async def test_uncertain_faces_not_returned(tmp_path: pytest.TempPathFactory) ->
     ids = {p["id"] for p in r.json()}
     # Photo 3 has Bob only as 'uncertain' → not in AND results
     assert 3 not in ids
+
+
+async def _add_extra_person_photo(tmp_path: str) -> None:
+    """Photo 4: Alice + Bob + Carol, all assigned (a superset of {Alice, Bob})."""
+    from db.database import get_db
+
+    async with get_db() as db:
+        await db.execute("INSERT INTO people (id, name, created_at) VALUES (3, 'Carol', 0)")
+        await db.execute("INSERT INTO photos (id, path, mtime) VALUES (4, '/p4.jpg', 0)")
+        for fid, pid in ((6, 1), (7, 2), (8, 3)):
+            await db.execute(
+                "INSERT INTO faces (id, photo_id, detection_conf, assign_status, person_id, assign_conf)"
+                f" VALUES ({fid}, 4, 0.99, 'assigned', {pid}, 0.80)"
+            )
+        await db.commit()
+
+
+async def test_exact_excludes_photos_with_an_extra_person(tmp_path: pytest.TempPathFactory) -> None:
+    """match='exact' returns only photos whose assigned-people set == the selection."""
+    await _setup(str(tmp_path))
+    await _add_extra_person_photo(str(tmp_path))
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        contains = await ac.post("/search", json={"people_ids": [1, 2], "match": "contains"})
+        exact = await ac.post("/search", json={"people_ids": [1, 2], "match": "exact"})
+
+    # Contains: both photo 2 (Alice+Bob) and photo 4 (Alice+Bob+Carol) match.
+    assert {p["id"] for p in contains.json()} == {2, 4}
+    # Exact: only photo 2 — photo 4 has the extra person Carol.
+    assert {p["id"] for p in exact.json()} == {2}
+
+
+async def test_exact_ignores_uncertain_faces(tmp_path: pytest.TempPathFactory) -> None:
+    """An uncertain face of another person does not disqualify an exact match."""
+    await _setup(str(tmp_path))
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.post("/search", json={"people_ids": [1], "match": "exact"})
+    ids = {p["id"] for p in r.json()}
+    # Photo 1 (Alice only) and photo 3 (Alice assigned, Bob only uncertain) are
+    # both "exactly Alice"; photo 2 (Alice + Bob assigned) is excluded.
+    assert ids == {1, 3}

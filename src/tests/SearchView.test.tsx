@@ -62,6 +62,30 @@ describe("SearchView", () => {
     );
   });
 
+  it("defaults to 'contains' and sends match='exact' when toggled", async () => {
+    render(<SearchView people={PEOPLE} />);
+    const input = screen.getByLabelText(/add person to search/i);
+    fireEvent.change(input, { target: { value: "Ali" } });
+    fireEvent.click(screen.getByRole("option", { name: "Alice" }));
+
+    // Default: contains.
+    fireEvent.click(screen.getByRole("button", { name: /^search$/i }));
+    await waitFor(() =>
+      expect(searchPhotos).toHaveBeenLastCalledWith(
+        expect.objectContaining({ people_ids: [1], match: "contains" }),
+      ),
+    );
+
+    // Toggle to exact and search again.
+    fireEvent.click(screen.getByRole("radio", { name: /only these people/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^search$/i }));
+    await waitFor(() =>
+      expect(searchPhotos).toHaveBeenLastCalledWith(
+        expect.objectContaining({ people_ids: [1], match: "exact" }),
+      ),
+    );
+  });
+
   it("double-clicking a result calls open_in_viewer with the path", async () => {
     const { invoke } = await import("@tauri-apps/api/core");
     render(<SearchView people={PEOPLE} />);

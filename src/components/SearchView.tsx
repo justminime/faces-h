@@ -19,6 +19,7 @@ export function SearchView({ people }: SearchViewProps) {
   const [inputValue, setInputValue] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [matchMode, setMatchMode] = useState<"contains" | "exact">("contains");
   const [results, setResults] = useState<ApiPhoto[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -54,6 +55,7 @@ export function SearchView({ people }: SearchViewProps) {
         people_ids: chips.map((c) => c.id),
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
+        match: matchMode,
       });
       setResults(photos);
     } catch {
@@ -61,7 +63,7 @@ export function SearchView({ people }: SearchViewProps) {
     } finally {
       setBusy(false);
     }
-  }, [chips, dateFrom, dateTo]);
+  }, [chips, dateFrom, dateTo, matchMode]);
 
   async function handleDoubleClick(path: string) {
     try {
@@ -154,6 +156,31 @@ export function SearchView({ people }: SearchViewProps) {
               aria-label="Date to"
             />
           </label>
+        </div>
+
+        <div
+          className="search-view__match"
+          role="radiogroup"
+          aria-label="Match mode"
+        >
+          <button
+            type="button"
+            role="radio"
+            aria-checked={matchMode === "contains"}
+            className={`search-view__match-btn${matchMode === "contains" ? " search-view__match-btn--active" : ""}`}
+            onClick={() => { setMatchMode("contains"); setResults(null); }}
+          >
+            Contains
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={matchMode === "exact"}
+            className={`search-view__match-btn${matchMode === "exact" ? " search-view__match-btn--active" : ""}`}
+            onClick={() => { setMatchMode("exact"); setResults(null); }}
+          >
+            Only these people
+          </button>
         </div>
 
         <button
