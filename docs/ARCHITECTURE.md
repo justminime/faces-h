@@ -164,7 +164,9 @@ Both models output 512-dimensional L2-normalized embeddings. Downstream clusteri
 
 - `GET /people` — list all named people with medallion face and photo count
 - `GET /people/{id}/photos` — all photos for a person, sorted by date
-- `POST /search` — multi-person AND query with optional date range
+- `POST /search` — multi-person query with optional date range. `match` selects the semantics:
+  - `"contains"` (default) — every selected person appears in the photo (others allowed). AND logic via one indexed subquery per `person_id`.
+  - `"exact"` — the photo's set of **assigned** people equals exactly the selection; a photo with any additional named person is excluded. Uncertain/unassigned faces don't count, so they never disqualify a match. (Reliability Rule 5 preserved — only `assigned` faces are considered.)
 - `GET /photos/{id}` — photo detail with face assignments
 - `GET /queue/uncertain` — faces pending user confirmation
 - `POST /photos/{id}/correct` — submit a correction
@@ -175,6 +177,14 @@ The webview cannot load `C:\…` file paths directly, so all imagery is served a
 
 - `GET /photos/{id}/thumbnail?size=N` — downscaled JPEG of a photo for the gallery and search grids (EXIF-orientation aware; `size` bounded 16–1024, default 256). The frontend builds the absolute URL via `photoThumbUrl(id)` against the sidecar origin.
 - `GET /faces/{id}/crop` — bounding-box crop of a single face, used for person medallions/avatars and the uncertain-review queue. Frontend helper: `faceCropUrl(id)`.
+
+#### 3g. Library Import/Export
+
+Names and their face-embedding centroids can be carried between libraries (a new photo folder, or another machine) so identities don't have to be re-named from scratch. The bundle contains **no image files or paths** — only named identities and centroids — preserving the on-device rule.
+
+- `GET /export` — returns a portable JSON bundle `{ version, exported_at, people: [{ name, centroid_b64 }] }` for every **named** person that has a centroid. The frontend downloads it as `faces-h-library.json`.
+- `POST /import` — accepts a bundle and, for each imported name, matches its centroid against the current library's clusters by cosine similarity. The name is applied to the best-matching **unnamed** cluster above `match_threshold` (defaults to the auto-assign threshold, 0.68). A best match that is already named a *different* name is reported as a **conflict** and never overwritten; no match above threshold is reported as **unmatched**. Returns `{ applied, unmatched, conflicts, total }`.
+- Import only sets `people.name`; it never changes `assign_status`/`assign_conf`, so the reliability rules are untouched.
 
 ---
 

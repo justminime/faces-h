@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
@@ -13,7 +13,7 @@ import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
 import { useUIStore } from "./store/ui";
 import { MOCK_UNNAMED_COUNT } from "./mocks/data";
 import type { Person, Photo } from "./mocks/data";
-import { initClient, fetchPeople, fetchPersonPhotos, fetchQueueCount, fetchModelsStatus, startScan, rescan, photoThumbUrl, faceCropUrl } from "./api/client";
+import { initClient, fetchPeople, fetchPersonPhotos, fetchQueueCount, fetchModelsStatus, startScan, rescan, photoThumbUrl, faceCropUrl, exportLibrary, importLibrary } from "./api/client";
 import { initWs } from "./api/ws";
 import { withRetry } from "./api/retry";
 import type { ApiPerson, ApiPhoto } from "./api/types";
@@ -69,6 +69,7 @@ function App() {
     photoId: number;
   } | null>(null);
   const [namingPersonId, setNamingPersonId] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Resolve a face's person_id to a display name for the detail panel.
   const nameByPersonId = useMemo(() => {
@@ -198,6 +199,41 @@ function App() {
     }
   }
 
+  async function handleExport() {
+    try {
+      const bundle = await exportLibrary();
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "faces-h-library.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      const n = bundle.people.length;
+      useToastStore.getState().addToast(`Exported ${n} named ${n === 1 ? "person" : "people"}`);
+    } catch {
+      useToastStore.getState().addToast("Export failed");
+    }
+  }
+
+  async function handleImportFile(file: File) {
+    try {
+      const bundle = JSON.parse(await file.text());
+      const summary = await importLibrary(bundle);
+      refreshPeople();
+      const extra = summary.unmatched.length
+        ? `, ${summary.unmatched.length} unmatched`
+        : "";
+      useToastStore
+        .getState()
+        .addToast(`Imported ${summary.applied} name${summary.applied === 1 ? "" : "s"}${extra}`);
+    } catch {
+      useToastStore.getState().addToast("Import failed — invalid file");
+    }
+  }
+
   function handleCorrectionRequest(faceId: number) {
     if (!selectedPhoto) return;
     setCorrectionTarget({ faceId, photoId: selectedPhoto.id });
@@ -215,6 +251,20 @@ function App() {
         onSearchClick={() => setView("search")}
         onAddFolder={() => void handleAddFolder()}
         onRescan={() => void handleRescan()}
+        onExport={() => void handleExport()}
+        onImport={() => fileInputRef.current?.click()}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json"
+        style={{ display: "none" }}
+        aria-hidden="true"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleImportFile(f);
+          e.target.value = "";
+        }}
       />
       {view === "search" ? (
         <SearchView people={people} />

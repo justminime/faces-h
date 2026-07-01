@@ -13,6 +13,8 @@ interface SidebarProps {
   onSearchClick?: () => void;
   onAddFolder?: () => void;
   onRescan?: () => void;
+  onExport?: () => void;
+  onImport?: () => void;
 }
 
 export function Sidebar({
@@ -25,6 +27,8 @@ export function Sidebar({
   onSearchClick,
   onAddFolder,
   onRescan,
+  onExport,
+  onImport,
 }: SidebarProps) {
   const queueCount = useQueueStore((s) => s.queueCount);
 
@@ -81,6 +85,27 @@ export function Sidebar({
           title="Re-scan all folders"
         >
           ↻
+        </button>
+      </div>
+
+      <div className="sidebar__actions">
+        <button
+          type="button"
+          className="sidebar__action-btn"
+          onClick={onImport}
+          aria-label="Import names"
+          title="Import names from another library"
+        >
+          Import
+        </button>
+        <button
+          type="button"
+          className="sidebar__action-btn"
+          onClick={onExport}
+          aria-label="Export names"
+          title="Export named people to a file"
+        >
+          Export
         </button>
       </div>
 
