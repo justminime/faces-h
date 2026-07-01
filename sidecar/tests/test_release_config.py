@@ -110,6 +110,35 @@ def test_build_workflows_rename_sidecar_binary_for_tauri() -> None:
         )
 
 
+def test_nsis_hooks_terminate_running_processes_before_upgrade() -> None:
+    """The installer must stop the running app + sidecar so an in-place upgrade
+    isn't blocked by a locked faces-sidecar.exe (#77)."""
+    hooks = _read("src-tauri/nsis/hooks.nsi")
+    assert "customInstall" in hooks
+    assert "taskkill" in hooks and "faces-sidecar.exe" in hooks, (
+        "hooks.nsi must taskkill faces-sidecar.exe before installing files"
+    )
+    assert "faces-h.exe" in hooks, (
+        "hooks.nsi must also stop the app process faces-h.exe"
+    )
+
+
+def test_nsis_uninstall_preserves_user_data() -> None:
+    """Uninstall must not delete the per-user library in %APPDATA% (#77)."""
+    hooks = _read("src-tauri/nsis/hooks.nsi")
+    # Inspect only executable lines (NSIS comments start with ';'), so a comment
+    # that mentions RMDir doesn't count.
+    code_lines = [
+        ln for ln in hooks.splitlines() if ln.strip() and not ln.strip().startswith(";")
+    ]
+    assert not any("RMDir" in ln for ln in code_lines), (
+        "hooks.nsi must not RMDir any directory (would risk the %APPDATA% library)"
+    )
+    assert "com.faces-h.app" in hooks, (
+        "hooks.nsi should document that %APPDATA%\\com.faces-h.app is preserved"
+    )
+
+
 def test_smoke_test_script_exists_and_is_valid_python() -> None:
     path = os.path.join(REPO_ROOT, "scripts", "smoke_test.py")
     assert os.path.isfile(path), "scripts/smoke_test.py must exist"
