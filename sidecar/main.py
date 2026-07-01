@@ -19,6 +19,7 @@ from api.photos import router as photos_router
 from api.queue import router as queue_router
 from api.scan import router as scan_router
 from api.search import router as search_router
+from api.transfer import router as transfer_router
 
 app = FastAPI(title="faces-h sidecar", version="0.1.0")
 
@@ -37,6 +38,7 @@ app.include_router(faces_router)
 app.include_router(search_router)
 app.include_router(corrections_router)
 app.include_router(models_router)
+app.include_router(transfer_router)
 
 
 @app.get("/health")

@@ -117,6 +117,32 @@ export function fetchQueueCount(): Promise<{ count: number }> {
   return apiFetch<{ count: number }>("/queue/count");
 }
 
+export interface LibraryBundle {
+  version: number;
+  exported_at: number;
+  people: { name: string; centroid_b64: string }[];
+}
+
+export interface ImportSummary {
+  applied: number;
+  unmatched: string[];
+  conflicts: string[];
+  total: number;
+}
+
+/** Download the portable bundle of named people + centroids (no photos). */
+export function exportLibrary(): Promise<LibraryBundle> {
+  return apiFetch<LibraryBundle>("/export");
+}
+
+/** Apply an exported bundle's names to matching clusters in this library. */
+export function importLibrary(bundle: unknown): Promise<ImportSummary> {
+  return apiFetch<ImportSummary>("/import", {
+    method: "POST",
+    body: JSON.stringify(bundle),
+  });
+}
+
 export function fetchUncertainQueue(
   offset = 0,
   limit = 50,
