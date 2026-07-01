@@ -15,6 +15,7 @@ import { MOCK_UNNAMED_COUNT } from "./mocks/data";
 import type { Person, Photo } from "./mocks/data";
 import { initClient, fetchPeople, fetchPersonPhotos, fetchQueueCount, fetchModelsStatus, startScan, rescan, photoThumbUrl, faceCropUrl } from "./api/client";
 import { initWs } from "./api/ws";
+import { withRetry } from "./api/retry";
 import type { ApiPerson, ApiPhoto } from "./api/types";
 import { useQueueStore } from "./store/queue";
 import { useToastStore } from "./store/toast";
@@ -79,27 +80,37 @@ function App() {
     personId !== null ? (nameByPersonId.get(personId) ?? "Unknown") : "Unknown";
 
   useEffect(() => {
+    let cancelled = false;
+
+    // One attempt at the initial load. Throws on any connectivity error so the
+    // caller retries; only a *successful* models/status with ready:false is
+    // treated as "needs onboarding" (never a network error — see #78).
+    async function loadOnce(): Promise<void> {
+      if (onboardingDone) {
+        const modelStatus = await fetchModelsStatus();
+        if (!modelStatus.ready) {
+          localStorage.removeItem(ONBOARDING_KEY);
+          setOnboardingDone(false);
+          return;
+        }
+      }
+      const [apiPeople, queueResp] = await Promise.all([fetchPeople(), fetchQueueCount()]);
+      if (cancelled) return;
+      setPeople(apiPeople.map(mapPerson));
+      setQueueCount(queueResp.count);
+    }
+
+    // The sidecar URL is available immediately, but the sidecar itself may take
+    // up to ~100s to start on a fresh install while Windows Defender scans the
+    // new binary. Retry until it responds instead of leaving an empty gallery.
+    const loadWithRetry = () =>
+      withRetry(loadOnce, { signal: () => cancelled });
+
     invoke<string>("get_sidecar_url")
-      .then(async (url) => {
+      .then((url) => {
         initClient(url);
         initWs(url);
-        // If onboarding was previously marked done but the model never downloaded,
-        // reset onboarding so the user goes through setup properly.
-        if (onboardingDone) {
-          try {
-            const modelStatus = await fetchModelsStatus();
-            if (!modelStatus.ready) {
-              localStorage.removeItem(ONBOARDING_KEY);
-              setOnboardingDone(false);
-              return;
-            }
-          } catch {
-            // sidecar still starting — leave onboarding state as-is
-          }
-        }
-        const [apiPeople, queueResp] = await Promise.all([fetchPeople(), fetchQueueCount()]);
-        setPeople(apiPeople.map(mapPerson));
-        setQueueCount(queueResp.count);
+        void loadWithRetry();
       })
       .catch(() => {
         // Not running inside Tauri (browser dev mode). Use the dev sidecar URL
@@ -109,14 +120,13 @@ function App() {
         if (devUrl) {
           initClient(devUrl);
           initWs(devUrl);
-          Promise.all([fetchPeople(), fetchQueueCount()])
-            .then(([apiPeople, queueResp]) => {
-              setPeople(apiPeople.map(mapPerson));
-              setQueueCount(queueResp.count);
-            })
-            .catch(() => {});
+          void loadWithRetry();
         }
       });
+
+    return () => {
+      cancelled = true;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setPeople, setQueueCount]);
 
