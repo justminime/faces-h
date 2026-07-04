@@ -22,8 +22,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write  # SignPath OIDC verification
-  actions: read    # SignPath artifact download
 
 jobs:
   release-windows:
@@ -78,80 +76,23 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Build Tauri app (unsigned)
+      - name: Build Tauri app
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tauriScript: npm run tauri
 
-      # ── Code signing (SignPath Foundation — free for OSS) ─────────────────
-      #
-      # Prerequisite: apply at https://signpath.io/free-certificates-for-open-source-software/
-      # Once approved, add these two secrets in Settings → Secrets → Actions:
-      #   SIGNPATH_ORGANIZATION_ID  — shown in SignPath web UI under Settings
-      #   SIGNPATH_API_TOKEN        — create in SignPath under Settings → API tokens
-      #
-      # SignPath project setup (in their web UI):
-      #   Project slug:             faces-h
-      #   Artifact configuration:   initial  (sign *.exe at the root of the ZIP)
-      #   Signing policy:           release-signing
-      #
-      # When the secrets are not set (before approval) the two signing steps
-      # are skipped and the unsigned installer is published instead.
+      # ── TODO: Code signing (SignPath Foundation) ──────────────────────────
+      # Re-add signing steps here once SignPath Foundation approves the OSS
+      # application. Steps needed:
+      #   1. Add permissions: id-token: write / actions: read
+      #   2. Upload unsigned installer as artifact (upload-artifact@v4)
+      #   3. signpath/github-action-submit-signing-request (pinned SHA)
+      #   4. Publish signed/*.exe instead of nsis/*.exe
+      # Secrets required: SIGNPATH_API_TOKEN, SIGNPATH_ORGANIZATION_ID
 
-      - name: Upload unsigned installer for SignPath
-        id: upload-unsigned
-        if: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: unsigned-installer
-          path: src-tauri/target/release/bundle/nsis/*.exe
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Sign installer via SignPath Foundation
-        id: sign
-        if: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
-        uses: signpath/github-action-submit-signing-request@ced31329c0317e779dad2eec2a7c3bb46ea1343e # v1
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: faces-h
-          artifact-configuration-slug: initial
-          signing-policy-slug: release-signing
-          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: signed/
-
-      # ── Publish to GitHub Release ─────────────────────────────────────────
-
-      - name: Publish signed installer to GitHub Release
-        if: steps.sign.outcome == 'success'
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: "faces-h ${{ env.RELEASE_TAG }}"
-          body: |
-            ## Installation
-
-            Download `faces-h-setup-*.exe` and run it. No additional software required.
-
-            The app will download the face recognition model (~300 MB) on first launch.
-
-            ## Post-install verification
-
-            Run the bundled smoke test against the running sidecar:
-            ```
-            python scripts/smoke_test.py
-            ```
-          draft: false
-          prerelease: false
-          files: signed/*.exe
-          generate_release_notes: true
-
-      - name: Publish unsigned installer to GitHub Release (no signing cert yet)
-        if: steps.sign.outcome != 'success'
+      - name: Publish installer to GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
