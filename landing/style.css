@@ -272,9 +272,17 @@ h1 {
   overflow: hidden;
 }
 .mock-photo {
-  background: rgba(255, 255, 255, var(--a, 0.1));
+  background: rgba(255, 255, 255, 0.06);
   border-radius: 4px;
-  aspect-ratio: 4/3;
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+.mock-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0.88;
 }
 .mock-photo.selected {
   outline: 2px solid var(--accent);
@@ -290,10 +298,18 @@ h1 {
 }
 .mock-detail-photo {
   width: 100%;
-  aspect-ratio: 4/3;
+  aspect-ratio: 1;
   background: rgba(255,255,255,0.1);
   border-radius: 6px;
   margin-bottom: 14px;
+  overflow: hidden;
+}
+.mock-detail-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0.92;
 }
 .mock-who-label {
   font-size: 0.625rem;
