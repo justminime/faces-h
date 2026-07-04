@@ -34,9 +34,10 @@ export function fetchPersonPhotos(
   personId: number,
   offset = 0,
   limit = 50,
+  order: "date" | "random" = "date",
 ): Promise<ApiPhoto[]> {
   return apiFetch<ApiPhoto[]>(
-    `/people/${personId}/photos?offset=${offset}&limit=${limit}`,
+    `/people/${personId}/photos?offset=${offset}&limit=${limit}&order=${order}`,
   );
 }
 

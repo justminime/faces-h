@@ -53,6 +53,28 @@
   accent-color: var(--color-accent);
 }
 
+.photo-grid__sentinel {
+  height: 1px;
+  grid-column: 1 / -1;
+}
+.photo-grid__loading {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+  flex-shrink: 0;
+}
+.photo-grid__spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: photo-grid-spin 0.7s linear infinite;
+}
+@keyframes photo-grid-spin {
+  to { transform: rotate(360deg); }
+}
+
 .photo-grid {
   flex: 1;
   overflow-y: auto;

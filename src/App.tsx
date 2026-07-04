@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 import { Sidebar } from "./components/Sidebar";
@@ -13,12 +14,27 @@ import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
 import { useUIStore } from "./store/ui";
 import { MOCK_UNNAMED_COUNT } from "./mocks/data";
 import type { Person, Photo } from "./mocks/data";
-import { initClient, fetchPeople, fetchPersonPhotos, fetchQueueCount, fetchModelsStatus, startScan, rescan, photoThumbUrl, faceCropUrl, exportLibrary, importLibrary } from "./api/client";
+import {
+  initClient,
+  fetchPeople,
+  fetchPersonPhotos,
+  fetchQueueCount,
+  fetchModelsStatus,
+  startScan,
+  rescan,
+  photoThumbUrl,
+  faceCropUrl,
+  exportLibrary,
+  importLibrary,
+} from "./api/client";
 import { initWs } from "./api/ws";
 import { withRetry } from "./api/retry";
 import type { ApiPerson, ApiPhoto } from "./api/types";
 import { useQueueStore } from "./store/queue";
 import { useToastStore } from "./store/toast";
+
+const PAGE_SIZE = 50;
+const PEOPLE_CACHE_KEY = "faces_h_people_cache";
 
 function mapPerson(p: ApiPerson): Person {
   return {
@@ -44,6 +60,24 @@ function mapPhoto(p: ApiPhoto): Photo {
   };
 }
 
+function loadCachedPeople(): Person[] {
+  try {
+    const raw = localStorage.getItem(PEOPLE_CACHE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as Person[];
+  } catch {
+    return [];
+  }
+}
+
+function savePeopleCache(people: Person[]) {
+  try {
+    localStorage.setItem(PEOPLE_CACHE_KEY, JSON.stringify(people));
+  } catch {
+    // storage quota exceeded — ignore
+  }
+}
+
 function App() {
   const {
     people,
@@ -59,7 +93,14 @@ function App() {
 
   const setQueueCount = useQueueStore((s) => s.setQueueCount);
   const scanVersion = useUIStore((s) => s.scanVersion);
+
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [hasMorePhotos, setHasMorePhotos] = useState(false);
+  const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
+  const photoOffsetRef = useRef(0);
+  const personGenRef = useRef(0);   // incremented on each person switch to cancel stale loads
+  const pageLoadingRef = useRef(false); // guards against concurrent page fetches
+
   const [view, setView] = useState<"gallery" | "search">("gallery");
   const [onboardingDone, setOnboardingDone] = useState(
     () => localStorage.getItem(ONBOARDING_KEY) !== null,
@@ -71,7 +112,6 @@ function App() {
   const [namingPersonId, setNamingPersonId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Resolve a face's person_id to a display name for the detail panel.
   const nameByPersonId = useMemo(() => {
     const m = new Map<number, string>();
     for (const p of people) m.set(p.id, p.name ?? "Unnamed");
@@ -80,12 +120,13 @@ function App() {
   const resolvePersonName = (personId: number | null): string =>
     personId !== null ? (nameByPersonId.get(personId) ?? "Unknown") : "Unknown";
 
+  // ── Startup: show cached people immediately, refresh once sidecar is ready ──
   useEffect(() => {
+    const cached = loadCachedPeople();
+    if (cached.length > 0) setPeople(cached);
+
     let cancelled = false;
 
-    // One attempt at the initial load. Throws on any connectivity error so the
-    // caller retries; only a *successful* models/status with ready:false is
-    // treated as "needs onboarding" (never a network error — see #78).
     async function loadOnce(): Promise<void> {
       if (onboardingDone) {
         const modelStatus = await fetchModelsStatus();
@@ -97,15 +138,13 @@ function App() {
       }
       const [apiPeople, queueResp] = await Promise.all([fetchPeople(), fetchQueueCount()]);
       if (cancelled) return;
-      setPeople(apiPeople.map(mapPerson));
+      const mapped = apiPeople.map(mapPerson);
+      setPeople(mapped);
+      savePeopleCache(mapped);
       setQueueCount(queueResp.count);
     }
 
-    // The sidecar URL is available immediately, but the sidecar itself may take
-    // up to ~100s to start on a fresh install while Windows Defender scans the
-    // new binary. Retry until it responds instead of leaving an empty gallery.
-    const loadWithRetry = () =>
-      withRetry(loadOnce, { signal: () => cancelled });
+    const loadWithRetry = () => withRetry(loadOnce, { signal: () => cancelled });
 
     invoke<string>("get_sidecar_url")
       .then((url) => {
@@ -114,9 +153,6 @@ function App() {
         void loadWithRetry();
       })
       .catch(() => {
-        // Not running inside Tauri (browser dev mode). Use the dev sidecar URL
-        // from the env var set in .env.development so the UI is fully testable
-        // without a packaged build.
         const devUrl = import.meta.env.VITE_DEV_SIDECAR_URL as string | undefined;
         if (devUrl) {
           initClient(devUrl);
@@ -131,34 +167,104 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setPeople, setQueueCount]);
 
-  // Refresh sidebar when a scan completes (ws.ts bumps scanVersion on scan_complete).
+  // Refresh sidebar when a scan completes.
   useEffect(() => {
     if (scanVersion === 0) return;
     Promise.all([fetchPeople(), fetchQueueCount()])
       .then(([apiPeople, queueResp]) => {
-        setPeople(apiPeople.map(mapPerson));
+        const mapped = apiPeople.map(mapPerson);
+        setPeople(mapped);
+        savePeopleCache(mapped);
         setQueueCount(queueResp.count);
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanVersion]);
 
+  // ── Incremental photo loading ─────────────────────────────────────────────
   useEffect(() => {
     if (selectedPersonId === null) {
       setPhotos([]);
+      setHasMorePhotos(false);
+      setIsLoadingPhotos(false);
+      photoOffsetRef.current = 0;
+      pageLoadingRef.current = false;
       return;
     }
-    fetchPersonPhotos(selectedPersonId)
-      .then((apiPhotos) => setPhotos(apiPhotos.map(mapPhoto)))
-      .catch(() => setPhotos([]));
+    const gen = ++personGenRef.current;
+    setPhotos([]);
+    setHasMorePhotos(false);
+    setIsLoadingPhotos(true);
+    photoOffsetRef.current = 0;
+    pageLoadingRef.current = true;
+
+    // Use order=random so SQLite samples from the full pool — each visit
+    // surfaces a different mix of old and new photos, not always the first 50.
+    fetchPersonPhotos(selectedPersonId, 0, PAGE_SIZE, "random")
+      .then((apiPhotos) => {
+        if (personGenRef.current !== gen) return;
+        const mapped = apiPhotos.map(mapPhoto);
+        setPhotos(mapped);
+        setHasMorePhotos(mapped.length === PAGE_SIZE);
+        photoOffsetRef.current = mapped.length;
+      })
+      .catch(() => {
+        if (personGenRef.current === gen) setPhotos([]);
+      })
+      .finally(() => {
+        if (personGenRef.current === gen) {
+          setIsLoadingPhotos(false);
+          pageLoadingRef.current = false;
+        }
+      });
   }, [selectedPersonId]);
+
+  const loadMorePhotos = useCallback(() => {
+    if (!selectedPersonId || pageLoadingRef.current || !hasMorePhotos) return;
+    const gen = personGenRef.current;
+    pageLoadingRef.current = true;
+    setIsLoadingPhotos(true);
+
+    fetchPersonPhotos(selectedPersonId, photoOffsetRef.current, PAGE_SIZE)
+      .then((apiPhotos) => {
+        if (personGenRef.current !== gen) return;
+        const mapped = apiPhotos.map(mapPhoto);
+        setPhotos((prev) => [...prev, ...mapped]);
+        setHasMorePhotos(mapped.length === PAGE_SIZE);
+        photoOffsetRef.current += mapped.length;
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (personGenRef.current === gen) {
+          setIsLoadingPhotos(false);
+          pageLoadingRef.current = false;
+        }
+      });
+  }, [selectedPersonId, hasMorePhotos]);
+
+  // ── Native menu event handler ─────────────────────────────────────────────
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<string>("menu-action", (event) => {
+      switch (event.payload) {
+        case "add-folder":   void handleAddFolder();       break;
+        case "rescan":       void handleRescan();           break;
+        case "export":       void handleExport();           break;
+        case "import":       fileInputRef.current?.click(); break;
+        case "view-gallery": setView("gallery");            break;
+        case "view-search":  setView("search");             break;
+      }
+    })
+      .then((fn) => { unlisten = fn; })
+      .catch(() => {});
+    return () => unlisten?.();
+  }, []);
 
   const selectedPhoto = photos.find((p) => p.id === selectedPhotoId) ?? null;
   const selectedPerson = people.find((p) => p.id === selectedPersonId) ?? null;
   const selectedPersonIsNamed =
     selectedPerson !== null && selectedPerson.name !== "Unnamed";
 
-  // Face crops of the selected person, shown as samples in the naming modal.
   const namingSampleSrcs = photos
     .flatMap((p) => p.faces)
     .filter((f) => f.personId === namingPersonId)
@@ -168,7 +274,9 @@ function App() {
   function refreshPeople() {
     Promise.all([fetchPeople(), fetchQueueCount()])
       .then(([apiPeople, queueResp]) => {
-        setPeople(apiPeople.map(mapPerson));
+        const mapped = apiPeople.map(mapPerson);
+        setPeople(mapped);
+        savePeopleCache(mapped);
         setQueueCount(queueResp.count);
       })
       .catch(() => {});
@@ -284,6 +392,9 @@ function App() {
                 ? () => setNamingPersonId(selectedPersonId)
                 : undefined
             }
+            hasMore={hasMorePhotos}
+            isLoading={isLoadingPhotos}
+            onLoadMore={loadMorePhotos}
           />
           <DetailPanel
             photo={selectedPhoto}

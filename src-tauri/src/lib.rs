@@ -2,6 +2,7 @@ use std::net::TcpListener;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
 pub struct SidecarState {
@@ -113,6 +114,39 @@ fn reveal_in_explorer(_path: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .menu(|app| {
+            Menu::with_items(
+                app,
+                &[
+                    &Submenu::with_items(
+                        app,
+                        "File",
+                        true,
+                        &[
+                            &MenuItem::with_id(app, "add-folder", "Add Folder…", true, Some("CmdOrCtrl+O"))?,
+                            &MenuItem::with_id(app, "rescan", "Rescan Library", true, Some("CmdOrCtrl+R"))?,
+                            &PredefinedMenuItem::separator(app)?,
+                            &MenuItem::with_id(app, "export", "Export Named People…", true, None::<&str>)?,
+                            &MenuItem::with_id(app, "import", "Import Named People…", true, None::<&str>)?,
+                            &PredefinedMenuItem::separator(app)?,
+                            &PredefinedMenuItem::quit(app, Some("Quit faces-h"))?,
+                        ],
+                    )?,
+                    &Submenu::with_items(
+                        app,
+                        "View",
+                        true,
+                        &[
+                            &MenuItem::with_id(app, "view-gallery", "Gallery", true, Some("CmdOrCtrl+G"))?,
+                            &MenuItem::with_id(app, "view-search", "Search", true, Some("CmdOrCtrl+F"))?,
+                        ],
+                    )?,
+                ],
+            )
+        })
+        .on_menu_event(|app, event| {
+            let _ = app.emit("menu-action", event.id().as_ref());
+        })
         .plugin(
             tauri_plugin_log::Builder::new()
                 .target(tauri_plugin_log::Target::new(
