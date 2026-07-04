@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>faces-h — Find anyone in your photos. Privately.</title>
+  <meta name="description" content="faces-h organizes your personal photo library by face recognition. Local-only — all processing on your device. No cloud. No account. Free for Windows.">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="faces-h — Find anyone in your photos. Privately.">
+  <meta property="og:description" content="Face recognition for your personal photo library. All processing on your device. No cloud, no account, no uploads. Free for Windows.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://shifth.com/faces-h/">
+  <meta property="og:image" content="https://shifth.com/faces-h/icon.svg">
+  <meta property="og:site_name" content="shifth">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="faces-h — Find anyone in your photos. Privately.">
+  <meta name="twitter:description" content="Face recognition for your personal photo library. All processing stays on your device.">
+  <meta name="twitter:image" content="https://shifth.com/faces-h/icon.svg">
+
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ── Navigation ── -->
+  <nav>
+    <a href="#top" class="brand">
+      <img src="icon.svg" alt="" class="brand-icon" width="28" height="28">
+      <span>shifth</span>
+    </a>
+    <a href="#download" class="btn-nav">Download</a>
+  </nav>
+
+  <!-- ── Hero ── -->
+  <section class="hero" id="top">
+    <div class="hero-text">
+      <div class="hero-badge">faces-h v0.2.1 for Windows</div>
+      <h1>Find anyone<br>in your photos.<br>Instantly. Privately.</h1>
+      <p class="hero-sub">
+        faces-h learns every face in your photo library — on your device,
+        without a server, subscription, or account.
+      </p>
+      <div class="hero-actions">
+        <a
+          href="https://github.com/justminime/faces-h/releases/download/v0.2.1/faces-h_0.2.1_x64-setup.exe"
+          class="btn-primary"
+          download
+        >
+          Download for Windows — free
+          <span class="btn-meta">v0.2.1 · 152 MB · Windows 10/11 x64</span>
+        </a>
+        <a href="https://github.com/justminime/faces-h" class="btn-ghost">View source on GitHub &rarr;</a>
+      </div>
+    </div>
+
+    <!-- App UI mockup -->
+    <div class="app-frame" aria-hidden="true">
+      <div class="frame-chrome">
+        <div class="chrome-dots"><span></span><span></span><span></span></div>
+        <span class="chrome-title">faces&#8209;h</span>
+      </div>
+      <div class="frame-body">
+
+        <aside class="mock-sidebar">
+          <div class="mock-section-label">People</div>
+
+          <div class="mock-person active">
+            <div class="mock-medallion" style="--h:12;--s:65%;--l:52%"></div>
+            <div class="mock-pinfo">
+              <div class="mock-pname">Sarah</div>
+              <div class="mock-pcount">1,247 photos</div>
+            </div>
+          </div>
+          <div class="mock-person">
+            <div class="mock-medallion" style="--h:200;--s:45%;--l:48%"></div>
+            <div class="mock-pinfo">
+              <div class="mock-pname">David</div>
+              <div class="mock-pcount">893 photos</div>
+            </div>
+          </div>
+          <div class="mock-person">
+            <div class="mock-medallion" style="--h:45;--s:55%;--l:54%"></div>
+            <div class="mock-pinfo">
+              <div class="mock-pname">Emma</div>
+              <div class="mock-pcount">612 photos</div>
+            </div>
+          </div>
+          <div class="mock-person">
+            <div class="mock-medallion" style="--h:320;--s:40%;--l:50%"></div>
+            <div class="mock-pinfo">
+              <div class="mock-pname">James</div>
+              <div class="mock-pcount">441 photos</div>
+            </div>
+          </div>
+          <div class="mock-person">
+            <div class="mock-medallion" style="--h:160;--s:38%;--l:46%"></div>
+            <div class="mock-pinfo">
+              <div class="mock-pname">Noah</div>
+              <div class="mock-pcount">208 photos</div>
+            </div>
+          </div>
+
+          <div class="mock-divider"></div>
+
+          <div class="mock-nav-item uncertain">
+            <span class="mock-badge">12</span>
+            Unnamed faces
+          </div>
+          <div class="mock-nav-item">Browse all</div>
+        </aside>
+
+        <main class="mock-main">
+          <div class="mock-toolbar">
+            <span class="mock-count">1,247 photos of Sarah</span>
+          </div>
+          <div class="mock-grid">
+            <div class="mock-photo" style="--a:0.14"></div>
+            <div class="mock-photo" style="--a:0.09"></div>
+            <div class="mock-photo" style="--a:0.17"></div>
+            <div class="mock-photo" style="--a:0.11"></div>
+            <div class="mock-photo selected" style="--a:0.15"></div>
+            <div class="mock-photo" style="--a:0.08"></div>
+            <div class="mock-photo" style="--a:0.13"></div>
+            <div class="mock-photo" style="--a:0.10"></div>
+            <div class="mock-photo" style="--a:0.16"></div>
+          </div>
+        </main>
+
+        <aside class="mock-detail">
+          <div class="mock-detail-photo"></div>
+          <div class="mock-who-label">In this photo</div>
+          <div class="mock-who-faces">
+            <div class="mock-who-medallion" style="--h:12;--s:65%;--l:52%"></div>
+            <div class="mock-who-medallion" style="--h:200;--s:45%;--l:48%"></div>
+          </div>
+          <div class="mock-meta">
+            <div class="mock-meta-row">
+              <span class="mock-meta-icon">&#128197;</span> June 2023
+            </div>
+            <div class="mock-meta-row">
+              <span class="mock-meta-icon">&#128247;</span> 4032 &times; 3024
+            </div>
+          </div>
+        </aside>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Trust bar ── -->
+  <section class="trust">
+    <div class="trust-inner">
+
+      <div class="trust-item">
+        <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <div>
+          <strong>No cloud</strong>
+          <span>Faces are recognized entirely on your machine — nothing leaves your device</span>
+        </div>
+      </div>
+
+      <div class="trust-item">
+        <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          <line x1="18" y1="6" x2="22" y2="10"/>
+          <line x1="22" y1="6" x2="18" y2="10"/>
+        </svg>
+        <div>
+          <strong>No account</strong>
+          <span>Download, install, and go — no email, no sign-up, no licence key</span>
+        </div>
+      </div>
+
+      <div class="trust-item">
+        <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="17 11 12 6 7 11"/>
+          <line x1="12" y1="6" x2="12" y2="18"/>
+          <line x1="4" y1="18" x2="8" y2="14"/>
+          <line x1="20" y1="18" x2="16" y2="14"/>
+        </svg>
+        <div>
+          <strong>No uploads</strong>
+          <span>Your photos never leave the folder you pointed it at</span>
+        </div>
+      </div>
+
+      <div class="trust-item">
+        <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="16 18 22 12 16 6"/>
+          <polyline points="8 6 2 12 8 18"/>
+        </svg>
+        <div>
+          <strong>Open source</strong>
+          <span>MIT licensed — every line of code is on GitHub</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── How it works ── -->
+  <section class="how">
+    <div class="how-inner">
+      <h2>How it works</h2>
+      <ol class="steps">
+
+        <li class="step">
+          <span class="step-num">01</span>
+          <div class="step-body">
+            <h3>Point it at your photos</h3>
+            <p>
+              Pick any folder on your computer. faces-h scans it in the background —
+              no GPU needed, no waiting around before you can use it.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <span class="step-num">02</span>
+          <div class="step-body">
+            <h3>It finds and groups every face</h3>
+            <p>
+              The on-device InsightFace model clusters appearances automatically.
+              You name the people you recognize — the app handles the rest.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <span class="step-num">03</span>
+          <div class="step-body">
+            <h3>Browse and search by person</h3>
+            <p>
+              Every photo of Sarah, every shot with David and Emma together —
+              one click. Your whole library organized by the people who matter.
+            </p>
+          </div>
+        </li>
+
+      </ol>
+    </div>
+  </section>
+
+  <!-- ── System requirements ── -->
+  <section class="requirements">
+    <div class="req-inner">
+      <h2>System requirements</h2>
+      <ul class="req-list">
+        <li><strong>OS</strong> Windows 10 or 11 &mdash; 64-bit</li>
+        <li><strong>Storage</strong> ~300 MB for the face recognition model</li>
+        <li><strong>GPU</strong> Not required &mdash; CPU inference is supported</li>
+        <li><strong>RAM</strong> 4 GB recommended</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ── Download CTA ── -->
+  <section class="download-section" id="download">
+    <div class="download-inner">
+      <img src="icon.svg" alt="faces-h app icon" class="dl-icon" width="80" height="80">
+      <h2>Download faces-h</h2>
+      <p>Free and open source. Always.</p>
+      <div class="dl-actions">
+        <a
+          href="https://github.com/justminime/faces-h/releases/download/v0.2.1/faces-h_0.2.1_x64-setup.exe"
+          class="btn-primary btn-large"
+          download
+        >
+          faces-h 0.2.1 for Windows x64
+          <span class="btn-meta">152 MB &middot; NSIS installer &middot; Windows 10/11</span>
+        </a>
+        <a href="https://github.com/justminime/faces-h/releases" class="btn-link">
+          All releases and changelogs &rarr;
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ── -->
+  <footer>
+    <div class="footer-inner">
+      <a href="https://shifth.com" class="footer-brand">
+        <img src="icon.svg" alt="" width="22" height="22">
+        <span>shifth</span>
+      </a>
+      <nav class="footer-links" aria-label="Footer links">
+        <a href="https://github.com/justminime/faces-h">GitHub</a>
+        <a href="https://github.com/justminime/faces-h/issues">Issues</a>
+        <a href="https://github.com/justminime/faces-h/blob/main/LICENSE">MIT License</a>
+        <a href="https://shifth.com">shifth.com</a>
+      </nav>
+      <p class="footer-note">All face processing is local &mdash; on your device, not a server.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
