@@ -71,15 +71,16 @@ async def list_person_photos(
         if row is None:
             raise HTTPException(status_code=404, detail="Person not found")
 
-        # Paginate at the photo level, then gather each photo's assigned faces.
-        # When order=random the inner query uses RANDOM() so SQLite samples across
-        # the entire photo pool, not just the chronologically-first N photos.
+        # Page the photos by the selected person, then return ALL assigned
+        # faces in those photos — not just this person's — so the detail
+        # panel can show every person present in each photo.
         async with db.execute(
             f"""
             SELECT ph.id        AS photo_id,
                    ph.path,
                    ph.taken_at,
                    f.id         AS face_id,
+                   f.person_id  AS face_person_id,
                    f.assign_conf
               FROM (
                   SELECT DISTINCT f2.photo_id
@@ -91,11 +92,10 @@ async def list_person_photos(
               ) page
               JOIN photos ph ON ph.id = page.photo_id
               JOIN faces  f  ON f.photo_id = ph.id
-                             AND f.person_id = ?
                              AND f.assign_status = 'assigned'
              ORDER BY ph.taken_at ASC NULLS LAST, ph.id ASC
             """,
-            (person_id, limit, offset, person_id),
+            (person_id, limit, offset),
         ) as cur:
             rows = await cur.fetchall()
 
@@ -112,7 +112,7 @@ async def list_person_photos(
             photo_map[pid]["faces"].append(
                 {
                     "face_id": int(r["face_id"]),
-                    "person_id": person_id,
+                    "person_id": int(r["face_person_id"]) if r["face_person_id"] is not None else None,
                     "assign_conf": r["assign_conf"],
                 }
             )
