@@ -12,7 +12,7 @@ from typing import AsyncIterator
 
 import aiosqlite
 
-from db.schema import ALL_TABLES, INDEXES
+from db.schema import ALL_MIGRATIONS, ALL_TABLES, INDEXES
 
 logger = logging.getLogger(__name__)
 
@@ -38,5 +38,11 @@ async def get_db() -> AsyncIterator[aiosqlite.Connection]:
             await conn.execute(ddl)
         for idx in INDEXES:
             await conn.execute(idx)
+        # Best-effort column migrations — silently ignored if already applied.
+        for migration in ALL_MIGRATIONS:
+            try:
+                await conn.execute(migration)
+            except Exception:
+                pass
         await conn.commit()
         yield conn

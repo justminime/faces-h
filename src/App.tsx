@@ -299,7 +299,11 @@ function App() {
       const selected = await open({ directory: true, multiple: false });
       if (typeof selected === "string" && selected.length > 0) {
         await startScan(selected);
-        const folderName = selected.replace(/\\/g, "/").split("/").pop() ?? selected;
+        // UNC paths (\\server\share) have no meaningful last segment — show the share instead.
+        const parts = selected.replace(/\\/g, "/").split("/").filter(Boolean);
+        const folderName = selected.startsWith("\\\\") || selected.startsWith("//")
+          ? parts.slice(0, 2).join("\\")
+          : (parts.pop() ?? selected);
         useToastStore.getState().addToast(`Scanning "${folderName}"…`);
       }
     } catch {
