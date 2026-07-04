@@ -1,0 +1,169 @@
+.activity-log {
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-family: var(--font-family);
+}
+
+/* ── Hidden (Off level) — only shows level pills ── */
+.activity-log--hidden .activity-log__bar {
+  cursor: default;
+}
+.activity-log--hidden .activity-log__bar:hover {
+  background: none;
+}
+
+/* ── Debug rows ── */
+.activity-log__row--debug {
+  color: var(--color-text-secondary);
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+
+/* ── Collapsed bar ── */
+.activity-log__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 100ms;
+}
+.activity-log__bar:hover {
+  background: var(--color-surface-2);
+}
+
+.activity-log__chevron {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+.activity-log__bar-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.activity-log__bar-last {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.activity-log__bar-last--success { color: var(--color-accent); }
+.activity-log__bar-last--warn    { color: #E09436; }
+.activity-log__bar-last--progress { color: var(--color-text-secondary); }
+
+/* ── Verbosity level pills ── */
+.activity-log__levels {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.activity-log__level-btn {
+  padding: 1px 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  transition: background-color 80ms, color 80ms, border-color 80ms;
+}
+.activity-log__level-btn:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.activity-log__level-btn--active {
+  background: var(--color-accent-tint);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.activity-log__clear {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family);
+  flex-shrink: 0;
+}
+.activity-log__clear:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+/* ── Expanded list ── */
+.activity-log__list {
+  height: 140px;
+  overflow-y: auto;
+  padding: 4px 0 6px;
+  border-top: 1px solid var(--color-border);
+}
+.activity-log__empty {
+  padding: 20px 14px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+.activity-log__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text);
+  transition: background-color 80ms;
+}
+.activity-log__row:hover {
+  background: var(--color-surface-2);
+}
+.activity-log__row--warn    { color: #C07020; }
+.activity-log__row--success .activity-log__icon { color: var(--color-accent); }
+.activity-log__row--warn    .activity-log__icon { color: #E09436; }
+.activity-log__row--progress .activity-log__icon {
+  display: inline-block;
+  animation: log-spin 1s linear infinite;
+}
+
+@keyframes log-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.activity-log__icon {
+  font-size: 11px;
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+.activity-log__time {
+  font-size: 10.5px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.activity-log__msg {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

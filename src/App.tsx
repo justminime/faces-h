@@ -11,6 +11,7 @@ import { SearchView } from "./components/SearchView";
 import { CorrectionModal } from "./components/CorrectionModal";
 import { NamingModal } from "./components/NamingModal";
 import { ToastContainer } from "./components/Toast";
+import { ActivityLog } from "./components/ActivityLog";
 import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
 import { useUIStore } from "./store/ui";
 import { MOCK_UNNAMED_COUNT } from "./mocks/data";
@@ -361,6 +362,7 @@ function App() {
 
   return (
     <div className="app-shell">
+    <div className="app-panels">
       <Sidebar
         people={people}
         selectedPersonId={selectedPersonId}
@@ -447,6 +449,8 @@ function App() {
         </div>
       )}
       <ToastContainer />
+    </div>
+    <ActivityLog />
     </div>
   );
 }
