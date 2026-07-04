@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { renamePerson, mergePeople } from "../api/client";
+import { useToastStore } from "../store/toast";
 import "./NamingModal.css";
 
 interface ExistingPerson {
@@ -37,13 +38,16 @@ export function NamingModal({
     setSaving(true);
     try {
       if (mergeTarget) {
-        // Merge this unnamed cluster into the existing named person,
-        // then delete the now-empty cluster record.
         await mergePeople(personId, mergeTarget.id);
       } else {
         await renamePerson(personId, trimmed);
       }
       onSaved(trimmed);
+    } catch (err) {
+      useToastStore.getState().addToast(
+        mergeTarget ? "Merge failed — please try again" : "Could not save name",
+      );
+      console.error(err);
     } finally {
       setSaving(false);
     }
@@ -88,7 +92,7 @@ export function NamingModal({
         <button
           type="button"
           className="naming-modal__btn naming-modal__btn--primary"
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           disabled={!trimmed || saving}
         >
           {mergeTarget ? "Merge" : "Save"}
