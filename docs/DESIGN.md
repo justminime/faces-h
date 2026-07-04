@@ -1,8 +1,8 @@
 # Design Direction: Warm Archive
 
-**Version:** 1.0
+**Version:** 1.2
 **Status:** Draft
-**Last updated:** 2026-06-28
+**Last updated:** 2026-07-04
 
 ---
 
@@ -111,11 +111,111 @@ Slider is persistent per-session and lives in the toolbar above the grid.
 
 ---
 
+## UI Mockups
+
+### Main three-panel view (gallery mode)
+
+```
+┌──────────────────┬─────────────────────────────────────────┬──────────────────┐
+│ 🐻  faces-h      │  [●] Ayelet Heilweil         [Rename]    │                  │
+│                  │                          Size ──●──       │  📷 Path: ...    │
+│  Search          │  ┌───┐ ┌───┐ ┌───┐ ┌───┐              │  2026-01-18       │
+│  To review  366  │  │   │ │   │ │   │ │   │              │                  │
+│                  │  └───┘ └───┘ └───┘ └───┘              │  PEOPLE IN PHOTO │
+│  + Add folder  ↺ │  ┌───┐ ┌───┐ ┌───┐ ┌───┐              │                  │
+│  Import  Export  │  │   │ │   │ │   │ │   │              │  ● Ayelet        │
+│                  │  └───┘ └───┘ └───┘ └───┘              │    THIS PERSON   │
+│ PEOPLE           │  ┌───┐ ┌───┐[sel]┌───┐              │                  │
+│ ● Ayelet H. 104  │  │   │ │   │     │   │              │  ● Tamir         │
+│ ● Igal O.    68  │  └───┘ └───┘     └───┘              │                  │
+│ ● Tamir H.   49  │  ┌───┐ ┌───┐ ┌───┐ ┌───┐              │  [Correct ↗]     │
+│ ● Shoshi G.  40  │  │   │ │   │ │   │ │   │              │                  │
+│ ● Ziv H.     37  │  └───┘ └───┘ └───┘ └───┘              │                  │
+│   Unnamed     7  │                                         │                  │
+│   Unnamed     6  │          ● loading…                     │                  │
+└──────────────────┴─────────────────────────────────────────┴──────────────────┘
+```
+
+Notes:
+- Selected photo shown with a terracotta border
+- Detail panel always shows **all** assigned people in the photo, not just the navigated person
+- "THIS PERSON" badge highlights the face belonging to the sidebar selection
+- Loading spinner appears at grid bottom as user scrolls (IntersectionObserver, 50/page)
+
+---
+
+### NamingModal — new name
+
+```
+┌─────────────────────────────────┐
+│  [face] [face] [face] [face]    │
+│                                 │
+│  ┌──────────────────────────┐   │
+│  │  Enter name…             │   │   (datalist autocomplete from existing names)
+│  └──────────────────────────┘   │
+│                                 │
+│  [   Save   ]  [ Cancel ]       │
+└─────────────────────────────────┘
+```
+
+### NamingModal — existing name detected (auto-merge)
+
+```
+┌─────────────────────────────────┐
+│  [face] [face] [face] [face]    │
+│                                 │
+│  ┌──────────────────────────┐   │
+│  │  Tamir Heilweil          │   │   ← typed, matches existing person
+│  └──────────────────────────┘   │
+│                                 │
+│  ┌─────────────────────────────┐ │
+│  │ "Tamir Heilweil" already   │ │   ← terracotta hint bar
+│  │ exists — saving will merge │ │
+│  │ these two clusters.        │ │
+│  └─────────────────────────────┘ │
+│                                 │
+│  [   Merge  ]  [ Cancel ]       │   ← Save → Merge
+└─────────────────────────────────┘
+```
+
+After Merge: source cluster deleted, faces moved to surviving person, sweep runs in background,
+toast appears: "Found 12 more photos — refreshing".
+
+---
+
+### NamingModal — after naming sweep completes
+
+```
+┌──────────────────────────────────────────────────────────┐   ← toast, bottom right
+│  Found 12 more photos — refreshing                  ✕   │
+└──────────────────────────────────────────────────────────┘
+```
+
+Sidebar count for the person updates automatically.
+
+---
+
+### Theme switcher (native menu)
+
+```
+View
+├── Gallery          Ctrl+G
+├── Search           Ctrl+F
+├── ──────────────
+├── Light Mode
+├── Dark Mode
+└── Follow System
+```
+
+Active theme is persisted in `localStorage` and applied immediately via `data-theme` on `<html>`.
+
+---
+
 ## Open Design Questions
 
-| # | Question |
-|---|----------|
-| DQ-01 | Implementation target (Electron / Tauri / WPF / WinUI) — determines what can be built and how |
-| DQ-02 | UX for merging two person clusters (PRD OQ-03): drag-and-drop medallion merge, or explicit merge button? |
-| DQ-03 | How to present the "uncertain faces" confirmation queue — inline in the grid vs. a dedicated review mode? |
-| DQ-04 | Onboarding flow design: folder picker → scan estimate → first faces surfaced |
+| # | Question | Status |
+|---|----------|--------|
+| ~~DQ-01~~ | Implementation target | **RESOLVED: Tauri 2.x** |
+| ~~DQ-02~~ | Merge UX | **RESOLVED: explicit Merge button in NamingModal when duplicate name detected; also explicit "Merge with…" button in person header** |
+| ~~DQ-03~~ | Uncertain queue | **RESOLVED: dedicated sidebar nav item with count badge** |
+| ~~DQ-04~~ | Onboarding | **RESOLVED: multi-step modal — folder picker → model download → first scan → first faces** |

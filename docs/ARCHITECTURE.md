@@ -1,8 +1,8 @@
 # Software Architecture: faces-h
 
-**Version:** 1.0
+**Version:** 1.1
 **Status:** Draft
-**Last updated:** 2026-06-28
+**Last updated:** 2026-07-04
 
 ---
 
@@ -114,6 +114,47 @@ enlarged and highlighted with a "this person" badge so it is identifiable in
 group photos. Person names are resolved client-side from the loaded people
 list, so a rename updates the panel without an extra round-trip.
 
+**Auto-merge on duplicate name.** If the user types a name in `NamingModal` that
+already exists (case-insensitive), the Save button becomes **Merge** and a hint
+line appears. On confirm, `mergePeople(sourceId, targetId)` is called instead of
+`renamePerson` — the source cluster's faces move to the target and the source
+record is deleted. No second cluster with the same name is ever created.
+
+**Post-naming library sweep.** After any name is set (`POST /people/{id}/name`)
+or after a merge, the sidecar runs `ReEvaluationService.sweep_for_person` as a
+background task. The sweep has three passes:
+1. **Uncertain** faces whose `suggested_person_id` matches — confirmed if cosine ≥ `auto_assign_threshold`
+2. **Unreviewed** faces — embedded and compared against the named centroid; pulled in if ≥ threshold
+3. **Unnamed-cluster** faces — moved if this person scores highest AND ≥ threshold
+
+The surviving centroid is rebuilt after each sweep. A `sweep_complete` WebSocket
+event is emitted; the frontend shows a toast ("Found N more photos — refreshing")
+and bumps `scanVersion` to refresh the sidebar count. Rule 6 is respected: uncertain
+faces are never auto-promoted.
+
+**Multi-person photo panel.** The `GET /people/{id}/photos` endpoint paginates at
+the photo level (returning photos that contain the selected person) but now returns
+**all assigned faces** in each photo, not only the selected person's faces. The
+Detail Panel thus shows every named (or unnamed) person present in a photo, not
+just the one currently selected in the sidebar.
+
+**Incremental photo loading.** Photos are loaded `PAGE_SIZE=50` at a time using an
+`IntersectionObserver` sentinel at the bottom of the grid. The first page uses
+`?order=random` so SQLite samples from the full pool on each visit (different
+photos on each session open). Subsequent pages use chronological order. A
+`generation` counter cancels stale fetches when the user switches people quickly.
+
+**Startup people cache.** The people list is written to `localStorage`
+(`faces_h_people_cache`) after every successful load. On next launch the sidebar
+renders from cache instantly while the sidecar starts, then updates in place.
+
+**Theme switching.** A native Tauri menu under View → Light Mode / Dark Mode /
+Follow System writes a `data-theme` attribute to `<html>` and persists the
+choice to `localStorage` (`faces_h_theme`). The CSS token file has three
+selector blocks: `:root` (light defaults), `@media (prefers-color-scheme: dark)
+:root:not([data-theme="light"])` (OS dark, unless user explicitly chose light),
+and `:root[data-theme="dark"]` (explicit dark override).
+
 ### 3. Python Sidecar
 
 #### 3a. Scanner Service
@@ -160,10 +201,17 @@ Both models output 512-dimensional L2-normalized embeddings. Downstream clusteri
 - Emits a summary notification when complete: `{ moved: N, newly_uncertain: N }`
 - Runs as a background async task; never blocks browsing
 
+**Post-naming / post-merge sweep** (`sweep_for_person`): triggered automatically
+after `set_name` and after any cluster merge. Three-pass background job:
+1. Uncertain faces with `suggested_person_id = person_id`, cosine ≥ threshold → promote to assigned
+2. Unreviewed faces across all unnamed clusters → compare embedding to centroid, assign if ≥ threshold
+3. Faces in named clusters → move if this person scores higher AND ≥ threshold
+Centroid is rebuilt from scratch after all moves. Emits `sweep_complete { person_id, moved }` over WebSocket.
+
 #### 3e. Query Service
 
 - `GET /people` — list all named people with medallion face and photo count
-- `GET /people/{id}/photos` — all photos for a person, sorted by date
+- `GET /people/{id}/photos?offset=N&limit=N&order=date|random` — paginated photos for a person. Returns all assigned faces per photo (not just the selected person's face) so multi-person photos show everyone. `order=random` uses `RANDOM()` on the inner photo-ID subquery so each visit surfaces a different mix; subsequent pages use chronological order.
 - `POST /search` — multi-person query with optional date range. `match` selects the semantics:
   - `"contains"` (default) — every selected person appears in the photo (others allowed). AND logic via one indexed subquery per `person_id`.
   - `"exact"` — the photo's set of **assigned** people equals exactly the selection; a photo with any additional named person is excluded. Uncertain/unassigned faces don't count, so they never disqualify a match. (Reliability Rule 5 preserved — only `assigned` faces are considered.)
@@ -277,6 +325,7 @@ The frontend connects to `http://127.0.0.1:51423` for HTTP and `ws://127.0.0.1:5
 { "type": "model_download_progress","progress": 0.42 }
 { "type": "reeval_complete",        "moved": 5, "newly_uncertain": 3, "person": "Mom" }
 { "type": "scan_complete",          "scanned": 1200, "total": 45000 }
+{ "type": "sweep_complete",         "person_id": 7, "moved": 12 }
 ```
 
 `scan_progress` is broadcast every 10 processed files (face detection is
