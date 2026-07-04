@@ -1,6 +1,6 @@
 # Software Architecture: faces-h
 
-**Version:** 1.2
+**Version:** 1.3
 **Status:** Draft
 **Last updated:** 2026-07-04
 
@@ -18,7 +18,10 @@
 | D-06 | Metadata DB | SQLite (via `aiosqlite`) | Local, portable, single-file; no server; supports incremental updates |
 | D-07 | Vector index | FAISS IVF | Scales to 1M+ embeddings on CPU; IVF partitioning avoids full scans; promoted from Flat as library grows |
 | D-08 | Packaging | PyInstaller (sidecar) + Tauri NSIS | Single `.exe` installer; user installs nothing extra |
-| D-09 | CI/CD | GitHub Actions | All issues, builds, tests, and releases on GitHub |
+| D-09 | CI/CD | GitHub Actions | All issues, builds, tests, and releases on GitHub; all third-party actions pinned to immutable commit SHAs |
+| D-10 | Code signing | SignPath Foundation | Free OSS certificate; signing runs in SignPath infrastructure — private key never touches GitHub runners; installer signed before upload to GitHub Releases |
+| D-11 | IPC auth | Per-session token (32-char hex) | Generated in Rust at startup (port + PID + nanos, double-hashed); passed as `--token` CLI arg to sidecar; required on all HTTP requests (`X-Faces-Token` header) and WebSocket connections (`?token=` query param); `/health` exempt |
+| D-12 | Content Security Policy | Tauri `csp` field | `default-src 'self'`; `connect-src http://127.0.0.1:* ws://127.0.0.1:*`; no external script or font sources |
 
 ---
 

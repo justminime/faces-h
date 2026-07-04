@@ -179,6 +179,9 @@ Users with large photo libraries (2TB+) cannot find photos of specific people. P
 | NFR-06 | The app must handle corrupt or unreadable image files gracefully — log the error and continue, never crash. |
 | NFR-07 | The app must tolerate a library of at least 100,000 photos without degradation in search or browse performance. |
 | NFR-08 | The database must support incremental updates — adding new photos to a folder must not require a full re-scan. |
+| NFR-09 | The Windows installer must be code-signed with a trusted certificate. Certificate provided by SignPath Foundation (free OSS programme). |
+| NFR-10 | The IPC channel between the Tauri shell and the Python sidecar must be authenticated. A per-session token is generated at startup and required on every HTTP request and WebSocket connection. |
+| NFR-11 | The app must set a strict Content Security Policy that blocks all external script, font, and image sources. |
 
 ---
 
