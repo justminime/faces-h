@@ -18,8 +18,12 @@ name: Deploy landing page
 # FTPS (explicit TLS) is attempted; --insecure skips cert check for shared hosts.
 
 on:
-  release:
-    types: [published]
+  # Fires after the Release workflow completes successfully — by then the
+  # installer .exe is fully uploaded, so the asset size fetch works correctly.
+  # (Triggering on `release: [published]` fires too early — before the upload.)
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   push:
     branches: [main]
     paths:
@@ -38,6 +42,7 @@ jobs:
   deploy:
     name: Stamp version + FTP deploy
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
 
     steps:
       - uses: actions/checkout@v4
