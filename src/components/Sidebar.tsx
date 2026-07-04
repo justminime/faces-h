@@ -1,6 +1,9 @@
+import { useEffect, useRef, useState } from "react";
 import { Medallion } from "./Medallion";
 import type { Person } from "../mocks/data";
 import { useQueueStore } from "../store/queue";
+import { useTheme } from "../hooks/useTheme";
+import type { Theme } from "../hooks/useTheme";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -17,6 +20,12 @@ interface SidebarProps {
   onImport?: () => void;
 }
 
+const THEME_OPTIONS: { value: Theme; label: string; icon: string }[] = [
+  { value: "light",  label: "Light",         icon: "☀" },
+  { value: "dark",   label: "Dark",           icon: "☽" },
+  { value: "system", label: "Follow System",  icon: "⊟" },
+];
+
 export function Sidebar({
   people,
   selectedPersonId,
@@ -31,32 +40,112 @@ export function Sidebar({
   onImport,
 }: SidebarProps) {
   const queueCount = useQueueStore((s) => s.queueCount);
+  const [theme, setTheme] = useTheme();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpen]);
+
+  function action(fn?: () => void) {
+    return () => { setMenuOpen(false); fn?.(); };
+  }
 
   return (
     <nav className="sidebar" aria-label="People">
       {scanProgress !== null && (
         <div className="sidebar__scan-progress" role="progressbar" aria-valuenow={Math.round(scanProgress * 100)} aria-valuemin={0} aria-valuemax={100}>
-          <div
-            className="sidebar__scan-progress-bar"
-            style={{ width: `${scanProgress * 100}%` }}
-          />
+          <div className="sidebar__scan-progress-bar" style={{ width: `${scanProgress * 100}%` }} />
         </div>
       )}
 
+      {/* Header: brand + menu button */}
       <div className="sidebar__header">
         <img src="/icon.svg" alt="" className="sidebar__logo" aria-hidden="true" />
         <h1 className="sidebar__app-name">faces-h</h1>
+
+        <div className="sidebar__menu-wrap" ref={menuRef}>
+          <button
+            type="button"
+            className={`sidebar__menu-trigger${menuOpen ? " sidebar__menu-trigger--open" : ""}`}
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+          >
+            ···
+          </button>
+
+          {menuOpen && (
+            <div className="sidebar__dropdown" role="menu">
+
+              {/* Library section */}
+              <div className="sidebar__menu-section">Library</div>
+              <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onAddFolder)}>
+                <span className="sidebar__menu-icon">📁</span>
+                Add Folder
+                <span className="sidebar__menu-shortcut">Ctrl+O</span>
+              </button>
+              <button
+                type="button"
+                className="sidebar__menu-item"
+                role="menuitem"
+                onClick={action(onRescan)}
+                disabled={scanProgress !== null}
+              >
+                <span className="sidebar__menu-icon">↺</span>
+                Rescan Library
+              </button>
+
+              <div className="sidebar__menu-divider" />
+
+              {/* Identity section */}
+              <div className="sidebar__menu-section">Identity</div>
+              <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onExport)}>
+                <span className="sidebar__menu-icon">↑</span>
+                Export Named People
+              </button>
+              <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onImport)}>
+                <span className="sidebar__menu-icon">↓</span>
+                Import Named People
+              </button>
+
+              <div className="sidebar__menu-divider" />
+
+              {/* Appearance section */}
+              <div className="sidebar__menu-section">Appearance</div>
+              {THEME_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`sidebar__menu-item${theme === opt.value ? " sidebar__menu-item--active" : ""}`}
+                  role="menuitemradio"
+                  aria-checked={theme === opt.value}
+                  onClick={() => { setTheme(opt.value); setMenuOpen(false); }}
+                >
+                  <span className="sidebar__menu-icon">{opt.icon}</span>
+                  {opt.label}
+                  {theme === opt.value && <span className="sidebar__menu-check">✓</span>}
+                </button>
+              ))}
+
+            </div>
+          )}
+        </div>
       </div>
 
-      <button
-        type="button"
-        className="sidebar__nav-btn"
-        onClick={onSearchClick}
-        aria-label="Search"
-      >
+      {/* Nav */}
+      <button type="button" className="sidebar__nav-btn" onClick={onSearchClick} aria-label="Search">
         Search
       </button>
-
       <button
         type="button"
         className="sidebar__queue-btn"
@@ -64,56 +153,12 @@ export function Sidebar({
         aria-label={`Uncertain faces: ${queueCount}`}
       >
         <span className="sidebar__queue-label">To review</span>
-        <span className="sidebar__queue-badge" aria-live="polite">
-          {queueCount}
-        </span>
+        <span className="sidebar__queue-badge" aria-live="polite">{queueCount}</span>
       </button>
-
-      <div className="sidebar__actions">
-        <button
-          type="button"
-          className="sidebar__action-btn"
-          onClick={onAddFolder}
-          aria-label="Add folder"
-          title="Add a folder to scan"
-        >
-          + Add folder
-        </button>
-        <button
-          type="button"
-          className="sidebar__action-btn sidebar__action-btn--icon"
-          onClick={onRescan}
-          disabled={scanProgress !== null}
-          aria-label="Scan now"
-          title="Re-scan all folders"
-        >
-          ↻
-        </button>
-      </div>
-
-      <div className="sidebar__actions">
-        <button
-          type="button"
-          className="sidebar__action-btn"
-          onClick={onImport}
-          aria-label="Import names"
-          title="Import names from another library"
-        >
-          Import
-        </button>
-        <button
-          type="button"
-          className="sidebar__action-btn"
-          onClick={onExport}
-          aria-label="Export names"
-          title="Export named people to a file"
-        >
-          Export
-        </button>
-      </div>
 
       <div className="sidebar__divider" />
       <div className="sidebar__section-label">People</div>
+
       <ul className="sidebar__list">
         {people.map((person) => (
           <li key={person.id}>
@@ -135,11 +180,7 @@ export function Sidebar({
         ))}
         {unnamedCount > 0 && (
           <li>
-            <button
-              type="button"
-              className="sidebar__person"
-              onClick={() => onPersonSelect(null)}
-            >
+            <button type="button" className="sidebar__person" onClick={() => onPersonSelect(null)}>
               <div className="sidebar__unnamed-avatar" aria-hidden="true" />
               <span className="sidebar__name">Unnamed</span>
               <span className="sidebar__count sidebar__count--accent">{unnamedCount}</span>

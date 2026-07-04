@@ -20,12 +20,12 @@
   transition: width 300ms ease;
 }
 
-/* ── Header: icon + app name ── */
+/* ── Header: icon + app name + menu trigger ── */
 .sidebar__header {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 18px 16px 14px;
+  padding: 18px 12px 14px 16px;
 }
 .sidebar__logo {
   width: 26px;
@@ -39,6 +39,115 @@
   margin: 0;
   color: var(--color-accent);
   letter-spacing: -0.02em;
+  flex: 1;
+}
+
+/* ── ··· menu trigger ── */
+.sidebar__menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.sidebar__menu-trigger {
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.05em;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background-color 100ms, color 100ms, border-color 100ms;
+  font-family: var(--font-family);
+}
+.sidebar__menu-trigger:hover,
+.sidebar__menu-trigger--open {
+  background: var(--color-accent-tint);
+  color: var(--color-accent);
+  border-color: transparent;
+}
+
+/* ── Dropdown ── */
+.sidebar__dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 210px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 28px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.08);
+  padding: 6px;
+  z-index: 100;
+  /* keep fully inside the sidebar width */
+  right: auto;
+  transform: translateX(calc(-100% + 28px));
+}
+.sidebar__menu-section {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--color-text-secondary);
+  padding: 6px 10px 3px;
+}
+.sidebar__menu-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 5px 4px;
+}
+.sidebar__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: 13px;
+  color: var(--color-text);
+  text-align: left;
+  transition: background-color 100ms;
+  white-space: nowrap;
+}
+.sidebar__menu-item:hover:not(:disabled) {
+  background: var(--color-accent-tint);
+  color: var(--color-accent);
+}
+.sidebar__menu-item:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.sidebar__menu-item--active {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.sidebar__menu-icon {
+  width: 18px;
+  text-align: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.sidebar__menu-shortcut {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+.sidebar__menu-check {
+  margin-left: auto;
+  color: var(--color-accent);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 /* ── Nav buttons (Search, Browse) ── */
@@ -97,40 +206,6 @@
   padding: 0 5px;
 }
 
-/* ── Action row (Add folder / Rescan / Import / Export) ── */
-.sidebar__actions {
-  display: flex;
-  gap: 4px;
-  margin: 0 8px 4px;
-}
-.sidebar__action-btn {
-  flex: 1;
-  padding: 5px 8px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: none;
-  cursor: pointer;
-  font-family: var(--font-family);
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  text-align: center;
-  transition: background-color 100ms ease, color 100ms ease;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.sidebar__action-btn:hover:not(:disabled) {
-  background-color: var(--color-surface-2);
-  color: var(--color-text);
-}
-.sidebar__action-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-.sidebar__action-btn--icon {
-  flex: 0 0 30px;
-  font-size: 14px;
-}
 
 /* ── Divider + section label ── */
 .sidebar__divider {
