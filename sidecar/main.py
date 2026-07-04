@@ -44,7 +44,11 @@ async def require_token(request: Request, call_next):  # type: ignore[no-untyped
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["tauri://localhost", "http://localhost:5173"],
+    allow_origins=[
+        "https://tauri.localhost",   # Tauri 2.x on Windows
+        "tauri://localhost",         # Tauri 2.x on Linux/macOS
+        "http://localhost:5173",     # Vite dev server
+    ],
     allow_methods=["*"],
     allow_headers=["*", "X-Faces-Token"],
 )
