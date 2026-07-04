@@ -1,5 +1,5 @@
 .detail-panel {
-  width: 280px;
+  width: 272px;
   flex-shrink: 0;
   border-left: 1px solid var(--color-border);
   background-color: var(--color-surface);
@@ -7,25 +7,25 @@
   display: flex;
   flex-direction: column;
 }
-
 .detail-panel--empty {
   align-items: center;
   justify-content: center;
 }
-
 .detail-panel__empty-msg {
   font-size: 13px;
   color: var(--color-text-secondary);
   margin: 0;
+  text-align: center;
+  padding: 0 24px;
+  line-height: 1.55;
 }
 
 .detail-panel__preview {
   flex-shrink: 0;
-  background-color: var(--color-bg);
+  background-color: var(--color-surface-2);
   aspect-ratio: 4/3;
   overflow: hidden;
 }
-
 .detail-panel__img {
   width: 100%;
   height: 100%;
@@ -36,18 +36,20 @@
 .detail-panel__meta {
   padding: 12px 16px;
   border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
-
 .detail-panel__path {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--color-text-secondary);
-  margin: 0 0 4px;
+  margin: 0;
   word-break: break-all;
   font-weight: 500;
+  line-height: 1.4;
 }
-
 .detail-panel__date {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--color-text-secondary);
   margin: 0;
 }
@@ -56,14 +58,13 @@
   padding: 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
-
 .detail-panel__faces-label {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--color-text-secondary);
   margin-bottom: 6px;
 }
@@ -73,24 +74,21 @@
   align-items: center;
   gap: 10px;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   min-height: 40px;
 }
-
 .face-entry--highlighted {
-  background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  background-color: var(--color-accent-tint);
 }
-
 .face-entry__name {
   flex: 1;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--color-text);
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-
 .face-entry__badge {
   font-size: 10px;
   font-weight: 600;
@@ -98,19 +96,18 @@
   letter-spacing: 0.05em;
   color: var(--color-accent);
 }
-
 .face-entry__correction-btn {
   font-size: 11px;
   color: var(--color-text-secondary);
   background: none;
   border: 1px solid var(--color-border);
-  border-radius: 3px;
-  padding: 2px 6px;
+  border-radius: 4px;
+  padding: 2px 7px;
   cursor: pointer;
   white-space: nowrap;
   font-family: var(--font-family);
+  transition: border-color 100ms ease, color 100ms ease;
 }
-
 .face-entry__correction-btn:hover {
   border-color: var(--color-accent);
   color: var(--color-accent);

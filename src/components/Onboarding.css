@@ -7,52 +7,52 @@
   background: var(--color-bg);
   z-index: 400;
 }
-
 .onboarding__card {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 20px;
-  padding: 48px 56px;
+  padding: 48px 52px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   max-width: 440px;
-  width: 100%;
+  width: calc(100% - 40px);
   text-align: center;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 16px 56px rgba(0, 0, 0, 0.12);
 }
-
+.onboarding__logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+}
 .onboarding__title {
   margin: 0;
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
   color: var(--color-text);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
-
 .onboarding__tagline {
   margin: 0;
   font-size: 15px;
   color: var(--color-text-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
 }
-
 .onboarding__path {
   margin: 0;
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--color-text-secondary);
   font-family: monospace;
   word-break: break-all;
   max-width: 100%;
-  background: var(--color-bg);
-  padding: 6px 10px;
-  border-radius: 4px;
+  background: var(--color-surface-2);
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
 }
-
 .onboarding__btn {
   padding: 10px 28px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-family);
   font-size: 15px;
   font-weight: 600;
@@ -61,62 +61,49 @@
   transition: opacity 0.15s;
   min-width: 160px;
 }
-
 .onboarding__btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
-
 .onboarding__btn--primary {
   background: var(--color-accent);
   color: #fff;
 }
-
 .onboarding__btn--secondary {
-  background: var(--color-bg);
+  background: var(--color-surface-2);
   border: 1px solid var(--color-border);
   color: var(--color-text);
 }
-
 .onboarding__btn--ghost {
   background: transparent;
   color: var(--color-text-secondary);
   font-size: 13px;
   padding: 6px 12px;
 }
-
 .onboarding__progress-track {
   width: 100%;
-  height: 6px;
+  height: 4px;
   background: var(--color-border);
-  border-radius: 3px;
+  border-radius: 2px;
   overflow: hidden;
 }
-
 .onboarding__progress-bar {
   height: 100%;
   background: var(--color-accent);
-  border-radius: 3px;
+  border-radius: 2px;
   transition: width 0.3s ease;
 }
-
-/* Indeterminate (pre-first-event) state: full-width pulsing bar */
 .onboarding__progress-bar--pulse {
   width: 100%;
   animation: progress-pulse 1.6s ease-in-out infinite;
 }
-
 @keyframes progress-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  50% { opacity: 0.3; }
 }
-
 .onboarding__progress-label {
   margin: 0;
   font-size: 13px;
   color: var(--color-text-secondary);
 }
-
-.onboarding__tagline--error {
-  color: #c0392b;
-}
+.onboarding__tagline--error { color: #c0392b; }
