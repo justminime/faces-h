@@ -38,15 +38,17 @@ async def get_face_crop(face_id: int) -> Response:
         raise HTTPException(status_code=404, detail="Face has no bounding box")
 
     try:
-        img = Image.open(row["photo_path"])
+        from PIL import ImageOps
+        img = ImageOps.exif_transpose(Image.open(row["photo_path"]))
         w_img, h_img = img.size
         x = int(row["bbox_x"] * w_img)
         y = int(row["bbox_y"] * h_img)
         w = int(row["bbox_w"] * w_img)
         h = int(row["bbox_h"] * h_img)
-        crop = img.crop((x, y, x + w, y + h))
+        crop = img.convert("RGB").crop((x, y, x + w, y + h))
         buf = io.BytesIO()
         crop.save(buf, format="JPEG")
-        return Response(content=buf.getvalue(), media_type="image/jpeg")
+        return Response(content=buf.getvalue(), media_type="image/jpeg",
+                        headers={"Cache-Control": "max-age=86400"})
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

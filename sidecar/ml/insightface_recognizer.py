@@ -55,7 +55,8 @@ class InsightFaceRecognizer(FaceRecognizer):
             from PIL import Image as _PIL
 
             try:
-                pil_img = _PIL.open(image_path)
+                from PIL import ImageOps as _ImageOps
+                pil_img = _ImageOps.exif_transpose(_PIL.open(image_path))
             except Exception:
                 return []
 
