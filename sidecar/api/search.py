@@ -25,8 +25,12 @@ def _date_to_unix(date_str: str, end_of_day: bool = False) -> int:
     """Convert a YYYY-MM-DD string to a UTC Unix timestamp (midnight or 23:59:59)."""
     import calendar
     import datetime
+    from fastapi import HTTPException
 
-    d = datetime.date.fromisoformat(date_str)
+    try:
+        d = datetime.date.fromisoformat(date_str)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid date '{date_str}' — expected YYYY-MM-DD") from exc
     if end_of_day:
         dt = datetime.datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=datetime.timezone.utc)
     else:

@@ -51,4 +51,4 @@ async def get_face_crop(face_id: int) -> Response:
         return Response(content=buf.getvalue(), media_type="image/jpeg",
                         headers={"Cache-Control": "max-age=86400"})
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="Could not generate face crop") from exc

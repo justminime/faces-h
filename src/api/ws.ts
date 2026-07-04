@@ -6,6 +6,7 @@ const RECONNECT_MS = 3_000;
 
 let _ws: WebSocket | null = null;
 let _wsUrl = "";
+let _wsToken = "";
 
 // Exported for unit testing; also used as the WebSocket onmessage handler.
 export function handleMessage(event: MessageEvent): void {
@@ -83,7 +84,8 @@ export function handleMessage(event: MessageEvent): void {
 function connect(): void {
   if (!_wsUrl) return;
   try {
-    _ws = new WebSocket(_wsUrl);
+    const url = _wsToken ? `${_wsUrl}?token=${encodeURIComponent(_wsToken)}` : _wsUrl;
+    _ws = new WebSocket(url);
     _ws.onmessage = handleMessage;
     _ws.onopen = () => {
       useLogStore.getState().push("Connected to faces-h sidecar", "success");
@@ -97,8 +99,9 @@ function connect(): void {
   }
 }
 
-export function initWs(sidecarUrl: string): void {
+export function initWs(sidecarUrl: string, token = ""): void {
   _wsUrl = sidecarUrl.replace(/^http/, "ws") + "/ws";
+  _wsToken = token;
   connect();
 }
 

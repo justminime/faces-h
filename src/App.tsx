@@ -151,9 +151,11 @@ function App() {
 
     invoke<string>("get_sidecar_url")
       .then((url) => {
-        initClient(url);
-        initWs(url);
-        void loadWithRetry();
+        return invoke<string>("get_sidecar_token").then((token) => {
+          initClient(url, token);
+          initWs(url, token);
+          void loadWithRetry();
+        });
       })
       .catch(() => {
         const devUrl = import.meta.env.VITE_DEV_SIDECAR_URL as string | undefined;

@@ -2,9 +2,11 @@ import type { ApiPerson, ApiPhoto, QueueItem, SearchRequest } from "./types";
 export type { ApiPerson, ApiPhoto, QueueItem, SearchRequest };
 
 let _baseUrl = "";
+let _token = "";
 
-export function initClient(url: string): void {
+export function initClient(url: string, token = ""): void {
   _baseUrl = url;
+  _token = token;
 }
 
 /** Absolute URL of a downscaled JPEG thumbnail for a photo. */
@@ -19,8 +21,12 @@ export function faceCropUrl(faceId: number): string {
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${_baseUrl}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(_token ? { "X-Faces-Token": _token } : {}),
+      ...(options?.headers as Record<string, string> | undefined),
+    },
   });
   if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
   return res.json() as Promise<T>;

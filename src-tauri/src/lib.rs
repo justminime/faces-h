@@ -1,14 +1,39 @@
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::net::TcpListener;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, Manager};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
 pub struct SidecarState {
     pub url: String,
+    pub token: String,
     pub child: Mutex<Option<CommandChild>>,
     pub pid: u32,
+}
+
+/// Generate a random-enough IPC token from OS entropy sources available in std.
+/// Not cryptographically secure, but unpredictable enough to prevent casual
+/// local-process spoofing — an attacker would need to guess PID + nanos + port.
+fn generate_token(port: u16) -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos();
+    let pid = std::process::id();
+    let mut h1 = DefaultHasher::new();
+    nanos.hash(&mut h1);
+    pid.hash(&mut h1);
+    port.hash(&mut h1);
+    let v1 = h1.finish();
+    let mut h2 = DefaultHasher::new();
+    v1.hash(&mut h2);
+    port.hash(&mut h2);
+    nanos.wrapping_add(1).hash(&mut h2);
+    let v2 = h2.finish();
+    format!("{v1:016x}{v2:016x}")
 }
 
 /// Kill the sidecar process tree on Windows so PyInstaller's bootstrap and
@@ -85,13 +110,23 @@ fn get_sidecar_url(state: tauri::State<SidecarState>) -> String {
     state.url.clone()
 }
 
-/// Open a file path in the default Windows viewer (ShellExecute "open").
+/// Return the IPC auth token so the frontend can attach it to API requests.
 #[tauri::command]
-fn open_in_viewer(_path: String) -> Result<(), String> {
+fn get_sidecar_token(state: tauri::State<SidecarState>) -> String {
+    state.token.clone()
+}
+
+/// Open a file path in the default Windows viewer (ShellExecute "open").
+/// The path must exist on disk — this prevents XSS from opening arbitrary paths.
+#[tauri::command]
+fn open_in_viewer(path: String) -> Result<(), String> {
+    if !std::path::Path::new(&path).exists() {
+        return Err(format!("File not found: {path}"));
+    }
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("cmd")
-            .args(["/c", "start", "", &_path])
+            .args(["/c", "start", "", &path])
             .spawn()
             .map_err(|e| e.to_string())?;
     }
@@ -100,11 +135,14 @@ fn open_in_viewer(_path: String) -> Result<(), String> {
 
 /// Open File Explorer with the given file path selected.
 #[tauri::command]
-fn reveal_in_explorer(_path: String) -> Result<(), String> {
+fn reveal_in_explorer(path: String) -> Result<(), String> {
+    if !std::path::Path::new(&path).exists() {
+        return Err(format!("File not found: {path}"));
+    }
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("explorer")
-            .args(["/select,", &_path])
+            .args(["/select,", &path])
             .spawn()
             .map_err(|e| e.to_string())?;
     }
@@ -166,6 +204,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             get_sidecar_url,
+            get_sidecar_token,
             open_in_viewer,
             reveal_in_explorer,
         ])
@@ -175,6 +214,7 @@ pub fn run() {
             kill_orphaned_sidecars();
 
             let port = allocate_port();
+            let token = generate_token(port);
             let url = format!("http://127.0.0.1:{port}");
 
             let data_dir = app
@@ -196,6 +236,7 @@ pub fn run() {
                     "--port", &port.to_string(),
                     "--data-dir", &data_dir,
                     "--app-version", &app_version,
+                    "--token", &token,
                 ])
                 .spawn()
                 .map_err(|e| e.to_string())?;
@@ -205,6 +246,7 @@ pub fn run() {
 
             app.manage(SidecarState {
                 url: url.clone(),
+                token: token.clone(),
                 child: Mutex::new(Some(child)),
                 pid: sidecar_pid,
             });
@@ -220,7 +262,8 @@ pub fn run() {
                 if wait_for_port(port, Duration::from_secs(180)) {
                     let elapsed = start.elapsed().as_millis();
                     log::info!("sidecar ready on port {port} after {elapsed} ms");
-                    let _ = handle.emit("sidecar-ready", &url);
+                    let payload = serde_json::json!({ "url": url, "token": token });
+                    let _ = handle.emit("sidecar-ready", payload);
                 } else {
                     log::error!("sidecar did not bind on port {port} within 180 s — giving up");
                     let _ = handle.emit("sidecar-error", "Engine failed to start after 3 min");

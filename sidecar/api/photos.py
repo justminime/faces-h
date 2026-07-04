@@ -51,4 +51,4 @@ async def get_photo_thumbnail(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="Could not generate thumbnail") from exc

@@ -8,8 +8,9 @@ import platform
 import sys
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from api.corrections import router as corrections_router
 from api.faces import router as faces_router
@@ -23,11 +24,29 @@ from api.transfer import router as transfer_router
 
 app = FastAPI(title="faces-h sidecar", version="0.1.0")
 
+# Populated at startup from the --token CLI arg.
+_api_token: str = ""
+
+# Public paths that never require a token (Tauri polls /health before
+# emitting sidecar-ready, so it can't include the token yet).
+_TOKEN_EXEMPT = {"/health", "/ws"}
+
+
+@app.middleware("http")
+async def require_token(request: Request, call_next):  # type: ignore[no-untyped-def]
+    path = request.url.path
+    if path not in _TOKEN_EXEMPT and _api_token:
+        token = request.headers.get("X-Faces-Token", "")
+        if token != _api_token:
+            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+    return await call_next(request)
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["tauri://localhost", "http://localhost:5173"],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "X-Faces-Token"],
 )
 
 app.include_router(scan_router)
@@ -105,6 +124,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=51423)
     parser.add_argument("--data-dir", type=str, required=True)
     parser.add_argument("--app-version", type=str, default="unknown")
+    parser.add_argument("--token", type=str, default="", help="Shared secret required on X-Faces-Token header")
     parser.add_argument(
         "--log-level",
         type=str,
@@ -120,6 +140,9 @@ def main() -> None:
         "Diagnostic for verifying the bundled ML stack works in a frozen build.",
     )
     args = parser.parse_args()
+
+    global _api_token
+    _api_token = args.token
 
     os.environ["FACES_H_DATA_DIR"] = args.data_dir
     os.makedirs(args.data_dir, exist_ok=True)

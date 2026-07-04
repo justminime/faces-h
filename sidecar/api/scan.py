@@ -6,7 +6,7 @@ import logging
 import time
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from db.database import get_db
@@ -54,7 +54,14 @@ class StartScanRequest(BaseModel):
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket) -> None:
+async def websocket_endpoint(
+    ws: WebSocket,
+    token: str = Query(default=""),
+) -> None:
+    import main as _main
+    if _main._api_token and token != _main._api_token:
+        await ws.close(code=4401)
+        return
     await _manager.connect(ws)
     try:
         while True:
