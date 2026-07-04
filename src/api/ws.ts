@@ -85,7 +85,11 @@ function connect(): void {
   try {
     _ws = new WebSocket(_wsUrl);
     _ws.onmessage = handleMessage;
+    _ws.onopen = () => {
+      useLogStore.getState().push("Connected to faces-h sidecar", "success");
+    };
     _ws.onclose = () => {
+      useLogStore.getState().push("Sidecar disconnected — reconnecting…", "warn");
       setTimeout(connect, RECONNECT_MS);
     };
   } catch {
