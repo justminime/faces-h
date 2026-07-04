@@ -444,6 +444,12 @@ h1 {
   margin-bottom: 36px;
 }
 .dl-actions { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.dl-signing-note {
+  margin-top: 20px;
+  font-size: 0.8125rem;
+  color: var(--muted-dark);
+}
+.dl-signing-note a { color: inherit; text-decoration: underline; }
 .btn-large { padding: 18px 36px; font-size: 1.0625rem; border-radius: var(--radius); }
 .btn-link {
   font-size: 0.875rem;
