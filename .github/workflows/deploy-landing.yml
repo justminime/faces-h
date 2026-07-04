@@ -167,7 +167,7 @@ jobs:
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           BASE_URL: ${{ steps.ftp.outputs.base }}
         run: |
-          for f in index.html style.css icon.svg .htaccess; do
+          for f in index.html privacy.html style.css icon.svg .htaccess; do
             echo "Uploading ${f}…"
             curl --silent --show-error --ftp-create-dirs --ftp-ssl --insecure \
               --user "${FTP_USER}:${FTP_PASS}" \
@@ -190,7 +190,7 @@ jobs:
           FTP_PASS:    ${{ secrets.FTP_PASSWORD }}
           VERSIONED_URL: ${{ steps.ftp.outputs.versioned }}
         run: |
-          for f in index.html style.css icon.svg .htaccess; do
+          for f in index.html privacy.html style.css icon.svg .htaccess; do
             echo "Archiving ${f}…"
             curl --silent --show-error --ftp-create-dirs --ftp-ssl --insecure \
               --user "${FTP_USER}:${FTP_PASS}" \

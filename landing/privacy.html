@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — faces-h</title>
+  <meta name="description" content="faces-h privacy policy. faces-h collects no personal data. All face recognition runs locally on your device.">
+
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .policy-shell {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 80px 24px 120px;
+    }
+    .policy-shell h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .policy-meta {
+      font-size: 0.875rem;
+      color: var(--muted-dark);
+      margin-bottom: 56px;
+    }
+    .policy-shell h2 {
+      font-size: 1.0625rem;
+      font-weight: 600;
+      margin: 40px 0 12px;
+      color: var(--text);
+    }
+    .policy-shell p,
+    .policy-shell li {
+      font-size: 0.9375rem;
+      line-height: 1.7;
+      color: var(--muted-dark);
+    }
+    .policy-shell ul {
+      padding-left: 20px;
+      margin: 0;
+    }
+    .policy-shell li { margin-bottom: 6px; }
+    .policy-callout {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin: 32px 0;
+    }
+    .policy-callout p {
+      margin: 0;
+      font-size: 1rem;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .policy-shell a { color: var(--accent); text-decoration: none; }
+    .policy-shell a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Nav ── -->
+  <header class="nav-bar">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-brand">
+        <img src="icon.svg" alt="faces-h" width="28" height="28">
+        <span>faces-h</span>
+      </a>
+      <nav class="nav-links" aria-label="Main navigation">
+        <a href="index.html#download" class="btn-nav">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="policy-shell">
+    <h1>Privacy Policy</h1>
+    <p class="policy-meta">Effective date: July 2026 &mdash; faces-h open-source project</p>
+
+    <div class="policy-callout">
+      <p>faces-h does not collect, transmit, or store any personal data. Everything stays on your device.</p>
+    </div>
+
+    <h2>What faces-h does</h2>
+    <p>
+      faces-h is a local Windows desktop application that organises your personal photo library
+      using on-device face recognition. All processing happens inside your computer. No data —
+      photos, face embeddings, names, or anything else — leaves your machine.
+    </p>
+
+    <h2>Data we do not collect</h2>
+    <ul>
+      <li>Photos or thumbnails</li>
+      <li>Face recognition data or embeddings</li>
+      <li>Names or identity information you enter</li>
+      <li>File paths or folder structure</li>
+      <li>Usage analytics or telemetry</li>
+      <li>Crash reports</li>
+      <li>Device identifiers or IP addresses</li>
+    </ul>
+
+    <h2>Network access</h2>
+    <p>
+      faces-h makes two outbound network requests — both optional:
+    </p>
+    <ul>
+      <li>
+        <strong>Face recognition model download</strong> — on first launch, the InsightFace
+        buffalo_l model (~300 MB) is downloaded from a public model repository. After that,
+        no further downloads occur.
+      </li>
+      <li>
+        <strong>Network share scanning</strong> — if you add a UNC path (\\server\share),
+        the app reads photo files from that share using your existing Windows credentials.
+        No data is sent to any third-party server.
+      </li>
+    </ul>
+    <p>
+      The app never contacts any analytics, advertising, or tracking service.
+    </p>
+
+    <h2>Local storage</h2>
+    <p>
+      All data created by faces-h (face embeddings, cluster assignments, names you enter) is
+      stored in a SQLite database at <code>%APPDATA%\faces-h\</code> on your computer.
+      You can delete this folder at any time to remove all app data.
+    </p>
+
+    <h2>Code signing</h2>
+    <p>
+      The Windows installer is code-signed. The certificate is provided by
+      <a href="https://signpath.org" target="_blank" rel="noreferrer">SignPath Foundation</a>
+      under their free OSS programme. SignPath receives only the compiled installer binary
+      for signing; they do not receive any user data.
+    </p>
+
+    <h2>Open source</h2>
+    <p>
+      faces-h is fully open source under the MIT licence. You can audit every line of code at
+      <a href="https://github.com/justminime/faces-h" target="_blank" rel="noreferrer">github.com/justminime/faces-h</a>.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions about this policy?
+      <a href="https://github.com/justminime/faces-h/issues" target="_blank" rel="noreferrer">Open an issue on GitHub</a>.
+    </p>
+  </main>
+
+  <!-- ── Footer ── -->
+  <footer>
+    <div class="footer-inner">
+      <a href="https://shifth.com" class="footer-brand">
+        <img src="icon.svg" alt="" width="22" height="22">
+        <span>shifth</span>
+      </a>
+      <nav class="footer-links" aria-label="Footer links">
+        <a href="https://github.com/justminime/faces-h">GitHub</a>
+        <a href="https://github.com/justminime/faces-h/issues">Issues</a>
+        <a href="https://github.com/justminime/faces-h/blob/main/LICENSE">MIT License</a>
+        <a href="https://shifth.com">shifth.com</a>
+      </nav>
+      <p class="footer-note">All face processing is local &mdash; on your device, not a server.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
