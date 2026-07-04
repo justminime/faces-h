@@ -50,6 +50,12 @@ export function handleMessage(event: MessageEvent): void {
     const parts: string[] = [`${moved} photo${moved !== 1 ? "s" : ""} moved from ${name}`];
     if (uncertain > 0) parts.push(`${uncertain} flagged for review`);
     useToastStore.getState().addToast(parts.join(", "));
+  } else if (p.type === "sweep_complete") {
+    const moved = p.moved as number;
+    if (moved > 0) {
+      useToastStore.getState().addToast(`Found ${moved} more photo${moved !== 1 ? "s" : ""} — refreshing`);
+      useUIStore.getState().bumpScanVersion();
+    }
   }
 }
 

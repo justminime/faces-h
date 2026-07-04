@@ -1,8 +1,8 @@
 # PRD: faces-h
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Status:** Draft  
-**Last updated:** 2026-06-28
+**Last updated:** 2026-07-04
 
 ---
 
@@ -65,6 +65,12 @@ Users with large photo libraries (2TB+) cannot find photos of specific people. P
 
 **US-08** — As a user, I want low-confidence matches shown separately with a prompt ("Are these also [name]?"), so I am not silently shown incorrect results.
 
+**US-21** — As a user, if I type a name that already exists when naming a cluster, I want the two clusters to automatically merge — not create a duplicate with the same name.
+
+**US-22** — As a user, after I name a cluster, I want the app to automatically search my library for other photos of that person that it hasn't found yet, so I don't have to manually review everything.
+
+**US-23** — As a user, I want to see all the people who appear in a photo (not just the one I searched for) so I can understand the full context of each shot.
+
 ### 5.3 Correction and re-evaluation
 
 **US-09** — As a user, I want to flag a photo as incorrectly labeled (e.g. "this is not Mom") directly from any view, so I can fix errors I notice naturally.
@@ -117,6 +123,9 @@ Users with large photo libraries (2TB+) cannot find photos of specific people. P
 - **FR-10** A user must be able to assign a name to a cluster. Once named, all photos in that cluster are labeled with that name.
 - **FR-11** A name must be editable after assignment.
 - **FR-12** A named person must be mergeable with another named person (e.g. if the same person was named twice under different spellings).
+- **FR-12a** If the user types an existing name when naming an unnamed cluster, the app must auto-detect the conflict and present a single "Merge" action instead of creating a duplicate. No two people records with the same name may exist after a naming operation.
+- **FR-12b** After any naming or merge operation, the app must automatically sweep the library for additional photos of that person (three-pass background job: uncertain queue → unreviewed faces → unnamed clusters), add confirmed matches without user intervention (above threshold only), and notify the user with a count of newly found photos via a toast notification.
+- **FR-12c** The photo detail panel must show every assigned person in a photo, not only the person the user navigated from.
 
 ### 6.4 Confidence and uncertainty
 
