@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background -->
+  <rect width="100" height="100" rx="22" fill="#C2522A"/>
+
+  <!-- Left person: body stroke -->
+  <rect x="23" y="24" width="14" height="56" fill="#F6F4F1"/>
+
+  <!-- Arch connecting the two people (the crossbar of h) -->
+  <path d="M37,50 Q52,32 63,50" stroke="#F6F4F1" stroke-width="14" fill="none" stroke-linecap="round"/>
+
+  <!-- Right person: body stroke -->
+  <rect x="63" y="50" width="14" height="30" fill="#F6F4F1"/>
+
+  <!-- Left face (head of left person) -->
+  <circle cx="30" cy="22" r="14" fill="#F6F4F1"/>
+
+  <!-- Right face (head of right person — Heilweil family) -->
+  <circle cx="70" cy="44" r="13" fill="#F6F4F1"/>
+
+  <!-- Left face eyes -->
+  <circle cx="25" cy="18" r="2.5" fill="#C2522A"/>
+  <circle cx="35" cy="18" r="2.5" fill="#C2522A"/>
+
+  <!-- Right face eyes -->
+  <circle cx="65" cy="40" r="2.5" fill="#C2522A"/>
+  <circle cx="75" cy="40" r="2.5" fill="#C2522A"/>
+</svg>

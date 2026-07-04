@@ -43,7 +43,10 @@ export function Sidebar({
         </div>
       )}
 
-      <h1 className="sidebar__app-name">faces-h</h1>
+      <div className="sidebar__header">
+        <img src="/icon.svg" alt="" className="sidebar__logo" aria-hidden="true" />
+        <h1 className="sidebar__app-name">faces-h</h1>
+      </div>
 
       <button
         type="button"
@@ -109,6 +112,7 @@ export function Sidebar({
         </button>
       </div>
 
+      <div className="sidebar__divider" />
       <div className="sidebar__section-label">People</div>
       <ul className="sidebar__list">
         {people.map((person) => (

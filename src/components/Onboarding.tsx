@@ -150,6 +150,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     return (
       <div className="onboarding" data-testid="onboarding-engine-wait">
         <div className="onboarding__card">
+          <img src="/icon.svg" alt="" className="onboarding__logo" aria-hidden="true" />
           <h1 className="onboarding__title">faces-h</h1>
           <p className="onboarding__tagline">Starting engine…</p>
           <div className="onboarding__progress-track onboarding__progress-track--indeterminate">
@@ -167,6 +168,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     return (
       <div className="onboarding" data-testid="onboarding-welcome">
         <div className="onboarding__card">
+          <img src="/icon.svg" alt="" className="onboarding__logo" aria-hidden="true" />
           <h1 className="onboarding__title">faces-h</h1>
           <p className="onboarding__tagline">
             Organize your photo library by the faces in it — entirely on your device.

@@ -1,37 +1,36 @@
 .correction-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 200;
+  backdrop-filter: blur(2px);
 }
-
 .correction-modal {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 24px;
   width: 320px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
 }
-
 .correction-modal__title {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--color-text);
+  letter-spacing: -0.01em;
 }
-
 .correction-modal__search {
-  padding: 8px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-family);
   font-size: 14px;
   background: var(--color-bg);
@@ -39,12 +38,12 @@
   outline: none;
   width: 100%;
   box-sizing: border-box;
+  transition: border-color 120ms ease;
 }
-
 .correction-modal__search:focus {
   border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-tint);
 }
-
 .correction-modal__list {
   list-style: none;
   margin: 0;
@@ -53,50 +52,45 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
-
 .correction-modal__item {
   width: 100%;
   text-align: left;
   padding: 8px 10px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: none;
   font-family: var(--font-family);
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--color-text);
   cursor: pointer;
-  transition: background-color 0.1s;
+  transition: background-color 100ms ease;
 }
-
 .correction-modal__item:hover:not(:disabled) {
-  background: var(--color-bg);
+  background: var(--color-accent-tint);
   color: var(--color-accent);
 }
-
 .correction-modal__item:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
-
 .correction-modal__item--unknown {
   color: var(--color-text-secondary);
   font-style: italic;
 }
-
 .correction-modal__cancel {
-  padding: 8px 12px;
+  padding: 8px 14px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: none;
   font-family: var(--font-family);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--color-text-secondary);
   cursor: pointer;
   align-self: flex-end;
+  transition: background-color 100ms ease;
 }
-
 .correction-modal__cancel:hover {
-  background: var(--color-bg);
+  background: var(--color-surface-2);
 }

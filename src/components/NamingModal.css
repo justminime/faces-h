@@ -4,77 +4,82 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.5);
   z-index: 200;
+  backdrop-filter: blur(2px);
 }
-
 .naming-modal {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 24px;
-  width: 360px;
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  width: 380px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
 }
-
 .naming-modal__crops {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
-
 .naming-modal__crop {
   width: 72px;
   height: 72px;
   object-fit: cover;
   border-radius: 50%;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
 }
-
 .naming-modal__input {
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-family);
   font-size: 14px;
   color: var(--color-text);
   background-color: var(--color-bg);
   box-sizing: border-box;
+  transition: border-color 120ms ease;
 }
-
 .naming-modal__input:focus {
   outline: none;
   border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-tint);
 }
-
 .naming-modal__actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
 }
-
 .naming-modal__btn {
-  padding: 6px 16px;
+  padding: 8px 18px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-family);
-  font-size: 14px;
+  font-size: 13.5px;
   cursor: pointer;
   background: none;
+  color: var(--color-text-secondary);
+  transition: background-color 100ms ease, color 100ms ease;
+}
+.naming-modal__btn:hover {
+  background: var(--color-surface-2);
   color: var(--color-text);
 }
-
 .naming-modal__btn--primary {
   background-color: var(--color-accent);
   border-color: var(--color-accent);
   color: #fff;
-  font-weight: 500;
+  font-weight: 600;
 }
-
+.naming-modal__btn--primary:hover {
+  background-color: var(--color-accent);
+  opacity: 0.9;
+  color: #fff;
+}
 .naming-modal__btn--primary:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }

@@ -1,5 +1,5 @@
 .sidebar {
-  width: 220px;
+  width: 224px;
   flex-shrink: 0;
   border-right: 1px solid var(--color-border);
   background-color: var(--color-surface);
@@ -8,76 +8,87 @@
   overflow-y: auto;
 }
 
+/* ── Scan progress bar (thin ambient strip at very top) ── */
 .sidebar__scan-progress {
-  height: 3px;
+  height: 2px;
   background-color: var(--color-border);
   flex-shrink: 0;
 }
-
 .sidebar__scan-progress-bar {
   height: 100%;
   background-color: var(--color-accent);
   transition: width 300ms ease;
 }
 
+/* ── Header: icon + app name ── */
+.sidebar__header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 18px 16px 14px;
+}
+.sidebar__logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
 .sidebar__app-name {
   font-size: 15px;
   font-weight: 700;
   margin: 0;
-  padding: 16px 16px 12px;
-  color: var(--color-text);
-  letter-spacing: -0.01em;
+  color: var(--color-accent);
+  letter-spacing: -0.02em;
 }
 
+/* ── Nav buttons (Search, Browse) ── */
 .sidebar__nav-btn {
   display: block;
-  margin: 0 8px 4px;
+  margin: 0 8px 2px;
   padding: 7px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border: none;
+  border-radius: var(--radius-sm);
   background: none;
   cursor: pointer;
   font-family: var(--font-family);
   font-size: 13px;
-  color: var(--color-text);
+  color: var(--color-text-secondary);
   text-align: left;
   width: calc(100% - 16px);
-  transition: background-color 100ms ease;
+  transition: background-color 100ms ease, color 100ms ease;
 }
-
 .sidebar__nav-btn:hover {
-  background-color: var(--color-bg);
+  background-color: var(--color-accent-tint);
+  color: var(--color-text);
 }
 
+/* ── Queue button ── */
 .sidebar__queue-btn {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 0 8px 8px;
+  margin: 0 8px 10px;
   padding: 7px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border: none;
+  border-radius: var(--radius-sm);
   background: none;
   cursor: pointer;
   font-family: var(--font-family);
-  color: var(--color-text);
-  transition: background-color 100ms ease;
+  color: var(--color-text-secondary);
+  width: calc(100% - 16px);
+  transition: background-color 100ms ease, color 100ms ease;
 }
-
 .sidebar__queue-btn:hover {
-  background-color: var(--color-bg);
+  background-color: var(--color-accent-tint);
+  color: var(--color-text);
 }
-
-.sidebar__queue-label {
-  font-size: 13px;
-}
-
+.sidebar__queue-label { font-size: 13px; }
 .sidebar__queue-badge {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  min-width: 20px;
-  height: 20px;
-  border-radius: 10px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
   background-color: var(--color-accent);
   color: #fff;
   display: flex;
@@ -86,17 +97,17 @@
   padding: 0 5px;
 }
 
+/* ── Action row (Add folder / Rescan / Import / Export) ── */
 .sidebar__actions {
   display: flex;
   gap: 4px;
-  margin: 0 8px 8px;
+  margin: 0 8px 4px;
 }
-
 .sidebar__action-btn {
   flex: 1;
-  padding: 6px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
   background: none;
   cursor: pointer;
   font-family: var(--font-family);
@@ -108,84 +119,82 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .sidebar__action-btn:hover:not(:disabled) {
-  background-color: var(--color-bg);
+  background-color: var(--color-surface-2);
   color: var(--color-text);
 }
-
 .sidebar__action-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
-
 .sidebar__action-btn--icon {
-  flex: 0 0 32px;
+  flex: 0 0 30px;
   font-size: 14px;
 }
 
+/* ── Divider + section label ── */
+.sidebar__divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 6px 12px 10px;
+}
 .sidebar__section-label {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--color-text-secondary);
   padding: 0 16px 6px;
 }
 
+/* ── Person list ── */
 .sidebar__list {
   list-style: none;
   margin: 0;
-  padding: 0 8px;
+  padding: 0 8px 8px;
 }
-
 .sidebar__person {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   width: 100%;
-  padding: 5px 8px;
+  padding: 6px 8px;
   border: none;
   background: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--color-text);
   font-family: var(--font-family);
-  font-size: 14px;
+  font-size: 13.5px;
   text-align: left;
   transition: background-color 100ms ease;
 }
-
 .sidebar__person:hover {
-  background-color: var(--color-bg);
+  background-color: var(--color-accent-tint);
 }
-
 .sidebar__person--active {
-  background-color: var(--color-bg);
+  background-color: var(--color-accent-tint);
 }
-
 .sidebar__name {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 500;
 }
-
 .sidebar__count {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--color-text-secondary);
   font-weight: 500;
 }
-
 .sidebar__count--accent {
   color: var(--color-accent);
   font-weight: 600;
 }
-
 .sidebar__unnamed-avatar {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background-color: var(--color-border);
+  background-color: var(--color-surface-2);
   flex-shrink: 0;
 }

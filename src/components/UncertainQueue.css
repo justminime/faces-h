@@ -1,80 +1,72 @@
 .uq-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px;
+  gap: 14px;
+  padding: 14px;
 }
-
 .uq-empty {
-  padding: 32px 16px;
+  padding: 48px 16px;
   text-align: center;
   color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
 }
-
 .uq-card {
   position: relative;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
-
 .uq-card__crop {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
 }
-
 .uq-card__info {
-  padding: 8px 12px 4px;
+  padding: 10px 12px 4px;
 }
-
 .uq-card__suggestion {
   margin: 0;
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--color-text-secondary);
+  line-height: 1.4;
 }
-
 .uq-card__actions {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   padding: 8px 12px 12px;
 }
-
 .uq-card__btn {
   padding: 7px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   font-family: var(--font-family);
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   transition: opacity 0.15s;
 }
-
 .uq-card__btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
-
 .uq-card__btn--confirm {
   background: var(--color-accent);
   color: #fff;
 }
-
 .uq-card__btn--pick {
-  background: var(--color-bg);
+  background: var(--color-surface-2);
   border-color: var(--color-border);
   color: var(--color-text);
 }
-
 .uq-card__btn--skip {
   background: transparent;
   color: var(--color-text-secondary);
 }
-
 .uq-picker {
   position: absolute;
   inset: 0;
@@ -85,14 +77,12 @@
   gap: 8px;
   z-index: 10;
 }
-
 .uq-picker__prompt {
   margin: 0;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--color-text);
 }
-
 .uq-picker__list {
   list-style: none;
   margin: 0;
@@ -100,26 +90,22 @@
   overflow-y: auto;
   flex: 1;
 }
-
 .uq-picker__item {
   width: 100%;
   text-align: left;
-  padding: 8px 4px;
+  padding: 7px 4px;
   background: transparent;
   border: none;
   font-family: var(--font-family);
   font-size: 13px;
   color: var(--color-text);
   cursor: pointer;
+  transition: color 100ms ease;
 }
-
-.uq-picker__item:hover {
-  color: var(--color-accent);
-}
-
+.uq-picker__item:hover { color: var(--color-accent); }
 .uq-picker__cancel {
   padding: 7px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: transparent;
   font-family: var(--font-family);
