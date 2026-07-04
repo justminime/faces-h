@@ -430,9 +430,9 @@ function App() {
             <NamingModal
               personId={namingPersonId}
               sampleFaceSrcs={namingSampleSrcs}
-              existingNames={people
-                .map((p) => p.name)
-                .filter((n): n is string => n !== null && n !== "Unnamed")}
+              existingPeople={people
+                .filter((p) => p.name !== null && p.name !== "Unnamed")
+                .map((p) => ({ id: p.id, name: p.name as string }))}
               onSaved={() => {
                 setNamingPersonId(null);
                 refreshPeople();

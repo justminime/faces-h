@@ -162,6 +162,16 @@ async def merge_people_endpoint(body: MergeRequest) -> dict[str, Any]:
         merged_count = int(count_row["cnt"])
 
         await _svc.merge_people(body.source_id, body.target_id, body.confirmed, db)
+
+    # Sweep for more photos of the surviving (target) person now that both
+    # clusters' faces have been merged and the centroid has been rebuilt.
+    target_id = body.target_id
+
+    async def _sweep_after_merge() -> None:
+        async with get_db() as db:
+            await _reeval.sweep_for_person(target_id, db, broadcast_ws)
+
+    asyncio.create_task(_sweep_after_merge())
     return {"surviving_id": body.target_id, "merged_count": merged_count}
 
 

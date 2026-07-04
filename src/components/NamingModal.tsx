@@ -1,11 +1,16 @@
 import { useState } from "react";
-import { renamePerson } from "../api/client";
+import { renamePerson, mergePeople } from "../api/client";
 import "./NamingModal.css";
+
+interface ExistingPerson {
+  id: number;
+  name: string;
+}
 
 interface NamingModalProps {
   personId: number;
   sampleFaceSrcs: string[];
-  existingNames: string[];
+  existingPeople: ExistingPerson[];
   onSaved: (name: string) => void;
   onSkip: () => void;
 }
@@ -13,7 +18,7 @@ interface NamingModalProps {
 export function NamingModal({
   personId,
   sampleFaceSrcs,
-  existingNames,
+  existingPeople,
   onSaved,
   onSkip,
 }: NamingModalProps) {
@@ -22,11 +27,22 @@ export function NamingModal({
 
   const trimmed = name.trim();
 
+  // Case-insensitive match against existing named people (excluding self)
+  const mergeTarget = existingPeople.find(
+    (p) => p.id !== personId && p.name.toLowerCase() === trimmed.toLowerCase(),
+  ) ?? null;
+
   const handleSave = async () => {
     if (!trimmed) return;
     setSaving(true);
     try {
-      await renamePerson(personId, trimmed);
+      if (mergeTarget) {
+        // Merge this unnamed cluster into the existing named person,
+        // then delete the now-empty cluster record.
+        await mergePeople(personId, mergeTarget.id);
+      } else {
+        await renamePerson(personId, trimmed);
+      }
       onSaved(trimmed);
     } finally {
       setSaving(false);
@@ -50,15 +66,24 @@ export function NamingModal({
         list="naming-suggestions"
         value={name}
         onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && trimmed && !saving) void handleSave(); }}
         placeholder="Enter name…"
         className="naming-modal__input"
         aria-label="Person name"
+        autoFocus
       />
       <datalist id="naming-suggestions">
-        {existingNames.map((n) => (
-          <option key={n} value={n} />
+        {existingPeople.map((p) => (
+          <option key={p.id} value={p.name} />
         ))}
       </datalist>
+
+      {mergeTarget && (
+        <p className="naming-modal__merge-hint">
+          "{mergeTarget.name}" already exists — saving will merge these two clusters together.
+        </p>
+      )}
+
       <div className="naming-modal__actions">
         <button
           type="button"
@@ -66,10 +91,10 @@ export function NamingModal({
           onClick={handleSave}
           disabled={!trimmed || saving}
         >
-          Save
+          {mergeTarget ? "Merge" : "Save"}
         </button>
         <button type="button" className="naming-modal__btn" onClick={onSkip}>
-          Skip
+          Cancel
         </button>
       </div>
     </div>
