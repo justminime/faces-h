@@ -10,7 +10,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from db.database import get_db
-from services.scanner import get_status, run_scan
+from services.scanner import check_reachable, get_status, is_network_path, run_scan
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -71,15 +71,26 @@ async def start_scan(body: StartScanRequest) -> dict[str, str]:
 
     logger.info("scan/start: root_path=%s", body.root_path)
 
+    network = is_network_path(body.root_path)
+
     async def _run() -> None:
         async with get_db() as db:
             await db.execute(
-                "INSERT INTO scan_roots(path, added_at) VALUES(?, ?) ON CONFLICT(path) DO NOTHING",
-                (body.root_path, int(time.time())),
+                """INSERT INTO scan_roots(path, added_at, is_network)
+                   VALUES(?, ?, ?)
+                   ON CONFLICT(path) DO UPDATE SET is_network = excluded.is_network""",
+                (body.root_path, int(time.time()), int(network)),
             )
             await db.commit()
-            logger.info("scan starting: root=%s", body.root_path)
+            logger.info("scan starting: root=%s network=%s", body.root_path, network)
             await run_scan(body.root_path, _manager.broadcast, db)
+            # Update last_seen_at on successful completion
+            async with get_db() as db2:
+                await db2.execute(
+                    "UPDATE scan_roots SET last_seen_at = ? WHERE path = ?",
+                    (int(time.time()), body.root_path),
+                )
+                await db2.commit()
             logger.info("scan finished: root=%s", body.root_path)
 
     asyncio.create_task(_run())
@@ -102,9 +113,21 @@ async def rescan_all() -> dict[str, str]:
             await _manager.broadcast({"type": "scan_complete"})
             return
         for root in roots:
+            # Check reachability before starting — offline network drives get a
+            # warning broadcast but don't block the rest of the rescan.
+            if not check_reachable(root):
+                logger.warning("rescan: root unreachable, skipping: %s", root)
+                await _manager.broadcast({"type": "drive_offline", "path": root})
+                continue
             async with get_db() as db:
                 logger.info("scan starting: root=%s", root)
                 await run_scan(root, _manager.broadcast, db)
+                async with get_db() as db2:
+                    await db2.execute(
+                        "UPDATE scan_roots SET last_seen_at = ? WHERE path = ?",
+                        (int(time.time()), root),
+                    )
+                    await db2.commit()
                 logger.info("scan finished: root=%s", root)
 
     asyncio.create_task(_run())
@@ -113,11 +136,23 @@ async def rescan_all() -> dict[str, str]:
 
 @router.get("/scan/roots")
 async def list_roots() -> list[dict[str, Any]]:
-    """Return all configured scan root folders."""
+    """Return all configured scan root folders with reachability status."""
     async with get_db() as db:
-        cur = await db.execute("SELECT id, path, added_at FROM scan_roots ORDER BY added_at")
+        cur = await db.execute(
+            "SELECT id, path, added_at, is_network, last_seen_at FROM scan_roots ORDER BY added_at"
+        )
         rows = await cur.fetchall()
-        return [{"id": row["id"], "path": row["path"], "added_at": row["added_at"]} for row in rows]
+        return [
+            {
+                "id": row["id"],
+                "path": row["path"],
+                "added_at": row["added_at"],
+                "is_network": bool(row["is_network"]),
+                "last_seen_at": row["last_seen_at"],
+                "reachable": check_reachable(row["path"]),
+            }
+            for row in rows
+        ]
 
 
 @router.get("/scan/status")

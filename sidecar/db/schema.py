@@ -59,11 +59,20 @@ CREATE TABLE IF NOT EXISTS scan_state (
 
 SCAN_ROOTS = """
 CREATE TABLE IF NOT EXISTS scan_roots (
-    id          INTEGER PRIMARY KEY,
-    path        TEXT    NOT NULL UNIQUE,
-    added_at    INTEGER NOT NULL
+    id           INTEGER PRIMARY KEY,
+    path         TEXT    NOT NULL UNIQUE,
+    added_at     INTEGER NOT NULL,
+    is_network   INTEGER NOT NULL DEFAULT 0,
+    last_seen_at INTEGER
 )
 """
+
+# Migration: add columns introduced after initial schema deployment.
+# SQLite raises OperationalError if the column already exists; we swallow it.
+SCAN_ROOTS_MIGRATIONS = [
+    "ALTER TABLE scan_roots ADD COLUMN is_network   INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE scan_roots ADD COLUMN last_seen_at INTEGER",
+]
 
 INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_faces_photo     ON faces(photo_id)",
@@ -75,3 +84,4 @@ INDEXES = [
 ]
 
 ALL_TABLES = [PHOTOS, FACES, PEOPLE, CORRECTIONS, SCAN_STATE, SCAN_ROOTS]
+ALL_MIGRATIONS = SCAN_ROOTS_MIGRATIONS
