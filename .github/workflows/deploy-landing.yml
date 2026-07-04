@@ -14,8 +14,8 @@ name: Deploy landing page
 # Optional secret (defaults to ./public_html/faces-h/ if not set):
 #   FTP_SERVER_DIR   Absolute path on the FTP server, e.g. ./public_html/faces-h/
 #
-# Protocol: ftps (explicit FTP over TLS, port 21). If your host needs plain FTP,
-# add a secret FTP_PROTOCOL=ftp and swap the protocol: lines below.
+# FTP upload uses curl (pre-installed on every runner — no third-party action).
+# FTPS (explicit TLS) is attempted; --insecure skips cert check for shared hosts.
 
 on:
   release:
@@ -132,49 +132,58 @@ jobs:
           print(f"Done: v{ver} · {mb} MB · {dl_url}")
           EOF
 
-      # ── Compute FTP target directories ──────────────────────────────────────
-      - name: Compute FTP server directories
+      # ── FTP upload via curl (pre-installed, no third-party action) ────────────
+      #
+      # curl FTP URL format: ftp://host/path/relative/to/ftp/root/filename
+      # Strip any leading "./" from FTP_SERVER_DIR so the URL is well-formed.
+      # --ftp-create-dirs  : create target directory if it doesn't exist
+      # --ftp-ssl          : use FTPS (explicit TLS); falls back to plain FTP
+      # --insecure         : skip certificate check (shared-host certs often mismatch)
+      # --silent / --show-error : no progress meter, but do print errors
+
+      - name: Compute FTP base URL
         id: ftp
         env:
           FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+          FTP_HOST:       ${{ secrets.FTP_HOST }}
         run: |
-          BASE="${FTP_SERVER_DIR:-./public_html/faces-h/}"
-          [[ "${BASE}" != */ ]] && BASE="${BASE}/"
-          echo "latest=${BASE}" >> "$GITHUB_OUTPUT"
+          DIR="${FTP_SERVER_DIR:-./shifth.com/faces-h/}"
+          [[ "${DIR}" != */ ]] && DIR="${DIR}/"
+          # Strip leading ./ so curl gets a clean path
+          DIR="${DIR#./}"
+          BASE="ftp://${FTP_HOST}/${DIR}"
+          echo "base=${BASE}" >> "$GITHUB_OUTPUT"
           echo "versioned=${BASE}${{ steps.ver.outputs.tag }}/" >> "$GITHUB_OUTPUT"
+          echo "FTP base URL: ${BASE}"
 
-      # ── Deploy latest ───────────────────────────────────────────────────────
       - name: "FTP → deploy latest to /faces-h/"
-        uses: SamKirkland/FTP-Deploy-Action@v4
-        with:
-          server:     ${{ secrets.FTP_HOST }}
-          username:   ${{ secrets.FTP_USERNAME }}
-          password:   ${{ secrets.FTP_PASSWORD }}
-          local-dir:  ./landing/
-          server-dir: ${{ steps.ftp.outputs.latest }}
-          protocol:   ftps
-          log-level:  minimal
-          exclude: |
-            **/.DS_Store
-            **/Thumbs.db
-            **/*.md
+        env:
+          FTP_USER: ${{ secrets.FTP_USERNAME }}
+          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          BASE_URL: ${{ steps.ftp.outputs.base }}
+        run: |
+          for f in index.html style.css icon.svg; do
+            echo "Uploading ${f}…"
+            curl --silent --show-error --ftp-create-dirs --ftp-ssl --insecure \
+              --user "${FTP_USER}:${FTP_PASS}" \
+              -T "landing/${f}" \
+              "${BASE_URL}${f}"
+          done
 
-      # ── Archive a versioned snapshot (release events only) ─────────────────
       - name: "FTP → archive versioned copy at /faces-h/{tag}/"
         if: github.event_name == 'release'
-        uses: SamKirkland/FTP-Deploy-Action@v4
-        with:
-          server:     ${{ secrets.FTP_HOST }}
-          username:   ${{ secrets.FTP_USERNAME }}
-          password:   ${{ secrets.FTP_PASSWORD }}
-          local-dir:  ./landing/
-          server-dir: ${{ steps.ftp.outputs.versioned }}
-          protocol:   ftps
-          log-level:  minimal
-          exclude: |
-            **/.DS_Store
-            **/Thumbs.db
-            **/*.md
+        env:
+          FTP_USER:    ${{ secrets.FTP_USERNAME }}
+          FTP_PASS:    ${{ secrets.FTP_PASSWORD }}
+          VERSIONED_URL: ${{ steps.ftp.outputs.versioned }}
+        run: |
+          for f in index.html style.css icon.svg; do
+            echo "Archiving ${f}…"
+            curl --silent --show-error --ftp-create-dirs --ftp-ssl --insecure \
+              --user "${FTP_USER}:${FTP_PASS}" \
+              -T "landing/${f}" \
+              "${VERSIONED_URL}${f}"
+          done
 
       # ── Job summary ─────────────────────────────────────────────────────────
       - name: Write job summary
