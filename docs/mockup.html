@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>faces-h · Mockups</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #F6F4F1;
+    --surface:  #FFFFFF;
+    --surf2:    #EFEAE2;
+    --border:   #E3DFDA;
+    --text:     #1C1917;
+    --text2:    #78716C;
+    --accent:   #C2522A;
+    --acctint:  rgba(194,82,42,0.10);
+    --r:        10px;
+    --rsm:      6px;
+    --rlg:      14px;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  body {
+    background: #2E2A27;
+    color: var(--text);
+    padding: 40px 20px 80px;
+  }
+
+  h1.section {
+    color: #A8A29E;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .mockup-wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .label {
+    color: #A8A29E;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin: 48px 0 12px;
+  }
+
+  /* ═══════════════════════════════════════
+     APP MOCKUP
+  ═══════════════════════════════════════ */
+  .app-shell {
+    display: flex;
+    height: 620px;
+    background: var(--bg);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,.45);
+    border: 1px solid rgba(255,255,255,.06);
+  }
+
+  /* title bar */
+  .titlebar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 32px;
+    background: #F0EDE9;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 6px;
+    z-index: 10;
+    border-radius: 12px 12px 0 0;
+  }
+  .win-btn { width:12px;height:12px;border-radius:50%; }
+  .win-btn.close { background:#FF5F57; }
+  .win-btn.min   { background:#FFBD2E; }
+  .win-btn.max   { background:#28CA41; }
+  .titlebar-label {
+    flex: 1;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text2);
+    font-weight: 500;
+  }
+
+  .app-shell-inner {
+    position: relative;
+    display: flex;
+    flex: 1;
+    padding-top: 32px;
+    overflow: hidden;
+  }
+
+  /* sidebar */
+  .sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    background: #F0EDE9;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+  }
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 14px 10px;
+  }
+  .brand-icon {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg,#C2522A,#E8714A);
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .brand-name { font-weight: 700; font-size: 15px; color: var(--text); }
+
+  .sidebar-nav {
+    padding: 4px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .nav-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 8px;
+    border-radius: var(--rsm);
+    font-size: 13px;
+    color: var(--text2);
+    cursor: pointer;
+  }
+  .nav-btn.active { background: var(--acctint); color: var(--accent); font-weight: 600; }
+  .nav-badge {
+    margin-left: auto;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+  }
+
+  .sidebar-actions {
+    display: flex;
+    gap: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .sidebar-actions span { cursor: pointer; }
+  .sidebar-actions span:hover { color: var(--accent); }
+
+  .sidebar-divider { height: 1px; background: var(--border); margin: 6px 8px; }
+  .sidebar-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--text2);
+    padding: 4px 14px;
+  }
+
+  .person-list { flex: 1; overflow-y: auto; padding: 4px 8px; display: flex; flex-direction: column; gap: 1px; }
+  .person-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px;
+    border-radius: var(--rsm);
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .person-row.active { background: var(--acctint); }
+  .person-row.active .person-name { color: var(--accent); font-weight: 600; }
+  .medallion {
+    width: 28px; height: 28px; border-radius: 50%;
+    flex-shrink: 0;
+    overflow: hidden;
+    border: 2px solid transparent;
+  }
+  .person-row.active .medallion { border-color: var(--accent); }
+  .medallion img { width: 100%; height: 100%; object-fit: cover; }
+  .medallion-placeholder {
+    width: 100%; height: 100%;
+    background: var(--surf2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--text2);
+    border-radius: 50%;
+  }
+  .person-name { flex: 1; color: var(--text); font-size: 13px; }
+  .person-count { color: var(--text2); font-size: 12px; font-weight: 500; }
+
+  /* main grid area */
+  .main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .grid-toolbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .toolbar-medallion {
+    width: 34px; height: 34px; border-radius: 50%;
+    overflow: hidden; flex-shrink: 0;
+    border: 2px solid var(--accent);
+  }
+  .toolbar-medallion img { width: 100%; height: 100%; object-fit: cover; }
+  .toolbar-name { font-weight: 600; font-size: 15px; }
+  .rename-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--rsm);
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--text2);
+    cursor: pointer;
+  }
+  .size-label { font-size: 12px; color: var(--text2); margin-left: auto; }
+  .size-slider {
+    width: 80px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    position: relative;
+  }
+  .size-slider-thumb {
+    position: absolute;
+    top: 50%; transform: translateY(-50%);
+    left: 45%;
+    width: 14px; height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  }
+
+  .photo-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3px;
+    padding: 10px;
+    overflow-y: auto;
+    align-content: start;
+  }
+  .photo-tile {
+    aspect-ratio: 1;
+    background: var(--surf2);
+    border-radius: 5px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+  }
+  .photo-tile.selected { outline: 2px solid var(--accent); }
+  .photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* fake photos using CSS gradients */
+  .p1  { background: linear-gradient(135deg,#c9b8a8,#a07060); }
+  .p2  { background: linear-gradient(135deg,#b8c0c8,#8090a0); }
+  .p3  { background: linear-gradient(135deg,#c8b8a0,#907060); }
+  .p4  { background: linear-gradient(135deg,#d0c0b0,#a08070); }
+  .p5  { background: linear-gradient(135deg,#b0c0c0,#607080); }
+  .p6  { background: linear-gradient(135deg,#c0b8b0,#807068); }
+  .p7  { background: linear-gradient(135deg,#c8c0a8,#908070); }
+  .p8  { background: linear-gradient(135deg,#b8c8c0,#7090a0); }
+  .p9  { background: linear-gradient(135deg,#d0b8a8,#a07060); }
+  .p10 { background: linear-gradient(135deg,#b0b8c8,#6070a0); }
+  .p11 { background: linear-gradient(135deg,#c8b0a8,#906058); }
+  .p12 { background: linear-gradient(135deg,#a8c0b8,#607870); }
+
+  /* face silhouette inside tile */
+  .face-sil {
+    position: absolute;
+    bottom: 8px; left: 50%; transform: translateX(-50%);
+    width: 36px; height: 44px;
+  }
+  .face-sil-head {
+    width: 24px; height: 24px;
+    background: rgba(255,255,255,.3);
+    border-radius: 50%;
+    margin: 0 auto;
+  }
+  .face-sil-body {
+    width: 36px; height: 20px;
+    background: rgba(255,255,255,.2);
+    border-radius: 18px 18px 0 0;
+    margin-top: 2px;
+  }
+
+  /* detail panel */
+  .detail-panel {
+    width: 220px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+  }
+  .detail-photo-preview {
+    aspect-ratio: 4/3;
+    background: #b8c0c8;
+    border-radius: var(--rsm);
+    overflow: hidden;
+  }
+  .detail-photo-preview.sel { background: linear-gradient(135deg,#b0c0c0,#607080); }
+  .detail-meta { font-size: 11px; color: var(--text2); line-height: 1.6; word-break: break-all; }
+  .detail-section-label {
+    font-size: 10px; font-weight: 600; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--text2);
+  }
+  .face-chip {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--rsm);
+    background: var(--surf2);
+  }
+  .face-chip.primary { background: var(--acctint); }
+  .face-chip-medallion {
+    width: 32px; height: 32px; border-radius: 50%;
+    overflow: hidden; flex-shrink: 0;
+  }
+  .face-chip-medallion .ph { width: 100%; height: 100%; object-fit: cover; }
+  .face-chip-name { font-size: 13px; font-weight: 600; }
+  .face-chip-badge { font-size: 10px; color: var(--accent); font-weight: 600; }
+  .correct-btn {
+    margin-top: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--rsm);
+    padding: 6px 0;
+    font-size: 12px;
+    color: var(--text2);
+    text-align: center;
+    cursor: pointer;
+    background: transparent;
+  }
+
+  /* ═══════════════════════════════════════
+     NAMING MODAL
+  ═══════════════════════════════════════ */
+  .modal-wrap {
+    display: flex;
+    gap: 24px;
+  }
+  .modal-box {
+    background: var(--surface);
+    border-radius: var(--rlg);
+    padding: 20px;
+    width: 280px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.25);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .modal-crops { display: flex; gap: 6px; }
+  .modal-crop {
+    width: 52px; height: 52px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surf2);
+    flex-shrink: 0;
+  }
+  .mc1 { background: linear-gradient(135deg,#c9b8a8,#a07060); }
+  .mc2 { background: linear-gradient(135deg,#c8b0a8,#906058); }
+  .mc3 { background: linear-gradient(135deg,#c0b8b0,#807068); }
+  .mc4 { background: linear-gradient(135deg,#d0b8a8,#a07060); }
+  .modal-input {
+    border: 1.5px solid var(--border);
+    border-radius: var(--rsm);
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--bg);
+    outline: none;
+    width: 100%;
+  }
+  .modal-input:focus { border-color: var(--accent); }
+  .modal-hint {
+    background: var(--acctint);
+    border-radius: var(--rsm);
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--accent);
+    line-height: 1.5;
+  }
+  .modal-actions { display: flex; gap: 8px; }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--rsm);
+    padding: 8px 18px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    flex: 1;
+  }
+  .btn-secondary {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text2);
+    border-radius: var(--rsm);
+    padding: 8px 18px;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .modal-label { font-size: 11px; color: var(--text2); font-weight: 600; text-align: center; }
+
+  /* ═══════════════════════════════════════
+     LANDING PAGE MOCKUP
+  ═══════════════════════════════════════ */
+  .landing {
+    background: #0F0D0B;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+    border: 1px solid rgba(255,255,255,.06);
+    color: #F6F4F1;
+  }
+
+  .landing-nav {
+    display: flex;
+    align-items: center;
+    padding: 0 40px;
+    height: 56px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    gap: 12px;
+  }
+  .landing-nav .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 17px;
+  }
+  .landing-nav .brand-icon {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg,#C2522A,#E8714A);
+    border-radius: 7px;
+  }
+  .landing-nav .dl-btn {
+    margin-left: auto;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 7px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .landing-hero {
+    text-align: center;
+    padding: 64px 40px 48px;
+  }
+  .landing-hero h1 {
+    font-size: 46px;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -.02em;
+    max-width: 640px;
+    margin: 0 auto 16px;
+  }
+  .landing-hero h1 span { color: #E8714A; }
+  .landing-hero p {
+    font-size: 17px;
+    color: #A8A29E;
+    max-width: 480px;
+    margin: 0 auto 32px;
+    line-height: 1.6;
+  }
+  .hero-btns { display: flex; gap: 12px; justify-content: center; }
+  .hero-dl {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 9px;
+    padding: 12px 28px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .hero-gh {
+    background: rgba(255,255,255,.08);
+    color: #F6F4F1;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 9px;
+    padding: 12px 28px;
+    font-size: 15px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .landing-photos {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    padding: 0 40px 40px;
+  }
+  .landing-photo {
+    aspect-ratio: 1;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+  }
+  .lp1  { background: linear-gradient(135deg,#c9b8a8,#9a6a50); }
+  .lp2  { background: linear-gradient(135deg,#b8c0b0,#708068); }
+  .lp3  { background: linear-gradient(135deg,#c0b0a0,#806050); }
+  .lp4  { background: linear-gradient(135deg,#a0b8c0,#507080); }
+  .lp5  { background: linear-gradient(135deg,#c0c0b0,#808070); }
+  .lp6  { background: linear-gradient(135deg,#c8b0a0,#906050); }
+  .lp7  { background: linear-gradient(135deg,#b0c0b8,#608070); }
+  .lp8  { background: linear-gradient(135deg,#c0b8c0,#807880); }
+  .lp9  { background: linear-gradient(135deg,#c8c0a8,#90806e); }
+
+  .face-tag {
+    position: absolute;
+    bottom: 6px; left: 6px;
+    background: rgba(0,0,0,.55);
+    backdrop-filter: blur(6px);
+    border-radius: 20px;
+    padding: 3px 8px 3px 4px;
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; color: #fff;
+  }
+  .face-dot { width: 16px; height: 16px; border-radius: 50%; background: rgba(255,255,255,.3); }
+
+  .landing-features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    padding: 0 40px 48px;
+  }
+  .feature-card {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: var(--rlg);
+    padding: 20px;
+  }
+  .feature-icon {
+    width: 36px; height: 36px;
+    background: var(--acctint);
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+  .feature-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .feature-card p { font-size: 13px; color: #A8A29E; line-height: 1.5; }
+
+  .landing-footer {
+    border-top: 1px solid rgba(255,255,255,.06);
+    padding: 20px 40px;
+    display: flex; align-items: center;
+    font-size: 12px; color: #78716C;
+    gap: 20px;
+  }
+  .landing-footer a { color: #78716C; text-decoration: none; }
+  .landing-footer a:hover { color: #E8714A; }
+</style>
+</head>
+<body>
+<div class="mockup-wrap">
+
+  <!-- ══ APP ══════════════════════════════════════════ -->
+  <div class="label">App — Gallery view</div>
+  <div class="app-shell" style="position:relative;">
+    <div class="titlebar">
+      <div class="win-btn close"></div>
+      <div class="win-btn min"></div>
+      <div class="win-btn max"></div>
+      <div class="titlebar-label">faces-h</div>
+    </div>
+    <div class="app-shell-inner">
+
+      <!-- sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <div class="brand-icon">🐻</div>
+          <div class="brand-name">faces-h</div>
+        </div>
+        <div class="sidebar-nav">
+          <div class="nav-btn">🔍 Search</div>
+          <div class="nav-btn">⏳ To review <span class="nav-badge">366</span></div>
+        </div>
+        <div class="sidebar-actions">
+          <span>+ Add folder</span>&nbsp;&nbsp;<span>↺</span>
+        </div>
+        <div style="display:flex;gap:0;padding:4px 14px;">
+          <span style="font-size:12px;color:var(--text2);cursor:pointer;">Import</span>&nbsp;&nbsp;
+          <span style="font-size:12px;color:var(--text2);cursor:pointer;">Export</span>
+        </div>
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-section-label">People</div>
+        <div class="person-list">
+          <div class="person-row active">
+            <div class="medallion"><div class="medallion-placeholder" style="background:linear-gradient(135deg,#c9b8a8,#9a6a50);"></div></div>
+            <span class="person-name">Ayelet Heilweil</span>
+            <span class="person-count">104</span>
+          </div>
+          <div class="person-row">
+            <div class="medallion"><div class="medallion-placeholder" style="background:linear-gradient(135deg,#b8c0b0,#708068);"></div></div>
+            <span class="person-name">Igal Ohana</span>
+            <span class="person-count">68</span>
+          </div>
+          <div class="person-row">
+            <div class="medallion"><div class="medallion-placeholder" style="background:linear-gradient(135deg,#c0b0a0,#806050);"></div></div>
+            <span class="person-name">Tamir Heilweil</span>
+            <span class="person-count">49</span>
+          </div>
+          <div class="person-row">
+            <div class="medallion"><div class="medallion-placeholder" style="background:linear-gradient(135deg,#a0b8c0,#507080);"></div></div>
+            <span class="person-name">Shoshi Griner</span>
+            <span class="person-count">40</span>
+          </div>
+          <div class="person-row">
+            <div class="medallion"><div class="medallion-placeholder" style="background:linear-gradient(135deg,#c0c0b0,#808070);"></div></div>
+            <span class="person-name">Ziv Heilweil</span>
+            <span class="person-count">37</span>
+          </div>
+          <div class="person-row">
+            <div class="medallion"><div class="medallion-placeholder" style="background:linear-gradient(135deg,#c8b0a0,#906050);"></div></div>
+            <span class="person-name">Kesem Heilweil</span>
+            <span class="person-count">33</span>
+          </div>
+          <div class="person-row">
+            <div class="medallion"><div class="medallion-placeholder" style="background:var(--surf2);"></div></div>
+            <span class="person-name" style="color:var(--text2)">Unnamed</span>
+            <span class="person-count">7</span>
+          </div>
+          <div class="person-row">
+            <div class="medallion"><div class="medallion-placeholder" style="background:var(--surf2);"></div></div>
+            <span class="person-name" style="color:var(--text2)">Unnamed</span>
+            <span class="person-count">6</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- main -->
+      <div class="main-area">
+        <div class="grid-toolbar">
+          <div class="toolbar-medallion">
+            <div style="width:100%;height:100%;background:linear-gradient(135deg,#c9b8a8,#9a6a50);"></div>
+          </div>
+          <span class="toolbar-name">Ayelet Heilweil</span>
+          <button class="rename-btn">Rename</button>
+          <span class="size-label">Size</span>
+          <div class="size-slider"><div class="size-slider-thumb"></div></div>
+        </div>
+        <div class="photo-grid">
+          <div class="photo-tile p1"><div class="face-sil"><div class="face-sil-head"></div><div class="face-sil-body"></div></div></div>
+          <div class="photo-tile p2"><div class="face-sil"><div class="face-sil-head"></div><div class="face-sil-body"></div></div></div>
+          <div class="photo-tile p3"><div class="face-sil"><div class="face-sil-head"></div><div class="face-sil-body"></div></div></div>
+          <div class="photo-tile p4"><div class="face-sil"><div class="face-sil-head"></div><div class="face-sil-body"></div></div></div>
+          <div class="photo-tile p5"><div class="face-sil"><div class="face-sil-head"></div><div class="face-sil-body"></div></div></div>
+          <div class="photo-tile p6"><div class="face-sil"><div class="face-sil-head"></div><div class="face-sil-body"></div></div></div>
+          <div class="photo-tile p7 selected"><div class="face-sil"><div class="face-sil-head"></div><div class="face-sil-body"></div></div></div>
+          <div class="photo-tile p8"><div class="face-sil"><div class="face-sil-head"></div><div class="face-sil-body"></div></div></div>
+          <div class="photo-tile p9"><div class="face-sil"><div class="face-sil-head"></div><div class="face-sil-body"></div></div></div>
+          <div class="photo-tile p10"><div class="face-sil"><div class="face-sil-head"></div><div class="face-sil-body"></div></div></div>
+          <div class="photo-tile p11"><div class="face-sil"><div class="face-sil-head"></div><div class="face-sil-body"></div></div></div>
+          <div class="photo-tile p12"><div class="face-sil"><div class="face-sil-head"></div><div class="face-sil-body"></div></div></div>
+        </div>
+      </div>
+
+      <!-- detail -->
+      <div class="detail-panel">
+        <div class="detail-photo-preview sel"></div>
+        <div class="detail-meta">
+          C:\Users\oayel\Downloads\2026\<br>PXL_20260118_232147.jpg<br>
+          <br>1768778507
+        </div>
+        <div>
+          <div class="detail-section-label" style="margin-bottom:8px;">People in this photo</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div class="face-chip primary">
+              <div class="face-chip-medallion"><div style="width:100%;height:100%;background:linear-gradient(135deg,#c9b8a8,#9a6a50);border-radius:50%;"></div></div>
+              <div>
+                <div class="face-chip-name">Ayelet Heilweil</div>
+                <div class="face-chip-badge">THIS PERSON</div>
+              </div>
+            </div>
+            <div class="face-chip">
+              <div class="face-chip-medallion"><div style="width:100%;height:100%;background:linear-gradient(135deg,#c0b0a0,#806050);border-radius:50%;"></div></div>
+              <div>
+                <div class="face-chip-name">Tamir Heilweil</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="correct-btn">Correct ↗</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ NAMING MODAL ══════════════════════════════════════════ -->
+  <div class="label">NamingModal — new name (left) · duplicate name → merge (right)</div>
+  <div class="modal-wrap">
+    <!-- new name -->
+    <div>
+      <div class="modal-label" style="margin-bottom:8px;">New name</div>
+      <div class="modal-box">
+        <div class="modal-crops">
+          <div class="modal-crop mc1"></div>
+          <div class="modal-crop mc2"></div>
+          <div class="modal-crop mc3"></div>
+          <div class="modal-crop mc4"></div>
+        </div>
+        <input class="modal-input" type="text" value="Erez Heilweil" readonly>
+        <div class="modal-actions">
+          <button class="btn-primary">Save</button>
+          <button class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- existing name = merge -->
+    <div>
+      <div class="modal-label" style="margin-bottom:8px;">Existing name → Merge</div>
+      <div class="modal-box">
+        <div class="modal-crops">
+          <div class="modal-crop mc1"></div>
+          <div class="modal-crop mc2"></div>
+          <div class="modal-crop mc3"></div>
+          <div class="modal-crop mc4"></div>
+        </div>
+        <input class="modal-input" type="text" value="Tamir Heilweil" readonly style="border-color:var(--accent);">
+        <div class="modal-hint">
+          "Tamir Heilweil" already exists — saving will merge these two clusters together.
+        </div>
+        <div class="modal-actions">
+          <button class="btn-primary">Merge</button>
+          <button class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- sweep toast -->
+    <div style="display:flex;align-items:flex-end;">
+      <div>
+        <div class="modal-label" style="margin-bottom:8px;">Post-merge sweep toast</div>
+        <div style="background:#26211E;border:1px solid #3D3733;border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:10px;min-width:260px;box-shadow:0 8px 24px rgba(0,0,0,.3);">
+          <div style="width:8px;height:8px;border-radius:50%;background:#E8714A;flex-shrink:0;"></div>
+          <span style="font-size:13px;color:#F6F4F1;">Found 12 more photos — refreshing</span>
+          <span style="margin-left:auto;color:#A8A29E;font-size:16px;cursor:pointer;">✕</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ LANDING ══════════════════════════════════════════ -->
+  <div class="label">Landing page — faces-h.shifth.com</div>
+  <div class="landing">
+    <nav class="landing-nav">
+      <div class="brand">
+        <div class="brand-icon"></div>
+        faces-h
+      </div>
+      <span style="font-size:13px;color:#A8A29E;margin-left:auto;margin-right:16px;">Windows</span>
+      <button class="dl-btn">Download</button>
+    </nav>
+    <div class="landing-hero">
+      <h1>Your family photos,<br><span>organized by face.</span></h1>
+      <p>faces-h scans your photo library on-device, groups faces automatically, and lets you name the people you love. No cloud. No subscription.</p>
+      <div class="hero-btns">
+        <button class="hero-dl">⬇ Download for Windows</button>
+        <button class="hero-gh">☆ GitHub</button>
+      </div>
+    </div>
+    <div class="landing-photos">
+      <div class="landing-photo lp1">
+        <div class="face-sil" style="bottom:16px;left:50%;transform:translateX(-50%);width:50px;height:60px;"><div class="face-sil-head" style="width:32px;height:32px;"></div><div class="face-sil-body" style="width:50px;height:28px;"></div></div>
+        <div class="face-tag"><div class="face-dot" style="background:linear-gradient(135deg,#c9b8a8,#9a6a50);"></div>Ayelet</div>
+      </div>
+      <div class="landing-photo lp2">
+        <div class="face-sil" style="bottom:16px;left:50%;transform:translateX(-50%);width:50px;height:60px;"><div class="face-sil-head" style="width:32px;height:32px;"></div><div class="face-sil-body" style="width:50px;height:28px;"></div></div>
+        <div class="face-tag"><div class="face-dot" style="background:linear-gradient(135deg,#b8c0b0,#708068);"></div>Igal</div>
+      </div>
+      <div class="landing-photo lp3">
+        <div class="face-sil" style="bottom:16px;left:50%;transform:translateX(-50%);width:50px;height:60px;"><div class="face-sil-head" style="width:32px;height:32px;"></div><div class="face-sil-body" style="width:50px;height:28px;"></div></div>
+        <div class="face-tag"><div class="face-dot" style="background:linear-gradient(135deg,#c0b0a0,#806050);"></div>Tamir</div>
+      </div>
+      <div class="landing-photo lp4">
+        <div class="face-tag"><div class="face-dot"></div>Unnamed</div>
+      </div>
+      <div class="landing-photo lp5">
+        <div class="face-sil" style="bottom:16px;left:50%;transform:translateX(-50%);width:50px;height:60px;"><div class="face-sil-head" style="width:32px;height:32px;"></div><div class="face-sil-body" style="width:50px;height:28px;"></div></div>
+        <div class="face-tag"><div class="face-dot" style="background:linear-gradient(135deg,#c0c0b0,#808070);"></div>Ziv</div>
+      </div>
+      <div class="landing-photo lp6">
+        <div class="face-sil" style="bottom:16px;left:50%;transform:translateX(-50%);width:50px;height:60px;"><div class="face-sil-head" style="width:32px;height:32px;"></div><div class="face-sil-body" style="width:50px;height:28px;"></div></div>
+        <div class="face-tag"><div class="face-dot" style="background:linear-gradient(135deg,#c8b0a0,#906050);"></div>Kesem</div>
+      </div>
+      <div class="landing-photo lp7">
+        <div class="face-tag"><div class="face-dot"></div>Unnamed</div>
+      </div>
+      <div class="landing-photo lp8">
+        <div class="face-sil" style="bottom:16px;left:50%;transform:translateX(-50%);width:50px;height:60px;"><div class="face-sil-head" style="width:32px;height:32px;"></div><div class="face-sil-body" style="width:50px;height:28px;"></div></div>
+        <div class="face-tag"><div class="face-dot" style="background:linear-gradient(135deg,#b0c0b8,#608070);"></div>Shoshi</div>
+      </div>
+      <div class="landing-photo lp9">
+        <div class="face-sil" style="bottom:16px;left:50%;transform:translateX(-50%);width:50px;height:60px;"><div class="face-sil-head" style="width:32px;height:32px;"></div><div class="face-sil-body" style="width:50px;height:28px;"></div></div>
+        <div class="face-tag"><div class="face-dot" style="background:linear-gradient(135deg,#c9b8a8,#9a6a50);"></div>Ayelet</div>
+      </div>
+    </div>
+    <div class="landing-features">
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Fully on-device</h3>
+        <p>All face recognition runs locally. Your photos never leave your machine.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">👤</div>
+        <h3>Name once, find everywhere</h3>
+        <p>Name a face cluster and the app automatically sweeps your entire library for more matches.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <h3>Multi-person search</h3>
+        <p>Find every photo of Mom AND Dad together, filtered by date range.</p>
+      </div>
+    </div>
+    <div class="landing-footer">
+      <div>© 2026 faces-h</div>
+      <a href="#">GitHub</a>
+      <a href="#">Releases</a>
+      <span style="margin-left:auto;">v0.2.2 · Windows 10/11</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
