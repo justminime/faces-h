@@ -1,0 +1,193 @@
+name: Deploy landing page
+
+# Triggers:
+#   1. A GitHub Release is published → stamps the new version + deploys latest
+#      and archives a versioned copy at shifth.com/faces-h/v{tag}/
+#   2. A push to main that touches landing/** → redeploys (design/copy update)
+#   3. Actions → "Deploy landing page" → "Run workflow" (manual, optionally pin a version)
+#
+# Required repository secrets (Settings → Secrets → Actions):
+#   FTP_HOST         shifth.com
+#   FTP_USERNAME     justminim
+#   FTP_PASSWORD     (from .env)
+#
+# Optional secret (defaults to ./public_html/faces-h/ if not set):
+#   FTP_SERVER_DIR   Absolute path on the FTP server, e.g. ./public_html/faces-h/
+#
+# Protocol: ftps (explicit FTP over TLS, port 21). If your host needs plain FTP,
+# add a secret FTP_PROTOCOL=ftp and swap the protocol: lines below.
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - "landing/**"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to stamp (e.g. v0.2.1). Leave blank to use the latest published release."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Stamp version + FTP deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Resolve which version to stamp ─────────────────────────────────────
+      - name: Resolve release version
+        id: ver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            TAG="${{ github.event.release.tag_name }}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            TAG="${{ inputs.version }}"
+          else
+            TAG=$(gh release view \
+              --repo "${{ github.repository }}" \
+              --json tagName -q .tagName)
+          fi
+          VER="${TAG#v}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "ver=${VER}" >> "$GITHUB_OUTPUT"
+          echo "Stamping: ${TAG} (${VER})"
+
+      # ── Fetch the installer's published file size ───────────────────────────
+      - name: Fetch installer size from GitHub release
+        id: asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          SIZE_BYTES=$(gh release view "${TAG}" \
+            --repo "${{ github.repository }}" \
+            --json assets \
+            --jq '.assets[] | select(.name | test("x64-setup\\.exe$")) | .size' \
+            2>/dev/null || echo "")
+          if [[ "$SIZE_BYTES" =~ ^[0-9]+$ && "$SIZE_BYTES" -gt 0 ]]; then
+            SIZE_MB=$(( SIZE_BYTES / 1024 / 1024 ))
+          else
+            SIZE_MB=150
+          fi
+          echo "size_mb=${SIZE_MB}" >> "$GITHUB_OUTPUT"
+          echo "Installer size: ${SIZE_MB} MB"
+
+      # ── Rewrite version / URL / size in the HTML ───────────────────────────
+      - name: Stamp version, download URL, and file size into HTML
+        env:
+          RELEASE_TAG: ${{ steps.ver.outputs.tag }}
+          RELEASE_VER: ${{ steps.ver.outputs.ver }}
+          RELEASE_MB:  ${{ steps.asset.outputs.size_mb }}
+          REPO:        ${{ github.repository }}
+        run: |
+          python3 - <<'EOF'
+          import os, re
+
+          tag  = os.environ['RELEASE_TAG']
+          ver  = os.environ['RELEASE_VER']
+          mb   = os.environ['RELEASE_MB']
+          repo = os.environ['REPO']
+
+          dl_url = f"https://github.com/{repo}/releases/download/{tag}/faces-h_{ver}_x64-setup.exe"
+
+          path = 'landing/index.html'
+          with open(path, encoding='utf-8') as f:
+              html = f.read()
+
+          # Version badge: "faces-h v0.2.1 for Windows"
+          html = re.sub(r'faces-h v[\d.]+ for Windows',
+                        f'faces-h v{ver} for Windows', html)
+
+          # Both download href URLs
+          html = re.sub(
+              r'https://github\.com/' + re.escape(repo) +
+              r'/releases/download/v[\d.]+/faces-h_[\d.]+_x64-setup\.exe',
+              dl_url, html)
+
+          # Hero button meta: "v0.2.1 · 152 MB · Windows 10/11 x64"
+          html = re.sub(r'v[\d.]+ · \d+ MB · Windows',
+                        f'v{ver} · {mb} MB · Windows', html)
+
+          # Download section button: "faces-h 0.2.1 for Windows x64"
+          html = re.sub(r'faces-h [\d.]+ for Windows x64',
+                        f'faces-h {ver} for Windows x64', html)
+
+          # Download section meta: "152 MB &middot; NSIS installer"
+          html = re.sub(r'\d+ MB &middot; NSIS',
+                        f'{mb} MB &middot; NSIS', html)
+
+          with open(path, 'w', encoding='utf-8') as f:
+              f.write(html)
+
+          print(f"Done: v{ver} · {mb} MB · {dl_url}")
+          EOF
+
+      # ── Compute FTP target directories ──────────────────────────────────────
+      - name: Compute FTP server directories
+        id: ftp
+        env:
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: |
+          BASE="${FTP_SERVER_DIR:-./public_html/faces-h/}"
+          [[ "${BASE}" != */ ]] && BASE="${BASE}/"
+          echo "latest=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "versioned=${BASE}${{ steps.ver.outputs.tag }}/" >> "$GITHUB_OUTPUT"
+
+      # ── Deploy latest ───────────────────────────────────────────────────────
+      - name: "FTP → deploy latest to /faces-h/"
+        uses: SamKirkland/FTP-Deploy-Action@v4
+        with:
+          server:     ${{ secrets.FTP_HOST }}
+          username:   ${{ secrets.FTP_USERNAME }}
+          password:   ${{ secrets.FTP_PASSWORD }}
+          local-dir:  ./landing/
+          server-dir: ${{ steps.ftp.outputs.latest }}
+          protocol:   ftps
+          log-level:  minimal
+          exclude: |
+            **/.DS_Store
+            **/Thumbs.db
+            **/*.md
+
+      # ── Archive a versioned snapshot (release events only) ─────────────────
+      - name: "FTP → archive versioned copy at /faces-h/{tag}/"
+        if: github.event_name == 'release'
+        uses: SamKirkland/FTP-Deploy-Action@v4
+        with:
+          server:     ${{ secrets.FTP_HOST }}
+          username:   ${{ secrets.FTP_USERNAME }}
+          password:   ${{ secrets.FTP_PASSWORD }}
+          local-dir:  ./landing/
+          server-dir: ${{ steps.ftp.outputs.versioned }}
+          protocol:   ftps
+          log-level:  minimal
+          exclude: |
+            **/.DS_Store
+            **/Thumbs.db
+            **/*.md
+
+      # ── Job summary ─────────────────────────────────────────────────────────
+      - name: Write job summary
+        run: |
+          {
+            echo "### Landing page deployed"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Version stamped** | \`${{ steps.ver.outputs.tag }}\` |"
+            echo "| **Installer size** | ${{ steps.asset.outputs.size_mb }} MB |"
+            echo "| **Latest** | https://shifth.com/faces-h/ |"
+            if [[ "${{ github.event_name }}" == "release" ]]; then
+              echo "| **Versioned archive** | https://shifth.com/faces-h/${{ steps.ver.outputs.tag }}/ |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
