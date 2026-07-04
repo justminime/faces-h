@@ -1,0 +1,29 @@
+# Block direct HTTP access to sensitive files.
+# This file is deployed alongside the landing page to public_html/faces-h/
+# and protects against misconfigured document-root setups where these files
+# might otherwise be served.
+
+# --- Block .env and common credential files ---
+<FilesMatch "^\.env(\..+)?$">
+    Require all denied
+</FilesMatch>
+
+# --- Block source-control metadata ---
+<FilesMatch "^\.git">
+    Require all denied
+</FilesMatch>
+
+# --- Block backup / editor temp files ---
+<FilesMatch "\.(bak|swp|swo|orig|sql|log|sh|py|toml|cfg|ini|conf)$">
+    Require all denied
+</FilesMatch>
+
+# --- Prevent directory listing ---
+Options -Indexes
+
+# --- X-Content-Type-Options header ---
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
