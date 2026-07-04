@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Medallion } from "./Medallion";
 import type { Photo } from "../mocks/data";
 import "./PhotoGrid.css";
@@ -12,6 +13,9 @@ interface PhotoGridProps {
   personAvatarSrc?: string;
   isNamed?: boolean;
   onRenamePerson?: () => void;
+  hasMore?: boolean;
+  isLoading?: boolean;
+  onLoadMore?: () => void;
 }
 
 export function PhotoGrid({
@@ -24,7 +28,29 @@ export function PhotoGrid({
   personAvatarSrc,
   isNamed,
   onRenamePerson,
+  hasMore = false,
+  isLoading = false,
+  onLoadMore,
 }: PhotoGridProps) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Fire onLoadMore when the sentinel div scrolls into view.
+  // rootMargin of 300px starts the next-page fetch before the user
+  // reaches the bottom, giving a seamless scroll experience.
+  useEffect(() => {
+    if (!hasMore || !onLoadMore) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) onLoadMore();
+      },
+      { rootMargin: "300px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, onLoadMore]);
+
   return (
     <div className="photo-grid-wrapper">
       <div className="photo-grid-toolbar">
@@ -71,10 +97,19 @@ export function PhotoGrid({
             aria-label={photo.path}
             style={{ width: thumbnailSize, height: thumbnailSize }}
           >
-            <img src={photo.src} alt={photo.path} />
+            <img src={photo.src} alt={photo.path} loading="lazy" />
           </button>
         ))}
       </div>
+
+      {/* Infinite-scroll sentinel — observed by IntersectionObserver above */}
+      {hasMore && <div ref={sentinelRef} className="photo-grid__sentinel" />}
+
+      {isLoading && (
+        <div className="photo-grid__loading" aria-label="Loading more photos">
+          <span className="photo-grid__spinner" />
+        </div>
+      )}
     </div>
   );
 }

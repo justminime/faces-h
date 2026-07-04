@@ -48,8 +48,18 @@ async def list_person_photos(
     person_id: int,
     limit: int = 50,
     offset: int = 0,
+    order: str = "date",
 ) -> list[dict[str, Any]]:
-    """Return photos for a person, grouped with nested faces — Rule 5: only 'assigned'."""
+    """Return photos for a person, grouped with nested faces — Rule 5: only 'assigned'.
+
+    order='random' samples from the full pool using RANDOM() — used for the first
+    page so each visit surfaces a different mix of old and new photos.
+    order='date' (default) gives stable chronological order for pagination.
+    """
+    # Only 'random' or 'date' are valid; anything else falls back to 'date'.
+    use_random = order == "random"
+    inner_order = "RANDOM()" if use_random else "f2.photo_id ASC"
+
     async with get_db() as db:
         row = await (
             await db.execute("SELECT id FROM people WHERE id = ?", (person_id,))
@@ -58,8 +68,10 @@ async def list_person_photos(
             raise HTTPException(status_code=404, detail="Person not found")
 
         # Paginate at the photo level, then gather each photo's assigned faces.
+        # When order=random the inner query uses RANDOM() so SQLite samples across
+        # the entire photo pool, not just the chronologically-first N photos.
         async with db.execute(
-            """
+            f"""
             SELECT ph.id        AS photo_id,
                    ph.path,
                    ph.taken_at,
@@ -70,7 +82,7 @@ async def list_person_photos(
                     FROM faces f2
                    WHERE f2.person_id = ?
                      AND f2.assign_status = 'assigned'
-                   ORDER BY f2.photo_id ASC
+                   ORDER BY {inner_order}
                    LIMIT ? OFFSET ?
               ) page
               JOIN photos ph ON ph.id = page.photo_id
