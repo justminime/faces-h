@@ -1,6 +1,6 @@
 # PRD: faces-h
 
-**Version:** 1.1  
+**Version:** 1.2  
 **Status:** Draft  
 **Last updated:** 2026-07-04
 
@@ -99,6 +99,12 @@ Users with large photo libraries (2TB+) cannot find photos of specific people. P
 
 **US-19** — As a user, I want to return to unnamed face clusters at any time and name them later.
 
+**US-24** — As a user, I want to point the app at a network share (NAS, Synology, SMB) and have it scan photos there the same way it would a local folder.
+
+**US-25** — As a user, if my NAS goes offline while the app is open, I want to see a warning but still be able to browse photos I've already indexed.
+
+**US-26** — As a user, I want to see a real-time activity log at the bottom of the app showing what the app is doing, with control over how much detail is shown.
+
 ---
 
 ## 6. Functional requirements
@@ -110,6 +116,10 @@ Users with large photo libraries (2TB+) cannot find photos of specific people. P
 - **FR-03** The scan must be pauseable and resumeable. Progress must persist across app restarts.
 - **FR-04** Detected faces must be surfaced to the UI progressively — within the first few minutes of scanning, before the full library is processed.
 - **FR-05** Each detected face must be stored with: source file path, bounding box coordinates, detected timestamp, and embedding vector.
+- **FR-05a** The scanner must accept UNC paths (`\\server\share`) and mapped network drive letters. It must never write, move, or delete any file on a network share.
+- **FR-05b** If a network share is unreachable when a scan starts or during a rescan, the app must show a "drive offline" warning and continue serving existing indexed data from the local DB without crashing.
+- **FR-05c** If a network share disconnects mid-scan, the scanner must retry up to three times (5 s apart) before stopping cleanly. The DB must remain consistent after a partial network failure.
+- **FR-05d** The activity log must include a real-time entry for every major event (scan progress, scan complete, sweep, re-evaluation, drive offline, model download). The user must be able to control verbosity: Off / Errors / Scan / All / Debug. In Debug mode each filename processed during a scan is shown.
 
 ### 6.2 Face clustering
 

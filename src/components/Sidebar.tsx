@@ -18,12 +18,28 @@ interface SidebarProps {
   onRescan?: () => void;
   onExport?: () => void;
   onImport?: () => void;
+  appVersion?: string;
 }
 
 const THEME_OPTIONS: { value: Theme; label: string; icon: string }[] = [
   { value: "light",  label: "Light",         icon: "☀" },
   { value: "dark",   label: "Dark",           icon: "☽" },
   { value: "system", label: "Follow System",  icon: "⊟" },
+];
+
+const HELP_LINKS = [
+  { label: "shifth.com",         url: "https://shifth.com" },
+  { label: "About faces-h",      url: "https://shifth.com/faces-h" },
+  { label: "User Guide",         url: "https://shifth.com/faces-h#guide" },
+  { label: "Report an issue",    url: "https://github.com/justminime/faces-h/issues" },
+  { label: "Release notes",      url: "https://github.com/justminime/faces-h/releases" },
+];
+
+const SHORTCUTS = [
+  { keys: "Ctrl+O", desc: "Add folder" },
+  { keys: "Ctrl+R", desc: "Rescan library" },
+  { keys: "Ctrl+G", desc: "Gallery view" },
+  { keys: "Ctrl+F", desc: "Search" },
 ];
 
 export function Sidebar({
@@ -38,10 +54,12 @@ export function Sidebar({
   onRescan,
   onExport,
   onImport,
+  appVersion,
 }: SidebarProps) {
   const queueCount = useQueueStore((s) => s.queueCount);
   const [theme, setTheme] = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click
@@ -136,6 +154,48 @@ export function Sidebar({
                   {theme === opt.value && <span className="sidebar__menu-check">✓</span>}
                 </button>
               ))}
+
+              <div className="sidebar__menu-divider" />
+
+              {/* Help section */}
+              <div className="sidebar__menu-section">Help</div>
+              {HELP_LINKS.map((link) => (
+                <a
+                  key={link.url}
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="sidebar__menu-item sidebar__menu-item--link"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <span className="sidebar__menu-icon">↗</span>
+                  {link.label}
+                </a>
+              ))}
+              <button
+                type="button"
+                className="sidebar__menu-item"
+                onClick={() => { setShowShortcuts((s) => !s); }}
+              >
+                <span className="sidebar__menu-icon">⌨</span>
+                Keyboard shortcuts
+                <span className="sidebar__menu-check" style={{ opacity: 0.5, fontSize: 10 }}>
+                  {showShortcuts ? "▴" : "▾"}
+                </span>
+              </button>
+              {showShortcuts && (
+                <div className="sidebar__shortcuts">
+                  {SHORTCUTS.map((s) => (
+                    <div key={s.keys} className="sidebar__shortcut-row">
+                      <kbd className="sidebar__kbd">{s.keys}</kbd>
+                      <span>{s.desc}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {appVersion && (
+                <div className="sidebar__menu-version">v{appVersion}</div>
+              )}
 
             </div>
           )}

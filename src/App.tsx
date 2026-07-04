@@ -375,6 +375,7 @@ function App() {
         onRescan={() => void handleRescan()}
         onExport={() => void handleExport()}
         onImport={() => fileInputRef.current?.click()}
+        appVersion={__APP_VERSION__}
       />
       <input
         ref={fileInputRef}

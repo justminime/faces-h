@@ -1,6 +1,6 @@
 # Software Architecture: faces-h
 
-**Version:** 1.1
+**Version:** 1.2
 **Status:** Draft
 **Last updated:** 2026-07-04
 
@@ -138,6 +138,20 @@ the photo level (returning photos that contain the selected person) but now retu
 Detail Panel thus shows every named (or unnamed) person present in a photo, not
 just the one currently selected in the sidebar.
 
+**Sidebar ··· menu.** All library, identity, and appearance controls live in a single `···` dropdown button in the sidebar header, organized in three sections: Library (Add Folder, Rescan), Identity (Export / Import Named People), Appearance (Light / Dark / Follow System with ✓ on active). Replaces the previous scattered text-link buttons. The `useTheme` hook is called directly inside `Sidebar` so the component owns theme state without threading it through App.
+
+**Activity log.** A collapsible strip fixed at the bottom of the app shell (below the three-panel layout). Shows timestamped entries for all WebSocket events. Five verbosity levels controlled by pill buttons in the bar:
+
+| Level | Content |
+|---|---|
+| Off | Log hidden; only the pill row remains |
+| Errors | Warnings only (network offline, file errors) |
+| Scan | Scan progress, completions, sweeps, drive warnings |
+| All | Every event (default) |
+| Debug | Everything + filename on each scan progress tick |
+
+Implemented as a Zustand store (`src/store/log.ts`) with `push()` / `upsertLast()` / `clear()`. `upsertLast` replaces the previous entry of the same kind so rapidly-updating progress ticks don't flood the list. Capped at 200 entries. Auto-scrolls when the user is at the bottom; stops auto-scrolling when they scroll up.
+
 **Incremental photo loading.** Photos are loaded `PAGE_SIZE=50` at a time using an
 `IntersectionObserver` sentinel at the bottom of the grid. The first page uses
 `?order=random` so SQLite samples from the full pool on each visit (different
@@ -162,11 +176,20 @@ and `:root[data-theme="dark"]` (explicit dark override).
 - Walks the selected root folder recursively
 - Reads image files (JPG, PNG, HEIC, TIFF, RAW)
 - Skips corrupt/unreadable files gracefully (logs, continues)
-- Sends progress events over WebSocket: `{ scanned: N, total: N, eta_seconds: N }`
+- Sends progress events over WebSocket: `{ scanned, total, eta_seconds, current_file }`
 - Persists scan state to SQLite on each batch so progress survives app restarts
 - Detects new files on subsequent runs (incremental: compares file path + mtime to DB)
 
-Throughput target: ≥500 photos/min on mid-range CPU (i5/Ryzen 5).
+**Network / UNC folder support** (issue #89):
+- `is_network_path()` detects UNC paths (`\\server\share`) and mapped network drives via Win32 `GetDriveTypeW`
+- `check_reachable()` tests `os.path.isdir()` before starting a walk — offline shares get a `drive_offline` WS event immediately, no hang
+- Per-directory errors during `os.walk` are logged and skipped; the walk continues through the rest of the tree
+- Mid-scan disconnection: after 5 consecutive per-file OS errors on a network path, the scanner pauses, retries up to 3× with 5 s delay, then broadcasts `drive_offline` and stops cleanly without DB corruption
+- On rescan: each root is checked for reachability first; offline roots emit `drive_offline` and are skipped while online roots continue normally
+- The scanner **never writes, moves, or deletes** any file — network or local
+- `scan_roots` table gains `is_network` (INTEGER) and `last_seen_at` (INTEGER) columns; applied via idempotent `ALTER TABLE` migrations
+
+Throughput target: ≥500 photos/min on mid-range CPU (i5/Ryzen 5). Network scans may be 10–100× slower; progress bar reflects real counts.
 
 #### 3b. ML Engine (Swappable Model Layer)
 
@@ -326,6 +349,7 @@ The frontend connects to `http://127.0.0.1:51423` for HTTP and `ws://127.0.0.1:5
 { "type": "reeval_complete",        "moved": 5, "newly_uncertain": 3, "person": "Mom" }
 { "type": "scan_complete",          "scanned": 1200, "total": 45000 }
 { "type": "sweep_complete",         "person_id": 7, "moved": 12 }
+{ "type": "drive_offline",          "path": "\\\\NAS\\Photos" }
 ```
 
 `scan_progress` is broadcast every 10 processed files (face detection is

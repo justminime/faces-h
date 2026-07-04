@@ -150,6 +150,57 @@
   font-weight: 700;
 }
 
+/* Link variant (uses <a> tag) */
+.sidebar__menu-item--link {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.sidebar__menu-item--link:hover {
+  background: var(--color-accent-tint);
+  color: var(--color-accent);
+}
+
+/* Keyboard shortcuts panel */
+.sidebar__shortcuts {
+  margin: 2px 6px 4px;
+  padding: 8px 10px;
+  background: var(--color-surface-2);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.sidebar__shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.sidebar__kbd {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--color-text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Version footer */
+.sidebar__menu-version {
+  text-align: center;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  padding: 6px 10px 4px;
+  border-top: 1px solid var(--color-border);
+  margin-top: 2px;
+}
+
 /* ── Nav buttons (Search, Browse) ── */
 .sidebar__nav-btn {
   display: block;
