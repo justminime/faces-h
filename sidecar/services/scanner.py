@@ -350,6 +350,7 @@ async def run_scan(
                     "scanned": _status.scanned,
                     "total": _status.total,
                     "eta_seconds": _status.eta_seconds(),
+                    "current_file": os.path.basename(path),
                 }
             )
 
