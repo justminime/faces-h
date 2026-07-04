@@ -1,15 +1,19 @@
 """FastAPI router for people, naming, merge, and gallery endpoints."""
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from api.scan import broadcast_ws
 from db.database import get_db
 from services.clustering import ClusteringService
+from services.reeval import ReEvaluationService
 
 router = APIRouter(prefix="/people", tags=["people"])
 _svc = ClusteringService()
+_reeval = ReEvaluationService()
 
 
 class NameRequest(BaseModel):
@@ -125,6 +129,14 @@ async def set_name(person_id: int, body: NameRequest) -> dict[str, Any]:
             raise HTTPException(status_code=404, detail="Person not found")
         await db.execute("UPDATE people SET name = ? WHERE id = ?", (body.name, person_id))
         await db.commit()
+
+    # Sweep library in background — finds uncertain/unreviewed faces that
+    # belong to this person now that their centroid is well-defined.
+    async def _sweep() -> None:
+        async with get_db() as db:
+            await _reeval.sweep_for_person(person_id, db, broadcast_ws)
+
+    asyncio.create_task(_sweep())
     return {"id": person_id, "name": body.name}
 
 

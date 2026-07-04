@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTheme } from "./hooks/useTheme";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -91,6 +92,7 @@ function App() {
     setThumbnailSize,
   } = useUIStore();
 
+  const [, setTheme] = useTheme();
   const setQueueCount = useQueueStore((s) => s.setQueueCount);
   const scanVersion = useUIStore((s) => s.scanVersion);
 
@@ -243,6 +245,7 @@ function App() {
   }, [selectedPersonId, hasMorePhotos]);
 
   // ── Native menu event handler ─────────────────────────────────────────────
+  // setTheme is stable (useState setter), so [] dep array is correct.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     listen<string>("menu-action", (event) => {
@@ -253,11 +256,16 @@ function App() {
         case "import":       fileInputRef.current?.click(); break;
         case "view-gallery": setView("gallery");            break;
         case "view-search":  setView("search");             break;
+        case "theme-light":  setTheme("light");             break;
+        case "theme-dark":   setTheme("dark");              break;
+        case "theme-system": setTheme("system");            break;
       }
     })
       .then((fn) => { unlisten = fn; })
       .catch(() => {});
     return () => unlisten?.();
+  // setTheme is a stable hook setter — intentionally omitted from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selectedPhoto = photos.find((p) => p.id === selectedPhotoId) ?? null;

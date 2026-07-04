@@ -14,7 +14,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --color-bg:           #1C1917;
     --color-surface:      #26211E;
     --color-surface-2:    #302926;
@@ -24,4 +24,16 @@
     --color-accent:       #E8714A;
     --color-accent-tint:  rgba(232, 113, 74, 0.12);
   }
+}
+
+/* Explicit dark override — ignores system preference */
+:root[data-theme="dark"] {
+  --color-bg:           #1C1917;
+  --color-surface:      #26211E;
+  --color-surface-2:    #302926;
+  --color-border:       #3D3733;
+  --color-text:         #F6F4F1;
+  --color-text-secondary: #A8A29E;
+  --color-accent:       #E8714A;
+  --color-accent-tint:  rgba(232, 113, 74, 0.12);
 }

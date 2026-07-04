@@ -141,6 +141,124 @@ class ReEvaluationService:
         if inspect.isawaitable(result):
             await result
 
+    async def sweep_for_person(
+        self,
+        person_id: int,
+        db: aiosqlite.Connection,
+        broadcast_fn: Callable[[dict[str, Any]], Any],
+    ) -> None:
+        """Sweep the library for faces that belong to person_id but were missed.
+
+        Three passes (all threshold-gated — Rule 6 respected):
+        1. Uncertain faces whose suggested_person_id = person_id and conf >= threshold
+        2. Unreviewed faces that score >= auto_assign_threshold against this centroid
+        3. Faces in *unnamed* other clusters that score higher here than there
+
+        Never touches faces in named clusters (too risky without user confirmation).
+        """
+        centroid_row = await (
+            await db.execute("SELECT centroid FROM people WHERE id=?", (person_id,))
+        ).fetchone()
+        if centroid_row is None or centroid_row["centroid"] is None:
+            return
+        centroid = _deserialize(centroid_row["centroid"])
+
+        moved = 0
+
+        # Pass 1: uncertain faces already pointing at this person
+        async with db.execute(
+            "SELECT id, embedding FROM faces"
+            " WHERE suggested_person_id=? AND assign_status='uncertain'"
+            "   AND embedding IS NOT NULL",
+            (person_id,),
+        ) as cur:
+            uncertain = await cur.fetchall()
+
+        for row in uncertain:
+            emb = _deserialize(row["embedding"])
+            conf = float(np.dot(emb, centroid))
+            if conf >= _AUTO_ASSIGN_THRESHOLD:
+                await db.execute(
+                    "UPDATE faces SET person_id=?, assign_conf=?,"
+                    " assign_status='assigned', suggested_person_id=NULL WHERE id=?",
+                    (person_id, conf, int(row["id"])),
+                )
+                moved += 1
+
+        # Pass 2: unreviewed faces
+        async with db.execute(
+            "SELECT id, embedding FROM faces"
+            " WHERE assign_status='unreviewed' AND embedding IS NOT NULL",
+        ) as cur:
+            unreviewed = await cur.fetchall()
+
+        for row in unreviewed:
+            emb = _deserialize(row["embedding"])
+            conf = float(np.dot(emb, centroid))
+            if conf >= _AUTO_ASSIGN_THRESHOLD:
+                await db.execute(
+                    "UPDATE faces SET person_id=?, assign_conf=?,"
+                    " assign_status='assigned', suggested_person_id=NULL WHERE id=?",
+                    (person_id, conf, int(row["id"])),
+                )
+                moved += 1
+
+        # Pass 3: faces in unnamed clusters that score higher against this centroid
+        async with db.execute(
+            """SELECT f.id, f.embedding, f.assign_conf, f.person_id
+                 FROM faces f
+                 JOIN people p ON p.id = f.person_id
+                WHERE f.assign_status = 'assigned'
+                  AND f.person_id != ?
+                  AND (p.name IS NULL OR p.name = '')
+                  AND f.embedding IS NOT NULL""",
+            (person_id,),
+        ) as cur:
+            other = await cur.fetchall()
+
+        for row in other:
+            emb = _deserialize(row["embedding"])
+            conf = float(np.dot(emb, centroid))
+            current_conf = float(row["assign_conf"]) if row["assign_conf"] is not None else 0.0
+            if conf >= _AUTO_ASSIGN_THRESHOLD and conf > current_conf:
+                await db.execute(
+                    "UPDATE faces SET person_id=?, assign_conf=?,"
+                    " assign_status='assigned', suggested_person_id=NULL WHERE id=?",
+                    (person_id, conf, int(row["id"])),
+                )
+                moved += 1
+
+        if moved > 0:
+            await self._rolling_centroid_update_bulk(person_id, db)
+
+        await db.commit()
+
+        result = broadcast_fn(
+            {"type": "sweep_complete", "person_id": person_id, "moved": moved}
+        )
+        if inspect.isawaitable(result):
+            await result
+
+    async def _rolling_centroid_update_bulk(
+        self, person_id: int, db: aiosqlite.Connection
+    ) -> None:
+        """Rebuild centroid from all currently-assigned faces for this person."""
+        async with db.execute(
+            "SELECT embedding FROM faces"
+            " WHERE person_id=? AND assign_status='assigned' AND embedding IS NOT NULL",
+            (person_id,),
+        ) as cur:
+            rows = await cur.fetchall()
+        if not rows:
+            return
+        vecs = [_deserialize(r["embedding"]) for r in rows]
+        mean = np.mean(vecs, axis=0).astype(np.float32)
+        norm = float(np.linalg.norm(mean))
+        new_c = mean / norm if norm > 0 else mean
+        await db.execute(
+            "UPDATE people SET centroid=? WHERE id=?", (new_c.tobytes(), person_id)
+        )
+
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------

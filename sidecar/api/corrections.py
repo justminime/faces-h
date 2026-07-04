@@ -50,6 +50,11 @@ async def correct_face(
                 db=db,
                 broadcast_fn=broadcast_ws,
             )
+        # Sweep for more photos of the destination person now that the
+        # correction has refined their centroid.
+        if new_person_id is not None:
+            async with get_db() as db:
+                await _reeval.sweep_for_person(new_person_id, db, broadcast_ws)
 
     asyncio.create_task(_run())
     return {"status": "queued", "face_id": face_id}

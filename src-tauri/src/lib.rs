@@ -139,6 +139,10 @@ pub fn run() {
                         &[
                             &MenuItem::with_id(app, "view-gallery", "Gallery", true, Some("CmdOrCtrl+G"))?,
                             &MenuItem::with_id(app, "view-search", "Search", true, Some("CmdOrCtrl+F"))?,
+                            &PredefinedMenuItem::separator(app)?,
+                            &MenuItem::with_id(app, "theme-light", "Light Mode", true, None::<&str>)?,
+                            &MenuItem::with_id(app, "theme-dark", "Dark Mode", true, None::<&str>)?,
+                            &MenuItem::with_id(app, "theme-system", "Follow System", true, None::<&str>)?,
                         ],
                     )?,
                 ],
