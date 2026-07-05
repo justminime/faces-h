@@ -16,6 +16,13 @@ name: Deploy landing page
 #
 # FTP upload uses curl (pre-installed on every runner — no third-party action).
 # FTPS (explicit TLS) is attempted; --insecure skips cert check for shared hosts.
+#
+# ACCEPTED RISK (#112 M-3, decided 2026-07-05): the shared host presents a
+# certificate that doesn't match its FTP hostname, so cert validation is
+# skipped. The connection is still TLS-encrypted; a MITM could tamper with
+# the *landing page* upload only — no user data, code signing, or release
+# artifacts flow through this workflow. Switch to SFTP/rsync or drop
+# --insecure if the host ever gets a valid certificate.
 
 on:
   # Fires after the Release workflow completes successfully — by then the

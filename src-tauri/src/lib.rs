@@ -1,9 +1,7 @@
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
@@ -28,26 +26,15 @@ struct SidecarLaunch {
     token: String,
 }
 
-/// Generate a random-enough IPC token from OS entropy sources available in std.
-/// Not cryptographically secure, but unpredictable enough to prevent casual
-/// local-process spoofing — an attacker would need to guess PID + nanos + port.
-fn generate_token(port: u16) -> String {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .subsec_nanos();
-    let pid = std::process::id();
-    let mut h1 = DefaultHasher::new();
-    nanos.hash(&mut h1);
-    pid.hash(&mut h1);
-    port.hash(&mut h1);
-    let v1 = h1.finish();
-    let mut h2 = DefaultHasher::new();
-    v1.hash(&mut h2);
-    port.hash(&mut h2);
-    nanos.wrapping_add(1).hash(&mut h2);
-    let v2 = h2.finish();
-    format!("{v1:016x}{v2:016x}")
+/// Generate the IPC auth token: 256 bits from the OS CSPRNG, hex-encoded.
+/// This token is the only auth on an API that can export biometric centroids,
+/// so guessable entropy sources (time/PID — the previous scheme) are not
+/// acceptable (#112).
+fn generate_token() -> String {
+    use rand::RngCore;
+    let mut bytes = [0u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// Kill the sidecar process tree on Windows so PyInstaller's bootstrap and
@@ -228,37 +215,25 @@ fn get_sidecar_token(state: tauri::State<SidecarState>) -> String {
     state.token.clone()
 }
 
-/// Open a file path in the default Windows viewer (ShellExecute "open").
-/// The path must exist on disk — this prevents XSS from opening arbitrary paths.
+/// Open a file path in the default viewer via ShellExecute (opener crate).
+/// The path must exist on disk, and the path is never re-parsed by cmd.exe —
+/// the previous `cmd /c start` route let metacharacters in a crafted filename
+/// (e.g. `x & evil.exe.jpg`) break out of the argument (#112).
 #[tauri::command]
 fn open_in_viewer(path: String) -> Result<(), String> {
     if !std::path::Path::new(&path).exists() {
         return Err(format!("File not found: {path}"));
     }
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("cmd")
-            .args(["/c", "start", "", &path])
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    opener::open(&path).map_err(|e| e.to_string())
 }
 
-/// Open File Explorer with the given file path selected.
+/// Open the system file manager with the given file selected.
 #[tauri::command]
 fn reveal_in_explorer(path: String) -> Result<(), String> {
     if !std::path::Path::new(&path).exists() {
         return Err(format!("File not found: {path}"));
     }
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .args(["/select,", &path])
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    opener::reveal(&path).map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -334,7 +309,7 @@ pub fn run() {
             kill_orphaned_sidecars();
 
             let port = allocate_port();
-            let token = generate_token(port);
+            let token = generate_token();
             let url = format!("http://127.0.0.1:{port}");
 
             let data_dir = app
@@ -421,6 +396,15 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         drop(listener);
         assert!(port > 0, "allocated port must be non-zero");
+    }
+
+    #[test]
+    fn token_is_64_hex_chars_and_unique() {
+        let a = generate_token();
+        let b = generate_token();
+        assert_eq!(a.len(), 64, "256 bits hex-encoded");
+        assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(a, b, "two tokens must never collide");
     }
 
     #[test]
