@@ -333,10 +333,13 @@ async def test_merge_requires_confirmed(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_people_photos_endpoint_excludes_uncertain_and_unreviewed(
+async def test_people_photos_endpoint_includes_all_faces_in_detail(
     tmp_path: Path,
 ) -> None:
-    """GET /people/{id}/photos never returns uncertain or unreviewed faces (Rule 5)."""
+    """GET /people/{id}/photos returns ALL detected faces per photo (Rule 5 governs
+    which *photos* appear — paging is restricted to assigned — but the faces array
+    for the detail panel includes uncertain and unreviewed faces too so the user
+    can see every person present in the frame."""
     from httpx import AsyncClient, ASGITransport
 
     os.environ["FACES_H_DATA_DIR"] = str(tmp_path)
@@ -351,16 +354,18 @@ async def test_people_photos_endpoint_excludes_uncertain_and_unreviewed(
 
     # Insert one face per status
     assigned_id = await _insert_assigned_face(conn, photo_id, person_id)
-    await conn.execute(
+    cur = await conn.execute(
         "INSERT INTO faces (photo_id, detection_conf, assign_conf, assign_status) VALUES (?, ?, ?, ?)",
         (photo_id, 0.9, 0.60, "uncertain"),
     )
     await conn.commit()
-    await conn.execute(
+    uncertain_id = cur.lastrowid
+    cur = await conn.execute(
         "INSERT INTO faces (photo_id, detection_conf, assign_status) VALUES (?, ?, ?)",
         (photo_id, 0.9, "unreviewed"),
     )
     await conn.commit()
+    unreviewed_id = cur.lastrowid
     await conn.close()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -368,14 +373,17 @@ async def test_people_photos_endpoint_excludes_uncertain_and_unreviewed(
 
     assert resp.status_code == 200
     photos = resp.json()
-    # Response is now grouped: each photo has a "faces" list (Rule 5)
-    face_ids_returned = [
-        face["face_id"] for photo in photos for face in photo["faces"]
-    ]
+    assert len(photos) == 1, "photo should appear (Alice has an assigned face in it)"
+    face_ids_returned = {face["face_id"] for photo in photos for face in photo["faces"]}
+    # All three faces must be present so the detail panel can show everyone
     assert assigned_id in face_ids_returned
-    assert all(face_id == assigned_id for face_id in face_ids_returned), (
-        f"Non-assigned faces returned: {face_ids_returned}"
-    )
+    assert uncertain_id in face_ids_returned
+    assert unreviewed_id in face_ids_returned
+    # assign_status must be returned so the UI can label uncertain faces correctly
+    statuses = {face["face_id"]: face["assign_status"] for photo in photos for face in photo["faces"]}
+    assert statuses[assigned_id] == "assigned"
+    assert statuses[uncertain_id] == "uncertain"
+    assert statuses[unreviewed_id] == "unreviewed"
 
 
 # ---------------------------------------------------------------------------
