@@ -30,8 +30,11 @@
 !macro NSIS_HOOK_POSTINSTALL
   ; Add Defender exclusion for the installed sidecar binary.
   ; Runs with admin rights because installMode is perMachine.
+  ; Fire-and-forget (Exec, not nsExec::ExecToLog) with -NoProfile: a blocking
+  ; PowerShell here wedged the whole v0.2.8 install at 100% (#130). A missing
+  ; exclusion only costs one slower first launch — never block the installer.
   ; NSIS has no line continuation inside strings — keep this on one line.
-  nsExec::ExecToLog `powershell.exe -NonInteractive -WindowStyle Hidden -Command "Add-MpPreference -ExclusionPath '$INSTDIR\faces-sidecar.exe' -ErrorAction SilentlyContinue"`
+  Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Add-MpPreference -ExclusionPath '$INSTDIR\faces-sidecar.exe' -ErrorAction SilentlyContinue"`
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
@@ -40,8 +43,9 @@
   nsExec::ExecToLog 'taskkill /F /T /IM faces-h.exe'
   Sleep 500
 
-  ; Remove the Defender exclusion.
-  nsExec::ExecToLog `powershell.exe -NonInteractive -WindowStyle Hidden -Command "Remove-MpPreference -ExclusionPath '$INSTDIR\faces-sidecar.exe' -ErrorAction SilentlyContinue"`
+  ; Remove the Defender exclusion. Fire-and-forget with -NoProfile for the
+  ; same reason as POSTINSTALL (#130) — never let it wedge the uninstaller.
+  Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Remove-MpPreference -ExclusionPath '$INSTDIR\faces-sidecar.exe' -ErrorAction SilentlyContinue"`
 
   ; NOTE: user data in %APPDATA%\com.faces-h.app is intentionally left in place
   ; so the library survives uninstall/reinstall. Do not add RMDir on it here.
