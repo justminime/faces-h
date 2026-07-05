@@ -36,7 +36,10 @@ _TOKEN_EXEMPT = {"/health", "/ws"}
 async def require_token(request: Request, call_next):  # type: ignore[no-untyped-def]
     path = request.url.path
     if path not in _TOKEN_EXEMPT and _api_token:
-        token = request.headers.get("X-Faces-Token", "")
+        token = (
+            request.headers.get("X-Faces-Token", "")
+            or request.query_params.get("token", "")
+        )
         if token != _api_token:
             return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
     return await call_next(request)
