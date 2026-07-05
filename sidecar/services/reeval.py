@@ -255,7 +255,8 @@ class ReEvaluationService:
         """Rebuild centroid from all currently-assigned faces for this person."""
         async with db.execute(
             "SELECT embedding FROM faces"
-            " WHERE person_id=? AND assign_status='assigned' AND embedding IS NOT NULL",
+            " WHERE person_id=? AND assign_status='assigned' AND embedding IS NOT NULL"
+            " AND photo_id IN (SELECT id FROM photos WHERE missing = 0)",
             (person_id,),
         ) as cur:
             rows = await cur.fetchall()
@@ -295,7 +296,8 @@ class ReEvaluationService:
         """Average all currently-assigned embeddings for this person."""
         async with db.execute(
             "SELECT embedding FROM faces"
-            " WHERE person_id=? AND assign_status='assigned' AND embedding IS NOT NULL",
+            " WHERE person_id=? AND assign_status='assigned' AND embedding IS NOT NULL"
+            " AND photo_id IN (SELECT id FROM photos WHERE missing = 0)",
             (person_id,),
         ) as cur:
             rows = await cur.fetchall()

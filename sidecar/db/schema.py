@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS photos (
     width           INTEGER,
     height          INTEGER,
     taken_at        INTEGER,
-    faces_extracted INTEGER NOT NULL DEFAULT 0
+    faces_extracted INTEGER NOT NULL DEFAULT 0,
+    missing         INTEGER NOT NULL DEFAULT 0
 )
 """
 
@@ -91,6 +92,9 @@ PHOTOS_MIGRATIONS: list[tuple[str, str | None]] = [
         "UPDATE photos SET faces_extracted = 1 "
         "WHERE EXISTS (SELECT 1 FROM faces WHERE photo_id = photos.id)",
     ),
+    # missing (#105): set when a scan of a reachable root no longer finds the
+    # file on disk; cleared automatically if it reappears at the same path.
+    ("ALTER TABLE photos ADD COLUMN missing INTEGER NOT NULL DEFAULT 0", None),
 ]
 
 INDEXES = [
@@ -99,6 +103,7 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_faces_status    ON faces(assign_status)",
     "CREATE INDEX IF NOT EXISTS idx_photos_path     ON photos(path)",
     "CREATE INDEX IF NOT EXISTS idx_photos_taken_at ON photos(taken_at)",
+    "CREATE INDEX IF NOT EXISTS idx_photos_missing  ON photos(missing)",
     "CREATE INDEX IF NOT EXISTS idx_scan_roots_path ON scan_roots(path)",
 ]
 

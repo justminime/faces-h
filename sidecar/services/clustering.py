@@ -192,7 +192,8 @@ class ClusteringService:
             """SELECT embedding FROM faces
                 WHERE person_id = ?
                   AND assign_status = 'assigned'
-                  AND embedding IS NOT NULL""",
+                  AND embedding IS NOT NULL
+                  AND photo_id IN (SELECT id FROM photos WHERE missing = 0)""",
             (person_id,),
         )
         rows = await cur.fetchall()

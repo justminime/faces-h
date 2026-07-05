@@ -19,7 +19,9 @@ async def queue_count() -> dict[str, int]:
     async with get_db() as db:
         row = await (
             await db.execute(
-                "SELECT COUNT(*) AS cnt FROM faces WHERE assign_status = 'uncertain'"
+                "SELECT COUNT(*) AS cnt FROM faces f"
+                " JOIN photos ph ON ph.id = f.photo_id AND ph.missing = 0"
+                " WHERE f.assign_status = 'uncertain'"
             )
         ).fetchone()
         assert row is not None
@@ -40,6 +42,7 @@ async def list_uncertain(
                    f.suggested_person_id,
                    p.name      AS suggested_person_name
               FROM faces f
+              JOIN photos ph ON ph.id = f.photo_id AND ph.missing = 0
               LEFT JOIN people p ON p.id = f.suggested_person_id
              WHERE f.assign_status = 'uncertain'
              ORDER BY f.id ASC

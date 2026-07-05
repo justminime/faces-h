@@ -36,8 +36,6 @@ def _is_duplicate_column_error(exc: Exception) -> bool:
 async def _apply_schema(conn: aiosqlite.Connection) -> None:
     for ddl in ALL_TABLES:
         await conn.execute(ddl)
-    for idx in INDEXES:
-        await conn.execute(idx)
     # A followup (e.g. a data backfill) runs exactly once: only on the
     # connection whose ALTER actually added the column. "Duplicate column"
     # means already applied and is expected; anything else is a real
@@ -51,6 +49,10 @@ async def _apply_schema(conn: aiosqlite.Connection) -> None:
             continue
         if followup_stmt is not None:
             await conn.execute(followup_stmt)
+    # Indexes AFTER migrations: an index on a migrated-in column (e.g.
+    # photos.missing, #105) would otherwise fail on a pre-migration database.
+    for idx in INDEXES:
+        await conn.execute(idx)
     await conn.commit()
 
 
