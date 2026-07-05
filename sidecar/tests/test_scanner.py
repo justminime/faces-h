@@ -481,3 +481,77 @@ async def test_modified_photo_faces_replaced_not_duplicated(
         assert prow is not None and prow["faces_extracted"] == 1
     finally:
         await db.close()
+
+
+@pytest.mark.asyncio
+async def test_extract_faces_skips_small_and_low_confidence(tmp_path: Path) -> None:
+    """OD-04 (#111): detections below min_face_px or the detector-confidence
+    floor are not persisted; the skip count lands in scan status."""
+    from services.scanner import reset_status
+
+    os.environ["FACES_H_DATA_DIR"] = str(tmp_path)  # defaults: 20px / 0.5
+    reset_status()
+    db = await _open_db(str(tmp_path / "test.db"))
+    db.row_factory = aiosqlite.Row
+    try:
+        photo_id = await _insert_photo(db)
+
+        good = _face(1)
+        good.size_px = 120.0
+        tiny = _face(2)
+        tiny.size_px = 8.0  # below 20px floor
+        low_conf = _face(3)
+        low_conf.size_px = 90.0
+        low_conf.detection_confidence = 0.2  # below 0.5 floor
+        unknown_size = _face(4)
+        unknown_size.size_px = 0.0  # backend didn't report — exempt from size filter
+
+        recognizer = _FakeRecognizer([good, tiny, low_conf, unknown_size])
+        await _extract_faces("/p/a.jpg", photo_id, recognizer, ClusteringService(), db)
+
+        rows = list(await (
+            await db.execute("SELECT id FROM faces WHERE photo_id = ?", (photo_id,))
+        ).fetchall())
+        assert len(rows) == 2, "only the good and unknown-size faces persist"
+        assert get_status().skipped_faces == 2
+
+        # Photo still marked extraction-complete even though faces were skipped.
+        prow = await (
+            await db.execute("SELECT faces_extracted FROM photos WHERE id = ?", (photo_id,))
+        ).fetchone()
+        assert prow is not None and prow["faces_extracted"] == 1
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_extract_faces_size_filter_respects_config(tmp_path: Path) -> None:
+    """min_face_px from config.json overrides the default floor."""
+    import json
+
+    from config import reset_config_cache
+    from services.scanner import reset_status
+
+    (tmp_path / "config.json").write_text(
+        json.dumps({"min_face_px": 5, "min_detection_confidence": 0.1}), encoding="utf-8"
+    )
+    os.environ["FACES_H_DATA_DIR"] = str(tmp_path)
+    reset_config_cache()
+    reset_status()
+
+    db = await _open_db(str(tmp_path / "test.db"))
+    db.row_factory = aiosqlite.Row
+    try:
+        photo_id = await _insert_photo(db)
+        small = _face(1)
+        small.size_px = 8.0  # above the configured 5px floor now
+        recognizer = _FakeRecognizer([small])
+        await _extract_faces("/p/a.jpg", photo_id, recognizer, ClusteringService(), db)
+
+        rows = list(await (
+            await db.execute("SELECT id FROM faces WHERE photo_id = ?", (photo_id,))
+        ).fetchall())
+        assert len(rows) == 1
+        assert get_status().skipped_faces == 0
+    finally:
+        await db.close()
