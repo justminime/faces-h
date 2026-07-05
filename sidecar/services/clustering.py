@@ -148,6 +148,47 @@ class ClusteringService:
         )
         await db.commit()
 
+    async def rebuild_centroid(
+        self,
+        person_id: int,
+        db: aiosqlite.Connection,
+    ) -> None:
+        """Recompute a person's centroid from their remaining assigned faces.
+
+        Used after face rows are deleted (e.g. a photo was modified and its
+        faces re-extracted) so stale embeddings stop voting in the centroid.
+        The centroid is the L2-normalised mean of the embeddings of the
+        person's currently 'assigned' faces. If the person has no remaining
+        assigned faces, the existing centroid is left as-is.
+
+        Never changes any face's assign_status or assign_conf (Rules 1-3
+        untouched).
+        """
+        cur = await db.execute(
+            """SELECT embedding FROM faces
+                WHERE person_id = ?
+                  AND assign_status = 'assigned'
+                  AND embedding IS NOT NULL""",
+            (person_id,),
+        )
+        rows = await cur.fetchall()
+        if not rows:
+            return
+
+        embeddings = np.stack(
+            [_deserialize_centroid(row["embedding"]) for row in rows]
+        ).astype(np.float32)
+        mean = embeddings.mean(axis=0)
+        norm = float(np.linalg.norm(mean))
+        if norm > 0:
+            mean = mean / norm
+
+        await db.execute(
+            "UPDATE people SET centroid = ? WHERE id = ?",
+            (_serialize_centroid(mean), person_id),
+        )
+        await db.commit()
+
     async def create_person(
         self,
         name: str,

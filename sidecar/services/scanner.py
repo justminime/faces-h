@@ -203,13 +203,17 @@ async def _process_file(path: str, db: aiosqlite.Connection) -> ProcessResult:
     taken_at = await asyncio.to_thread(_read_taken_at, path)
 
     try:
+        # A changed file invalidates any previously extracted faces, so the
+        # extraction-complete flag is reset; _extract_faces sets it back to 1
+        # once the new faces are fully committed.
         await db.execute(
             """
             INSERT INTO photos (path, mtime, taken_at)
             VALUES (?, ?, ?)
             ON CONFLICT(path) DO UPDATE
-                SET mtime    = excluded.mtime,
-                    taken_at = excluded.taken_at
+                SET mtime           = excluded.mtime,
+                    taken_at        = excluded.taken_at,
+                    faces_extracted = 0
             """,
             (path, mtime, taken_at),
         )
@@ -228,11 +232,38 @@ async def _extract_faces(
     clustering: Any,
     db: aiosqlite.Connection,
 ) -> None:
+    """Detect and persist all faces for one photo, then mark it complete.
+
+    Any pre-existing face rows for the photo are stale — partial rows left by
+    a mid-extraction crash, or faces from an older version of a modified file
+    — and are deleted before the new detections are inserted, so a rescan
+    never duplicates faces (#104). Centroids of the people who lost faces are
+    rebuilt afterwards so deleted embeddings stop voting (#104).
+
+    `photos.faces_extracted` is set to 1 only after ALL faces are committed —
+    including when zero faces were detected. If detection fails, the flag
+    stays 0 and the photo is retried on the next scan (#90).
+    """
     try:
         results = await asyncio.to_thread(recognizer.detect_and_embed, path)
     except Exception as exc:
         logger.warning("detect_and_embed failed for %s: %s", path, exc)
         return
+
+    # Clear stale face rows for this photo, remembering whose centroids are
+    # affected. corrections.face_id has an FK to faces, so matching correction
+    # rows must go first or the DELETE aborts with foreign_keys=ON.
+    cur = await db.execute(
+        "SELECT DISTINCT person_id FROM faces WHERE photo_id = ? AND person_id IS NOT NULL",
+        (photo_id,),
+    )
+    affected_people = [int(row["person_id"]) for row in await cur.fetchall()]
+    await db.execute(
+        "DELETE FROM corrections WHERE face_id IN (SELECT id FROM faces WHERE photo_id = ?)",
+        (photo_id,),
+    )
+    await db.execute("DELETE FROM faces WHERE photo_id = ?", (photo_id,))
+    await db.commit()
 
     for face in results:
         x, y, w, h = face.bbox
@@ -246,6 +277,14 @@ async def _extract_faces(
         await db.commit()
         assert cur.lastrowid is not None
         await clustering.assign_face(int(cur.lastrowid), face.embedding, db)
+
+    for person_id in affected_people:
+        await clustering.rebuild_centroid(person_id, db)
+
+    await db.execute(
+        "UPDATE photos SET faces_extracted = 1 WHERE id = ?", (photo_id,)
+    )
+    await db.commit()
 
 
 # ── Main scan loop ────────────────────────────────────────────────────────────
@@ -291,8 +330,7 @@ async def run_scan(
     unindexed: dict[str, int] = {}
     if recognizer is not None:
         cur = await db.execute(
-            """SELECT id, path FROM photos
-               WHERE NOT EXISTS (SELECT 1 FROM faces WHERE photo_id = photos.id)"""
+            "SELECT id, path FROM photos WHERE faces_extracted = 0"
         )
         unindexed = {row["path"]: int(row["id"]) for row in await cur.fetchall()}
 
