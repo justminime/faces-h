@@ -1,0 +1,56 @@
+.connection-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 8px 16px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.connection-banner--error {
+  color: #c4453a;
+  background: rgba(196, 69, 58, 0.08);
+  border-bottom-color: rgba(196, 69, 58, 0.35);
+}
+
+/* Same dark-theme selectors as tokens.css */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .connection-banner--error {
+    color: #e8837a;
+  }
+}
+:root[data-theme="dark"] .connection-banner--error {
+  color: #e8837a;
+}
+
+.connection-banner__icon {
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.connection-banner__spinner {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: connection-banner-spin 0.9s linear infinite;
+}
+
+@keyframes connection-banner-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.connection-banner__msg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
