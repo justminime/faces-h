@@ -59,6 +59,78 @@ class ClusteringService:
             return "uncertain"
         return "unreviewed"
 
+    async def _best_person(
+        self,
+        embedding: np.ndarray,
+        db: aiosqlite.Connection,
+    ) -> tuple[int | None, float]:
+        """Find the best-matching person for an embedding (#106).
+
+        Fast path: the FAISS face index shortlists the top-k most similar
+        known faces; their (live, from the DB) owners are re-checked exactly
+        against current centroids. If that shortlist can't produce an
+        auto-assign-level match, fall back to the exhaustive centroid scan —
+        decisions at or below the threshold (uncertain vs. new cluster) stay
+        exactly as accurate as before the index existed.
+        """
+        best_person_id: int | None = None
+        best_conf: float = -1.0
+
+        candidate_people: set[int] = set()
+        try:
+            from services.face_index import get_face_index  # noqa: PLC0415
+
+            index = get_face_index()
+            candidate_faces = (
+                index.candidate_face_ids(embedding) if index.size > 0 else []
+            )
+        except Exception:  # noqa: BLE001 — index is advisory; scan still works
+            candidate_faces = []
+        if candidate_faces:
+            marks = ",".join("?" * len(candidate_faces))
+            async with db.execute(
+                f"SELECT DISTINCT person_id FROM faces"
+                f" WHERE id IN ({marks}) AND person_id IS NOT NULL",
+                candidate_faces,
+            ) as cur:
+                candidate_people = {int(r["person_id"]) for r in await cur.fetchall()}
+
+        if candidate_people:
+            marks = ",".join("?" * len(candidate_people))
+            async with db.execute(
+                f"SELECT id, centroid FROM people"
+                f" WHERE id IN ({marks}) AND centroid IS NOT NULL",
+                list(candidate_people),
+            ) as cur:
+                async for row in cur:
+                    sim = float(np.dot(embedding, _deserialize_centroid(row["centroid"])))
+                    if sim > best_conf:
+                        best_conf = sim
+                        best_person_id = int(row["id"])
+            if best_conf >= self.auto_assign_threshold:
+                return best_person_id, best_conf
+
+        # Exhaustive fallback: empty/cold index, or no shortlisted person
+        # reached the auto-assign gate.
+        async with db.execute(
+            "SELECT id, centroid FROM people WHERE centroid IS NOT NULL"
+        ) as cur:
+            async for row in cur:
+                sim = float(np.dot(embedding, _deserialize_centroid(row["centroid"])))
+                if sim > best_conf:
+                    best_conf = sim
+                    best_person_id = int(row["id"])
+        return best_person_id, best_conf
+
+    def _index_face(self, face_id: int, embedding: np.ndarray) -> None:
+        """Add the face to the FAISS index (best effort — DB is the truth)."""
+        try:
+            from services.face_index import get_face_index  # noqa: PLC0415
+
+            get_face_index().add(face_id, embedding)
+        except Exception:  # noqa: BLE001
+            pass
+
     async def assign_face(
         self,
         face_id: int,
@@ -66,7 +138,8 @@ class ClusteringService:
         db: aiosqlite.Connection,
         commit: bool = True,
     ) -> AssignStatus:
-        """Compare embedding against all person centroids; update face row.
+        """Match embedding to a person (FAISS shortlist + exact re-check, #106)
+        and update the face row.
 
         Rule 1: assign_status is never 'assigned' unless
         assign_conf >= auto_assign_threshold.
@@ -75,18 +148,7 @@ class ClusteringService:
         a new unnamed person cluster is seeded so the face appears in the
         gallery immediately, ordered by photo count.
         """
-        best_person_id: int | None = None
-        best_conf: float = -1.0
-
-        async with db.execute(
-            "SELECT id, centroid FROM people WHERE centroid IS NOT NULL"
-        ) as cur:
-            async for row in cur:
-                centroid = _deserialize_centroid(row["centroid"])
-                sim = float(np.dot(embedding, centroid))
-                if sim > best_conf:
-                    best_conf = sim
-                    best_person_id = int(row["id"])
+        best_person_id, best_conf = await self._best_person(embedding, db)
 
         if best_person_id is None or best_conf < self.uncertain_threshold:
             # No suitable cluster — seed a new unnamed person with this face as centroid.
@@ -98,12 +160,14 @@ class ClusteringService:
                       SET person_id = ?,
                           assign_conf = 1.0,
                           assign_status = 'assigned',
-                          embedding = ?
+                          embedding = ?,
+                          embedding_id = ?
                     WHERE id = ?""",
-                (new_id, embedding.astype(np.float32).tobytes(), face_id),
+                (new_id, embedding.astype(np.float32).tobytes(), face_id, face_id),
             )
             if commit:
                 await db.commit()
+            self._index_face(face_id, embedding)
             return "assigned"
 
         status = self._status(best_conf)
@@ -117,7 +181,8 @@ class ClusteringService:
                       suggested_person_id = ?,
                       assign_conf = ?,
                       assign_status = ?,
-                      embedding = ?
+                      embedding = ?,
+                      embedding_id = ?
                 WHERE id = ?""",
             (
                 person_id_out,
@@ -125,6 +190,7 @@ class ClusteringService:
                 best_conf,
                 status,
                 embedding.astype(np.float32).tobytes(),
+                face_id,
                 face_id,
             ),
         )
@@ -135,6 +201,7 @@ class ClusteringService:
         if status == "assigned":
             await self.update_centroid(best_person_id, embedding, db, commit=commit)
 
+        self._index_face(face_id, embedding)
         return status
 
     async def update_centroid(
