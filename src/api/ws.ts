@@ -1,12 +1,39 @@
 import { useUIStore } from "../store/ui";
 import { useToastStore } from "../store/toast";
 import { useLogStore } from "../store/log";
+import { useConnectionStore } from "../store/connection";
 
 const RECONNECT_MS = 3_000;
 
 let _ws: WebSocket | null = null;
 let _wsUrl = "";
 let _wsToken = "";
+
+// ── scan_progress refetch throttle (#110) ────────────────────────────────────
+// The sidecar broadcasts scan_progress every ~10 photos; bumping scanVersion on
+// every event made App.tsx refetch the full people list + queue count each time
+// (~10,000 refetches on a 100k-photo scan). Bump at most once per window during
+// a scan; scan_complete / sweep_complete always bump immediately.
+const SCAN_BUMP_THROTTLE_MS = 5_000;
+let _lastScanBump = 0;
+
+function bumpScanVersionThrottled(): void {
+  const now = Date.now();
+  if (now - _lastScanBump >= SCAN_BUMP_THROTTLE_MS) {
+    _lastScanBump = now;
+    useUIStore.getState().bumpScanVersion();
+  }
+}
+
+function bumpScanVersionNow(): void {
+  _lastScanBump = Date.now();
+  useUIStore.getState().bumpScanVersion();
+}
+
+/** Reset the scan_progress bump throttle (exported for tests). */
+export function resetScanBumpThrottle(): void {
+  _lastScanBump = 0;
+}
 
 // Exported for unit testing; also used as the WebSocket onmessage handler.
 export function handleMessage(event: MessageEvent): void {
@@ -38,7 +65,7 @@ export function handleMessage(event: MessageEvent): void {
         log.push(`Processing: ${currentFile}`, "debug");
       }
     }
-    useUIStore.getState().bumpScanVersion();
+    bumpScanVersionThrottled();
   } else if (p.type === "model_download_progress") {
     const pct = Math.round((p.progress as number) * 100);
     log.upsertLast(`Downloading face model… ${pct}%`, "progress");
@@ -52,7 +79,7 @@ export function handleMessage(event: MessageEvent): void {
     useToastStore.getState().addToast(msg);
     log.push(msg, "success");
     useUIStore.getState().setScanProgress(null);
-    useUIStore.getState().bumpScanVersion();
+    bumpScanVersionNow();
   } else if (p.type === "reeval_complete") {
     const moved = p.moved as number;
     const uncertain = p.newly_uncertain as number;
@@ -76,7 +103,7 @@ export function handleMessage(event: MessageEvent): void {
       const msg = `Found ${moved} more photo${moved !== 1 ? "s" : ""} — refreshing`;
       useToastStore.getState().addToast(msg);
       log.push(msg, "success");
-      useUIStore.getState().bumpScanVersion();
+      bumpScanVersionNow();
     }
   }
 }
@@ -88,10 +115,14 @@ function connect(): void {
     _ws = new WebSocket(url);
     _ws.onmessage = handleMessage;
     _ws.onopen = () => {
+      useConnectionStore.getState().wsOpened();
       useLogStore.getState().push("Connected to faces-h sidecar", "success");
     };
     _ws.onclose = () => {
-      useLogStore.getState().push("Sidecar disconnected — reconnecting…", "warn");
+      // The user-facing state lives in the connection banner (#118); this raw
+      // line stays in the activity log at debug level only.
+      useConnectionStore.getState().wsClosed();
+      useLogStore.getState().push("Sidecar disconnected — reconnecting…", "debug");
       setTimeout(connect, RECONNECT_MS);
     };
   } catch {

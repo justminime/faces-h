@@ -12,9 +12,11 @@ import { CorrectionModal } from "./components/CorrectionModal";
 import { NamingModal } from "./components/NamingModal";
 import { ToastContainer } from "./components/Toast";
 import { ActivityLog } from "./components/ActivityLog";
+import { ConnectionBanner } from "./components/ConnectionBanner";
 import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
 import { QueueView } from "./components/QueueView";
 import { useUIStore } from "./store/ui";
+import { useConnectionStore } from "./store/connection";
 import type { Person, Photo } from "./types";
 import {
   initClient,
@@ -134,6 +136,8 @@ function App() {
     async function loadOnce(): Promise<void> {
       if (onboardingDone) {
         const modelStatus = await fetchModelsStatus();
+        // First successful fetch — the engine is reachable (#118).
+        useConnectionStore.getState().loadingLibrary();
         if (!modelStatus.ready) {
           localStorage.removeItem(ONBOARDING_KEY);
           setOnboardingDone(false);
@@ -146,9 +150,14 @@ function App() {
       setPeople(mapped);
       savePeopleCache(mapped);
       setQueueCount(queueResp.count);
+      useConnectionStore.getState().connected();
     }
 
-    const loadWithRetry = () => withRetry(loadOnce, { signal: () => cancelled });
+    const loadWithRetry = () =>
+      withRetry(loadOnce, {
+        signal: () => cancelled,
+        onAttempt: (n) => useConnectionStore.getState().retryAttempt(n),
+      });
 
     invoke<string>("get_sidecar_url")
       .then((url) => {
@@ -272,6 +281,26 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Sidecar lifecycle events → connection banner (#118) ──────────────────
+  useEffect(() => {
+    let unlistenReady: (() => void) | undefined;
+    let unlistenError: (() => void) | undefined;
+    listen("sidecar-ready", () => {
+      useConnectionStore.getState().engineReady();
+    })
+      .then((fn) => { unlistenReady = fn; })
+      .catch(() => {});
+    listen<string>("sidecar-error", () => {
+      useConnectionStore.getState().failed();
+    })
+      .then((fn) => { unlistenError = fn; })
+      .catch(() => {});
+    return () => {
+      unlistenReady?.();
+      unlistenError?.();
+    };
+  }, []);
+
   const selectedPhoto = photos.find((p) => p.id === selectedPhotoId) ?? null;
   const selectedPerson = people.find((p) => p.id === selectedPersonId) ?? null;
   const unnamedCount = people.filter((p) => p.name === "Unnamed").length;
@@ -393,38 +422,43 @@ function App() {
           e.target.value = "";
         }}
       />
-      {view === "queue" ? (
-        <QueueView />
-      ) : view === "search" ? (
-        <SearchView people={people} />
-      ) : (
-        <>
-          <PhotoGrid
-            photos={photos}
-            thumbnailSize={thumbnailSize}
-            onSizeChange={setThumbnailSize}
-            onSelect={setSelectedPhoto}
-            selectedPhotoId={selectedPhotoId}
-            personName={selectedPerson?.name ?? null}
-            personAvatarSrc={selectedPerson?.avatarSrc}
-            isNamed={selectedPersonIsNamed}
-            onRenamePerson={
-              selectedPersonId !== null
-                ? () => setNamingPersonId(selectedPersonId)
-                : undefined
-            }
-            hasMore={hasMorePhotos}
-            isLoading={isLoadingPhotos}
-            onLoadMore={loadMorePhotos}
-          />
-          <DetailPanel
-            photo={selectedPhoto}
-            onCorrectionRequest={handleCorrectionRequest}
-            resolvePersonName={resolvePersonName}
-            highlightPersonId={selectedPersonId}
-          />
-        </>
-      )}
+      <div className="app-content">
+        <ConnectionBanner />
+        <div className="app-content__panels">
+          {view === "queue" ? (
+            <QueueView />
+          ) : view === "search" ? (
+            <SearchView people={people} />
+          ) : (
+            <>
+              <PhotoGrid
+                photos={photos}
+                thumbnailSize={thumbnailSize}
+                onSizeChange={setThumbnailSize}
+                onSelect={setSelectedPhoto}
+                selectedPhotoId={selectedPhotoId}
+                personName={selectedPerson?.name ?? null}
+                personAvatarSrc={selectedPerson?.avatarSrc}
+                isNamed={selectedPersonIsNamed}
+                onRenamePerson={
+                  selectedPersonId !== null
+                    ? () => setNamingPersonId(selectedPersonId)
+                    : undefined
+                }
+                hasMore={hasMorePhotos}
+                isLoading={isLoadingPhotos}
+                onLoadMore={loadMorePhotos}
+              />
+              <DetailPanel
+                photo={selectedPhoto}
+                onCorrectionRequest={handleCorrectionRequest}
+                resolvePersonName={resolvePersonName}
+                highlightPersonId={selectedPersonId}
+              />
+            </>
+          )}
+        </div>
+      </div>
       {correctionTarget && (
         <CorrectionModal
           faceId={correctionTarget.faceId}

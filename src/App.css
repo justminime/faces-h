@@ -11,3 +11,20 @@
   flex: 1;
   overflow: hidden;
 }
+
+/* Content column right of the sidebar: connection banner on top (#118),
+   then the view panels laid out exactly like .app-panels used to. */
+.app-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.app-content__panels {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}

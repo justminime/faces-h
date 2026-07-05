@@ -7,14 +7,23 @@
  *
  * Returns the resolved value on success, or `undefined` if every attempt failed
  * or `signal()` requested cancellation (e.g. component unmounted).
+ *
+ * `onAttempt` is invoked with the 1-based attempt number just before each
+ * attempt runs — used to surface retry progress in the UI (#118).
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
-  opts: { attempts?: number; delayMs?: number; signal?: () => boolean } = {},
+  opts: {
+    attempts?: number;
+    delayMs?: number;
+    signal?: () => boolean;
+    onAttempt?: (attempt: number) => void;
+  } = {},
 ): Promise<T | undefined> {
-  const { attempts = 150, delayMs = 2000, signal } = opts;
+  const { attempts = 150, delayMs = 2000, signal, onAttempt } = opts;
   for (let i = 0; i < attempts; i++) {
     if (signal?.()) return undefined;
+    onAttempt?.(i + 1);
     try {
       return await fn();
     } catch {
