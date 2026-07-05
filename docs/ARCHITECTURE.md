@@ -16,7 +16,7 @@
 | D-04 | IPC | Local HTTP (FastAPI) + WebSocket | Sidecar is independently testable; WebSocket enables streaming scan progress |
 | D-05 | Face model | Swappable model layer | InsightFace buffalo_l as default; DeepFace/FaceNet512 as alternative; interface enforces identical contract |
 | D-06 | Metadata DB | SQLite (via `aiosqlite`) | Local, portable, single-file; no server; supports incremental updates |
-| D-07 | Vector index | FAISS IVF | Scales to 1M+ embeddings on CPU; IVF partitioning avoids full scans; promoted from Flat as library grows |
+| D-07 | Vector index | FAISS IVF | Scales to 1M+ embeddings on CPU; IVF partitioning avoids full scans; promoted from Flat as library grows. **Status: the index manager is built and tested but not yet wired into assignment — clustering currently compares centroids directly (#106)** |
 | D-08 | Packaging | PyInstaller (sidecar) + Tauri NSIS | Single `.exe` installer; user installs nothing extra |
 | D-09 | CI/CD | GitHub Actions | All issues, builds, tests, and releases on GitHub; all third-party actions pinned to immutable commit SHAs |
 | D-10 | Code signing | SignPath Foundation | Free OSS certificate; signing runs in SignPath infrastructure — private key never touches GitHub runners; installer signed before upload to GitHub Releases |
@@ -30,9 +30,9 @@
 | # | Question | Blocks | Owner |
 |---|----------|--------|-------|
 | ~~OD-01~~ | ~~InsightFace buffalo_l vs DeepFace/FaceNet512~~ | **RESOLVED: InsightFace buffalo_l** (ArcFace/R100 via ONNX Runtime; Immich precedent; strongest for aging + sibling disambiguation) | — |
-| OD-02 | Default cosine similarity threshold for auto-assign vs uncertain queue | M1 clustering | **Placeholder: auto_assign=0.68, uncertain=0.50. Tune after first real-world scan.** |
+| OD-02 | Default cosine similarity threshold for auto-assign vs uncertain queue | M1 clustering | **Placeholder: auto_assign=0.68, uncertain=0.50. Tune after first real-world scan. Currently code constants; config.json support tracked in #107** |
 | ~~OD-03~~ | ~~Cluster merge UX~~ | **RESOLVED: Explicit "Merge with…" button in person detail panel → person picker → confirmation dialog. No drag-and-drop.** | — |
-| ~~OD-04~~ | ~~Multiple faces per photo~~ | **RESOLVED: Each face detected and clustered independently. A photo with 3 faces creates 3 independent records — appears in all 3 people's galleries. Faces below detection size threshold (~20px) are skipped and logged as a count in the UI.** | — |
+| ~~OD-04~~ | ~~Multiple faces per photo~~ | **RESOLVED: Each face detected and clustered independently. A photo with 3 faces creates 3 independent records — appears in all 3 people's galleries. Faces below detection size threshold (~20px) are skipped and logged as a count in the UI (skip not yet implemented — #111).** | — |
 | ~~OD-05~~ | ~~Delete person~~ | **RESOLVED: Deleting a person removes their name and labels only. All associated face embeddings return to the unnamed queue for re-identification. Photos are never touched.** | — |
 | ~~OD-06~~ | ~~FAISS index promotion thresholds~~ | **RESOLVED: Flat (<10K embeddings) → IVFFlat/nlist=256 (10K–250K) → IVFPQ/nlist=2048/PQ16 (250K+). Rebuilds run in background; old index serves queries during rebuild.** | — |
 
@@ -196,7 +196,7 @@ Throughput target: ≥500 photos/min on mid-range CPU (i5/Ryzen 5). Network scan
 
 #### 3b. ML Engine (Swappable Model Layer)
 
-The face recognition model is hidden behind an abstract interface. The active model is set in `config.json` in `%APPDATA%\faces-h\`.
+The face recognition model is hidden behind an abstract interface. The active model will be set in `config.json` in the app data directory (**planned — #107**; today the factory defaults to buffalo_l and the thresholds are code constants).
 
 ```
 FaceRecognizer (abstract)
@@ -213,7 +213,7 @@ Both models output 512-dimensional L2-normalized embeddings. Downstream clusteri
 
 #### 3c. Clustering Service
 
-- Computes cosine similarity between a new embedding and existing cluster centroids via FAISS
+- Computes cosine similarity between a new embedding and existing cluster centroids (direct centroid comparison today; FAISS-accelerated lookup tracked in #106)
 - If similarity ≥ threshold: tentatively assigns to cluster (still logged as pending if borderline)
 - If similarity < threshold: marks face as "uncertain", surfaces to confirmation queue
 - Updates cluster centroid on each confirmed assignment (rolling average)
@@ -231,7 +231,7 @@ Both models output 512-dimensional L2-normalized embeddings. Downstream clusteri
 after `set_name` and after any cluster merge. Three-pass background job:
 1. Uncertain faces with `suggested_person_id = person_id`, cosine ≥ threshold → promote to assigned
 2. Unreviewed faces across all unnamed clusters → compare embedding to centroid, assign if ≥ threshold
-3. Faces in named clusters → move if this person scores higher AND ≥ threshold
+3. Faces in **unnamed** clusters → move if this person scores higher AND ≥ threshold. Faces in *named* clusters are never moved automatically — taking a face from a cluster the user has explicitly named requires user confirmation (Rule 6 spirit)
 Centroid is rebuilt from scratch after all moves. Emits `sweep_complete { person_id, moved }` over WebSocket.
 
 #### 3e. Query Service
@@ -337,13 +337,13 @@ At maximum scale (5TB, ~1M photos, ~1.5M face embeddings):
 
 ## IPC Protocol (Tauri ↔ Python Sidecar)
 
-The Tauri shell launches the sidecar with a randomly assigned local port:
+The Tauri shell allocates an ephemeral local port, generates a per-session auth token (D-11), and launches the sidecar with both:
 
 ```
-faces-sidecar.exe --port 51423 --data-dir "%APPDATA%\faces-h"
+faces-sidecar.exe --port {ephemeral} --data-dir "%APPDATA%\com.faces-h.app" --token {random} --parent-pid {shell-pid}
 ```
 
-The frontend connects to `http://127.0.0.1:51423` for HTTP and `ws://127.0.0.1:51423/ws` for events. Tauri's `app.config.ts` passes the port to the frontend via an environment variable injected at startup.
+The frontend obtains the base URL and token via the `get_sidecar_url` / `get_sidecar_token` Tauri commands and the `sidecar-ready` event payload — nothing is hardcoded. Requests carry the token as an `X-Faces-Token` header, or as `?token=` for `<img>` src and WebSocket URLs (which cannot set headers); only `/health` is exempt, and `/ws` validates the token itself (close code 4401 on mismatch). The shell supervises the sidecar (restart-once watchdog) and the sidecar exits when the shell's PID disappears, so the pair behaves as one application (#119).
 
 **WebSocket event types:**
 ```json
