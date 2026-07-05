@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Medallion } from "./Medallion";
-import type { Photo } from "../mocks/data";
+import type { Photo } from "../types";
 import "./PhotoGrid.css";
 
 interface PhotoGridProps {

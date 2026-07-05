@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Medallion } from "./Medallion";
-import type { Person } from "../mocks/data";
+import type { Person } from "../types";
 import { useQueueStore } from "../store/queue";
 import { useTheme } from "../hooks/useTheme";
 import type { Theme } from "../hooks/useTheme";

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { mergePeople } from "../api/client";
 import { Medallion } from "./Medallion";
-import type { Person } from "../mocks/data";
+import type { Person } from "../types";
 import "./MergeModal.css";
 
 interface MergeModalProps {
