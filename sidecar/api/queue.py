@@ -68,7 +68,12 @@ class ConfirmRequest(BaseModel):
 
 @router.post("/{face_id}/confirm")
 async def confirm_face(face_id: int, body: ConfirmRequest) -> dict[str, Any]:
-    """Promote an uncertain face to 'assigned' and update the person's centroid."""
+    """Promote an uncertain face to 'assigned' and update the person's centroid.
+
+    Rule 2 (#103): assign_conf is recomputed as cosine similarity to the
+    *confirmed* person's centroid at confirmation time — the stored value
+    referenced the suggested person, who may not be the one the user picked.
+    """
     async with get_db() as db:
         row = await (
             await db.execute(
@@ -81,21 +86,47 @@ async def confirm_face(face_id: int, body: ConfirmRequest) -> dict[str, Any]:
         if row["assign_status"] != "uncertain":
             raise HTTPException(status_code=400, detail="Face is not uncertain")
 
+        person_row = await (
+            await db.execute(
+                "SELECT centroid FROM people WHERE id = ?", (body.person_id,)
+            )
+        ).fetchone()
+        if person_row is None:
+            raise HTTPException(status_code=404, detail="Person not found")
+
+        embedding_bytes: bytes | None = row["embedding"]
+        embedding: np.ndarray | None = (
+            np.frombuffer(embedding_bytes, dtype=np.float32).copy()
+            if embedding_bytes is not None
+            else None
+        )
+
+        # Similarity to the centroid as it is *before* this face is folded in.
+        new_conf: float | None = None
+        if embedding is not None and person_row["centroid"] is not None:
+            centroid = np.frombuffer(person_row["centroid"], dtype=np.float32).copy()
+            if centroid.shape == embedding.shape:
+                new_conf = float(np.dot(embedding, centroid))
+
         await db.execute(
             """
             UPDATE faces
                SET assign_status = 'assigned',
                    person_id = ?,
+                   assign_conf = ?,
                    suggested_person_id = NULL
              WHERE id = ?
             """,
-            (body.person_id, face_id),
+            (body.person_id, new_conf, face_id),
         )
         await db.commit()
 
-        embedding_bytes: bytes | None = row["embedding"]
-        if embedding_bytes is not None:
-            embedding = np.frombuffer(embedding_bytes, dtype=np.float32).copy()
+        if embedding is not None:
             await _svc.update_centroid(body.person_id, embedding, db)
 
-    return {"face_id": face_id, "person_id": body.person_id, "assign_status": "assigned"}
+    return {
+        "face_id": face_id,
+        "person_id": body.person_id,
+        "assign_status": "assigned",
+        "assign_conf": new_conf,
+    }

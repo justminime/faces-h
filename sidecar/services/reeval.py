@@ -101,10 +101,12 @@ class ReEvaluationService:
                     emb = _deserialize(f["embedding"])
                     conf = float(np.dot(emb, old_centroid))
                     if conf < _UNCERTAIN_THRESHOLD:
+                        # Unassigned faces carry no confidence (Rule 2 hygiene —
+                        # matches delete_person's convention, #103).
                         await db.execute(
                             "UPDATE faces SET assign_status='unreviewed',"
-                            " person_id=NULL, assign_conf=? WHERE id=?",
-                            (conf, int(f["id"])),
+                            " person_id=NULL, assign_conf=NULL WHERE id=?",
+                            (int(f["id"]),),
                         )
                     elif conf < _AUTO_ASSIGN_THRESHOLD:
                         # Demote to uncertain (Rule 6: never auto-promote back)
