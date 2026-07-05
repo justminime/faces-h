@@ -16,7 +16,7 @@
 | D-04 | IPC | Local HTTP (FastAPI) + WebSocket | Sidecar is independently testable; WebSocket enables streaming scan progress |
 | D-05 | Face model | Swappable model layer | InsightFace buffalo_l as default; DeepFace/FaceNet512 as alternative; interface enforces identical contract |
 | D-06 | Metadata DB | SQLite (via `aiosqlite`) | Local, portable, single-file; no server; supports incremental updates |
-| D-07 | Vector index | FAISS IVF | Scales to 1M+ embeddings on CPU; IVF partitioning avoids full scans; promoted from Flat as library grows. **Status: the index manager is built and tested but not yet wired into assignment — clustering currently compares centroids directly (#106)** |
+| D-07 | Vector index | FAISS IVF | Scales to 1M+ embeddings on CPU; IVF partitioning avoids full scans; promoted from Flat as library grows. Wired into assignment since #106: face embeddings are indexed by face id, a top-k shortlist is re-checked exactly against live centroids, and an exhaustive scan remains the fallback below the auto-assign gate |
 | D-08 | Packaging | PyInstaller (sidecar) + Tauri NSIS | Single `.exe` installer; user installs nothing extra |
 | D-09 | CI/CD | GitHub Actions | All issues, builds, tests, and releases on GitHub; all third-party actions pinned to immutable commit SHAs |
 | D-10 | Code signing | SignPath Foundation | Free OSS certificate; signing runs in SignPath infrastructure — private key never touches GitHub runners; installer signed before upload to GitHub Releases |
@@ -214,7 +214,7 @@ Both models output 512-dimensional L2-normalized embeddings. Downstream clusteri
 
 #### 3c. Clustering Service
 
-- Computes cosine similarity between a new embedding and existing cluster centroids (direct centroid comparison today; FAISS-accelerated lookup tracked in #106)
+- Computes cosine similarity between a new embedding and cluster centroids — candidates shortlisted via the FAISS face index, re-checked exactly against live centroids, with an exhaustive fallback below the auto-assign gate (#106)
 - If similarity ≥ threshold: tentatively assigns to cluster (still logged as pending if borderline)
 - If similarity < threshold: marks face as "uncertain", surfaces to confirmation queue
 - Updates cluster centroid on each confirmed assignment (rolling average)

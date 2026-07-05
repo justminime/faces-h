@@ -311,6 +311,14 @@ async def _extract_faces(
         (photo_id,),
     )
     affected_people = [int(row["person_id"]) for row in await cur.fetchall()]
+    cur = await db.execute("SELECT id FROM faces WHERE photo_id = ?", (photo_id,))
+    stale_face_ids = [int(row["id"]) for row in await cur.fetchall()]
+    if stale_face_ids:
+        try:
+            from services.face_index import get_face_index  # noqa: PLC0415
+            get_face_index().remove(stale_face_ids)
+        except Exception:  # noqa: BLE001 — advisory index; DB recheck covers staleness
+            pass
     await db.execute(
         "DELETE FROM corrections WHERE face_id IN (SELECT id FROM faces WHERE photo_id = ?)",
         (photo_id,),
@@ -388,6 +396,10 @@ async def run_scan(
         recognizer = await asyncio.to_thread(get_recognizer, get_config(), data_dir)
         clustering = ClusteringService()
         logger.info("face recognizer loaded — face detection active")
+        # Warm the FAISS candidate index (#106): load from disk or rebuild
+        # from the faces table so assignment shortlists work immediately.
+        from services.face_index import get_face_index  # noqa: PLC0415
+        await get_face_index().ensure_ready(db)
     except Exception as exc:
         logger.warning("face recognizer unavailable, metadata-only scan: %s", exc)
 
@@ -488,6 +500,13 @@ async def run_scan(
             newly_missing,
             root_path,
         )
+
+    if recognizer is not None:
+        try:
+            from services.face_index import get_face_index  # noqa: PLC0415
+            get_face_index().save()
+        except Exception:  # noqa: BLE001
+            pass
 
     if not preset:
         _status.running = False

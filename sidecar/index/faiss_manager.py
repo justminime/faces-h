@@ -84,6 +84,36 @@ class FAISSManager:
         ]
         return sorted(pairs, key=lambda x: x[1], reverse=True)
 
+    @property
+    def ntotal(self) -> int:
+        """Number of embeddings currently in the index."""
+        with self._lock:
+            return int(self._index.ntotal)  # type: ignore[attr-defined]
+
+    def remove(self, embedding_ids: list[int]) -> None:
+        """Best-effort removal of embeddings by ID (#106).
+
+        Callers must not rely on removal succeeding — IVF tiers may not
+        support it efficiently. Stale entries are harmless because lookups
+        are re-checked against the database, which is the source of truth.
+        """
+        if not embedding_ids:
+            return
+        try:
+            selector = faiss.IDSelectorBatch(
+                np.array(embedding_ids, dtype=np.int64)
+            )
+            with self._lock:
+                self._index.remove_ids(selector)  # type: ignore[attr-defined]
+                gone = set(embedding_ids)
+                kept = [
+                    (i, v) for i, v in zip(self._ids, self._vecs) if i not in gone
+                ]
+                self._ids = [i for i, _ in kept]
+                self._vecs = [v for _, v in kept]
+        except Exception:  # noqa: BLE001 — advisory index; DB recheck covers staleness
+            pass
+
     def save(self) -> None:
         """Write the current index to {data_dir}/faces.index."""
         with self._lock:
