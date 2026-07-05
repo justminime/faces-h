@@ -49,3 +49,4 @@ desktop.ini
 .env
 .env.local
 .env.development
+.claude/worktrees/
