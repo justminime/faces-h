@@ -18,8 +18,16 @@ from typing import Any
 import aiosqlite
 import numpy as np
 
-_AUTO_ASSIGN_THRESHOLD = 0.68
-_UNCERTAIN_THRESHOLD = 0.50
+from config import get_config
+
+
+def _auto_assign_threshold() -> float:
+    """Threshold from config.json (#107), read lazily per operation."""
+    return get_config().auto_assign_threshold
+
+
+def _uncertain_threshold() -> float:
+    return get_config().uncertain_threshold
 
 
 def _deserialize(b: bytes) -> np.ndarray:
@@ -100,7 +108,7 @@ class ReEvaluationService:
                 for f in cluster:
                     emb = _deserialize(f["embedding"])
                     conf = float(np.dot(emb, old_centroid))
-                    if conf < _UNCERTAIN_THRESHOLD:
+                    if conf < _uncertain_threshold():
                         # Unassigned faces carry no confidence (Rule 2 hygiene —
                         # matches delete_person's convention, #103).
                         await db.execute(
@@ -108,7 +116,7 @@ class ReEvaluationService:
                             " person_id=NULL, assign_conf=NULL WHERE id=?",
                             (int(f["id"]),),
                         )
-                    elif conf < _AUTO_ASSIGN_THRESHOLD:
+                    elif conf < _auto_assign_threshold():
                         # Demote to uncertain (Rule 6: never auto-promote back)
                         await db.execute(
                             "UPDATE faces SET assign_status='uncertain',"
@@ -179,7 +187,7 @@ class ReEvaluationService:
         for row in uncertain:
             emb = _deserialize(row["embedding"])
             conf = float(np.dot(emb, centroid))
-            if conf >= _AUTO_ASSIGN_THRESHOLD:
+            if conf >= _auto_assign_threshold():
                 await db.execute(
                     "UPDATE faces SET person_id=?, assign_conf=?,"
                     " assign_status='assigned', suggested_person_id=NULL WHERE id=?",
@@ -197,7 +205,7 @@ class ReEvaluationService:
         for row in unreviewed:
             emb = _deserialize(row["embedding"])
             conf = float(np.dot(emb, centroid))
-            if conf >= _AUTO_ASSIGN_THRESHOLD:
+            if conf >= _auto_assign_threshold():
                 await db.execute(
                     "UPDATE faces SET person_id=?, assign_conf=?,"
                     " assign_status='assigned', suggested_person_id=NULL WHERE id=?",
@@ -222,7 +230,7 @@ class ReEvaluationService:
             emb = _deserialize(row["embedding"])
             conf = float(np.dot(emb, centroid))
             current_conf = float(row["assign_conf"]) if row["assign_conf"] is not None else 0.0
-            if conf >= _AUTO_ASSIGN_THRESHOLD and conf > current_conf:
+            if conf >= _auto_assign_threshold() and conf > current_conf:
                 await db.execute(
                     "UPDATE faces SET person_id=?, assign_conf=?,"
                     " assign_status='assigned', suggested_person_id=NULL WHERE id=?",
