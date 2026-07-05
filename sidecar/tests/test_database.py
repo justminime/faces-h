@@ -70,6 +70,7 @@ async def test_all_indexes_created() -> None:
         "idx_faces_status",
         "idx_photos_path",
         "idx_photos_taken_at",
+        "idx_photos_missing",
         "idx_scan_roots_path",
     }
 

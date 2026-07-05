@@ -74,7 +74,7 @@ async def search_photos(body: SearchRequest) -> list[dict[str, Any]]:
     sql = f"""
         SELECT p.id, p.path, p.taken_at
           FROM photos p
-         WHERE 1=1
+         WHERE p.missing = 0
         {subqueries}
         {exact_clause}
            AND (p.taken_at >= ? OR ? IS NULL)

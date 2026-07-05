@@ -211,9 +211,15 @@ async def _process_file(path: str, db: aiosqlite.Connection) -> ProcessResult:
         return "error"
 
     cur = await db.execute(
-        "SELECT id FROM photos WHERE path=? AND mtime=?", (path, mtime)
+        "SELECT id, missing FROM photos WHERE path=? AND mtime=?", (path, mtime)
     )
-    if await cur.fetchone():
+    row = await cur.fetchone()
+    if row:
+        if row["missing"]:
+            # File reappeared at the same path (drive remounted, restored from
+            # recycle bin) — revive it with its faces intact (#105).
+            await db.execute("UPDATE photos SET missing = 0 WHERE id = ?", (int(row["id"]),))
+            await db.commit()
         return "skip"
 
     ext = Path(path).suffix.lower()
@@ -236,7 +242,8 @@ async def _process_file(path: str, db: aiosqlite.Connection) -> ProcessResult:
             ON CONFLICT(path) DO UPDATE
                 SET mtime           = excluded.mtime,
                     taken_at        = excluded.taken_at,
-                    faces_extracted = 0
+                    faces_extracted = 0,
+                    missing         = 0
             """,
             (path, mtime, taken_at),
         )
@@ -453,6 +460,35 @@ async def run_scan(
         if i % 50 == 0:
             await asyncio.sleep(0)
 
+    # Reconcile deletions (#105): the walk completed on a reachable root, so
+    # any DB photo under this root that was not seen on disk is gone or moved.
+    # The offline/unreachable return paths above never get here, so a
+    # disconnected network share can never mass-mark its photos missing.
+    seen = set(paths)
+    prefix = root_path.rstrip("\\/") + os.sep
+    # '!' as the LIKE escape char keeps Windows backslashes out of the
+    # escaping entirely; %, _ and literal ! in the root are neutralised.
+    like = (
+        prefix.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
+    )
+    cur = await db.execute(
+        "SELECT id, path, missing FROM photos WHERE path LIKE ? ESCAPE '!'", (like,)
+    )
+    newly_missing = 0
+    for row in await cur.fetchall():
+        if row["path"] not in seen and not row["missing"]:
+            await db.execute(
+                "UPDATE photos SET missing = 1 WHERE id = ?", (int(row["id"]),)
+            )
+            newly_missing += 1
+    if newly_missing:
+        await db.commit()
+        logger.info(
+            "%d photo(s) under %s no longer on disk — hidden from gallery (#105)",
+            newly_missing,
+            root_path,
+        )
+
     if not preset:
         _status.running = False
     if _status.skipped_faces:
@@ -462,4 +498,5 @@ async def run_scan(
         "scanned": _status.scanned,
         "total": _status.total,
         "skipped_faces": _status.skipped_faces,
+        "missing": newly_missing,
     })

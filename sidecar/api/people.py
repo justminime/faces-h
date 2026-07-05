@@ -35,11 +35,12 @@ async def list_people() -> list[dict[str, Any]]:
             SELECT p.id,
                    p.name,
                    COUNT(DISTINCT ph.id) AS photo_count,
-                   MIN(f.id)             AS medallion_face_id
+                   MIN(CASE WHEN ph.id IS NOT NULL THEN f.id END) AS medallion_face_id
               FROM people p
               LEFT JOIN faces f   ON f.person_id = p.id
                                  AND f.assign_status = 'assigned'
               LEFT JOIN photos ph ON ph.id = f.photo_id
+                                 AND ph.missing = 0
              GROUP BY p.id, p.name
              ORDER BY photo_count DESC, p.name
             """
@@ -87,6 +88,8 @@ async def list_person_photos(
               FROM (
                   SELECT DISTINCT f2.photo_id
                     FROM faces f2
+                    JOIN photos p2 ON p2.id = f2.photo_id
+                                  AND p2.missing = 0
                    WHERE f2.person_id = ?
                      AND f2.assign_status = 'assigned'
                    ORDER BY {inner_order}
