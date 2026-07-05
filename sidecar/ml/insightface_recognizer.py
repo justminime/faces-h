@@ -82,6 +82,7 @@ class InsightFaceRecognizer(FaceRecognizer):
                         bbox=bbox,
                         embedding=emb,
                         detection_confidence=float(face.det_score),
+                        size_px=float(min(x2 - x1, y2 - y1)),
                     )
                 )
 

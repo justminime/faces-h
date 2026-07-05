@@ -63,6 +63,8 @@ class ScanStatus:
     scanned: int = 0
     skipped: int = 0
     error_count: int = 0
+    # Detections dropped by the OD-04 size/confidence floor this scan (#111).
+    skipped_faces: int = 0
     start_time: float = 0.0
 
     def eta_seconds(self) -> int:
@@ -250,6 +252,29 @@ async def _extract_faces(
         logger.warning("detect_and_embed failed for %s: %s", path, exc)
         return
 
+    # OD-04 (#111): drop detections that are too small to embed meaningfully
+    # or below the detector-confidence floor; junk embeddings otherwise seed
+    # singleton clusters and pollute the uncertain queue. size_px == 0 means
+    # the backend didn't report a pixel size — exempt from the size filter.
+    from config import get_config  # noqa: PLC0415
+    cfg = get_config()
+    kept: list[Any] = []
+    for face in results:
+        size_px = float(getattr(face, "size_px", 0.0) or 0.0)
+        if 0.0 < size_px < cfg.min_face_px:
+            _status.skipped_faces += 1
+            continue
+        if face.detection_confidence < cfg.min_detection_confidence:
+            _status.skipped_faces += 1
+            continue
+        kept.append(face)
+    if len(kept) < len(results):
+        logger.debug(
+            "skipped %d small/low-confidence detection(s) in %s",
+            len(results) - len(kept), path,
+        )
+    results = kept
+
     # Clear stale face rows for this photo, remembering whose centroids are
     # affected. corrections.face_id has an FK to faces, so matching correction
     # rows must go first or the DELETE aborts with foreign_keys=ON.
@@ -397,4 +422,11 @@ async def run_scan(
             await asyncio.sleep(0)
 
     _status.running = False
-    await broadcast({"type": "scan_complete", "scanned": _status.scanned, "total": _status.total})
+    if _status.skipped_faces:
+        logger.info("scan skipped %d too-small/low-confidence face detection(s)", _status.skipped_faces)
+    await broadcast({
+        "type": "scan_complete",
+        "scanned": _status.scanned,
+        "total": _status.total,
+        "skipped_faces": _status.skipped_faces,
+    })

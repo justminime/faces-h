@@ -24,6 +24,10 @@ _CONFIG_FILENAME = "config.json"
 DEFAULT_FACE_MODEL = "insightface_buffalo_l"
 DEFAULT_AUTO_ASSIGN_THRESHOLD = 0.68
 DEFAULT_UNCERTAIN_THRESHOLD = 0.50
+# OD-04: detections smaller than this (shorter bbox side, source pixels) or
+# below the detector-confidence floor are skipped and counted (#111).
+DEFAULT_MIN_FACE_PX = 20
+DEFAULT_MIN_DETECTION_CONFIDENCE = 0.5
 
 
 @dataclass(frozen=True)
@@ -31,6 +35,8 @@ class Config:
     face_model: str = DEFAULT_FACE_MODEL
     auto_assign_threshold: float = DEFAULT_AUTO_ASSIGN_THRESHOLD
     uncertain_threshold: float = DEFAULT_UNCERTAIN_THRESHOLD
+    min_face_px: float = DEFAULT_MIN_FACE_PX
+    min_detection_confidence: float = DEFAULT_MIN_DETECTION_CONFIDENCE
 
 
 _cached: Config | None = None
@@ -57,10 +63,30 @@ def _validate(raw: dict[str, object]) -> Config:
         auto_f = DEFAULT_AUTO_ASSIGN_THRESHOLD
         uncertain_f = DEFAULT_UNCERTAIN_THRESHOLD
 
+    min_px = raw.get("min_face_px", DEFAULT_MIN_FACE_PX)
+    min_px_f = float(min_px) if isinstance(min_px, (int, float)) and float(min_px) >= 0 else None
+    if min_px_f is None:
+        logger.warning("config.json: invalid min_face_px %r — using default", min_px)
+        min_px_f = float(DEFAULT_MIN_FACE_PX)
+
+    min_det = raw.get("min_detection_confidence", DEFAULT_MIN_DETECTION_CONFIDENCE)
+    min_det_f = (
+        float(min_det)
+        if isinstance(min_det, (int, float)) and 0.0 <= float(min_det) <= 1.0
+        else None
+    )
+    if min_det_f is None:
+        logger.warning(
+            "config.json: invalid min_detection_confidence %r — using default", min_det
+        )
+        min_det_f = DEFAULT_MIN_DETECTION_CONFIDENCE
+
     return Config(
         face_model=face_model,
         auto_assign_threshold=auto_f,
         uncertain_threshold=uncertain_f,
+        min_face_px=min_px_f,
+        min_detection_confidence=min_det_f,
     )
 
 

@@ -173,6 +173,7 @@ async def scan_status() -> dict[str, Any]:
         "scanned": s.scanned,
         "skipped": s.skipped,
         "error_count": s.error_count,
+        "skipped_faces": s.skipped_faces,
         "eta_seconds": s.eta_seconds(),
     }
 

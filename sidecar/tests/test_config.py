@@ -88,3 +88,24 @@ def test_clustering_service_reads_config_thresholds(tmp_path: Path) -> None:
     svc2 = ClusteringService(auto_assign_threshold=0.5, uncertain_threshold=0.4)
     assert svc2.auto_assign_threshold == 0.5
     assert svc2.uncertain_threshold == 0.4
+
+
+def test_detection_filter_defaults_and_overrides(tmp_path: Path) -> None:
+    _set_data_dir(tmp_path)
+    cfg = get_config()
+    assert cfg.min_face_px == 20
+    assert cfg.min_detection_confidence == 0.5
+
+    _write_config(tmp_path, {"min_face_px": 32, "min_detection_confidence": 0.7})
+    _set_data_dir(tmp_path)
+    cfg = get_config()
+    assert cfg.min_face_px == 32
+    assert cfg.min_detection_confidence == 0.7
+
+
+def test_detection_filter_invalid_values_fall_back(tmp_path: Path) -> None:
+    _write_config(tmp_path, {"min_face_px": -3, "min_detection_confidence": 4})
+    _set_data_dir(tmp_path)
+    cfg = get_config()
+    assert cfg.min_face_px == 20
+    assert cfg.min_detection_confidence == 0.5
