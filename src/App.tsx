@@ -58,6 +58,7 @@ function mapPhoto(p: ApiPhoto): Photo {
       personId: f.person_id,
       personName: null,
       faceSrc: faceCropUrl(f.face_id),
+      assignStatus: f.assign_status,
     })),
   };
 }

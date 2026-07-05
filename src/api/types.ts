@@ -9,6 +9,7 @@ export interface ApiFace {
   face_id: number;
   person_id: number | null;
   assign_conf: number | null;
+  assign_status?: "assigned" | "uncertain" | "unreviewed";
 }
 
 export interface ApiPhoto {

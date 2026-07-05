@@ -17,12 +17,15 @@ function FaceEntry({
   highlighted = false,
 }: FaceEntryProps) {
   const [hovered, setHovered] = useState(false);
-  const displayName =
-    face.personName ?? resolvePersonName?.(face.personId) ?? "Unknown";
+  const isUncertain =
+    face.assignStatus === "uncertain" || face.assignStatus === "unreviewed";
+  const displayName = isUncertain
+    ? "Unrecognised"
+    : (face.personName ?? resolvePersonName?.(face.personId) ?? "Unknown");
 
   return (
     <div
-      className={`face-entry${highlighted ? " face-entry--highlighted" : ""}`}
+      className={`face-entry${highlighted ? " face-entry--highlighted" : ""}${isUncertain ? " face-entry--uncertain" : ""}`}
       data-testid={`face-entry-${face.faceId}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -31,8 +34,9 @@ function FaceEntry({
       <span className="face-entry__name">
         {displayName}
         {highlighted && <span className="face-entry__badge">this person</span>}
+        {isUncertain && <span className="face-entry__badge face-entry__badge--uncertain">to review</span>}
       </span>
-      {hovered && (
+      {hovered && !isUncertain && (
         <button
           type="button"
           className="face-entry__correction-btn"

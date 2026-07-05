@@ -89,12 +89,18 @@
   flex-direction: column;
   gap: 2px;
 }
+.face-entry--uncertain {
+  opacity: 0.75;
+}
 .face-entry__badge {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-accent);
+}
+.face-entry__badge--uncertain {
+  color: var(--color-text-secondary);
 }
 .face-entry__correction-btn {
   font-size: 11px;

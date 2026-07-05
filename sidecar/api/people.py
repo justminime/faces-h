@@ -71,17 +71,19 @@ async def list_person_photos(
         if row is None:
             raise HTTPException(status_code=404, detail="Person not found")
 
-        # Page the photos by the selected person, then return ALL assigned
-        # faces in those photos — not just this person's — so the detail
-        # panel can show every person present in each photo.
+        # Page the photos by the selected person (Rule 5: only 'assigned' for
+        # the paging query), then return ALL detected faces in those photos —
+        # assigned, uncertain, and unreviewed — so the detail panel shows
+        # every person present, not only confidently-matched ones.
         async with db.execute(
             f"""
-            SELECT ph.id        AS photo_id,
+            SELECT ph.id          AS photo_id,
                    ph.path,
                    ph.taken_at,
-                   f.id         AS face_id,
-                   f.person_id  AS face_person_id,
-                   f.assign_conf
+                   f.id           AS face_id,
+                   f.person_id    AS face_person_id,
+                   f.assign_conf,
+                   f.assign_status
               FROM (
                   SELECT DISTINCT f2.photo_id
                     FROM faces f2
@@ -92,7 +94,6 @@ async def list_person_photos(
               ) page
               JOIN photos ph ON ph.id = page.photo_id
               JOIN faces  f  ON f.photo_id = ph.id
-                             AND f.assign_status = 'assigned'
              ORDER BY ph.taken_at ASC NULLS LAST, ph.id ASC
             """,
             (person_id, limit, offset),
@@ -114,6 +115,7 @@ async def list_person_photos(
                     "face_id": int(r["face_id"]),
                     "person_id": int(r["face_person_id"]) if r["face_person_id"] is not None else None,
                     "assign_conf": r["assign_conf"],
+                    "assign_status": r["assign_status"],
                 }
             )
         return list(photo_map.values())
