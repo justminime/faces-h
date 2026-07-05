@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Person } from "../mocks/data";
+import type { Person } from "../types";
 
 const SIZE_KEY = "faces-h:thumbnailSize";
 const DEFAULT_SIZE = 160;

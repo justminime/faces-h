@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { correctFace } from "../api/client";
-import type { Person } from "../mocks/data";
+import type { Person } from "../types";
 import "./CorrectionModal.css";
 
 interface CorrectionModalProps {

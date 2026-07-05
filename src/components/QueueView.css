@@ -1,0 +1,30 @@
+.queue-view {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--color-bg);
+}
+.queue-view__header {
+  padding: 20px 18px 6px;
+}
+.queue-view__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--color-text);
+}
+.queue-view__subtitle {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+}
+.queue-view__loading {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+.queue-view .uq-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  align-items: start;
+}

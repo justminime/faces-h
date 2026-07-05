@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { searchPhotos, photoThumbUrl } from "../api/client";
 import type { ApiPhoto } from "../api/types";
-import type { Person } from "../mocks/data";
+import type { Person } from "../types";
 import "./SearchView.css";
 
 interface SearchViewProps {

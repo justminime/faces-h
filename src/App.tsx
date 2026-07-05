@@ -13,9 +13,9 @@ import { NamingModal } from "./components/NamingModal";
 import { ToastContainer } from "./components/Toast";
 import { ActivityLog } from "./components/ActivityLog";
 import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
+import { QueueView } from "./components/QueueView";
 import { useUIStore } from "./store/ui";
-import { MOCK_UNNAMED_COUNT } from "./mocks/data";
-import type { Person, Photo } from "./mocks/data";
+import type { Person, Photo } from "./types";
 import {
   initClient,
   fetchPeople,
@@ -105,7 +105,7 @@ function App() {
   const personGenRef = useRef(0);   // incremented on each person switch to cancel stale loads
   const pageLoadingRef = useRef(false); // guards against concurrent page fetches
 
-  const [view, setView] = useState<"gallery" | "search">("gallery");
+  const [view, setView] = useState<"gallery" | "search" | "queue">("gallery");
   const [onboardingDone, setOnboardingDone] = useState(
     () => localStorage.getItem(ONBOARDING_KEY) !== null,
   );
@@ -274,6 +274,7 @@ function App() {
 
   const selectedPhoto = photos.find((p) => p.id === selectedPhotoId) ?? null;
   const selectedPerson = people.find((p) => p.id === selectedPersonId) ?? null;
+  const unnamedCount = people.filter((p) => p.name === "Unnamed").length;
   const selectedPersonIsNamed =
     selectedPerson !== null && selectedPerson.name !== "Unnamed";
 
@@ -370,9 +371,9 @@ function App() {
         people={people}
         selectedPersonId={selectedPersonId}
         onPersonSelect={(id) => { setSelectedPerson(id); setView("gallery"); }}
-        unnamedCount={MOCK_UNNAMED_COUNT}
+        unnamedCount={unnamedCount}
         scanProgress={scanProgress}
-        onQueueClick={() => setView("gallery")}
+        onQueueClick={() => setView("queue")}
         onSearchClick={() => setView("search")}
         onAddFolder={() => void handleAddFolder()}
         onRescan={() => void handleRescan()}
@@ -392,7 +393,9 @@ function App() {
           e.target.value = "";
         }}
       />
-      {view === "search" ? (
+      {view === "queue" ? (
+        <QueueView />
+      ) : view === "search" ? (
         <SearchView people={people} />
       ) : (
         <>

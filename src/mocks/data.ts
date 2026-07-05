@@ -1,32 +1,12 @@
-export interface Person {
-  id: number;
-  name: string | null;
-  avatarSrc: string;
-  photoCount: number;
-}
+import type { Person, Photo } from "../types";
 
-export interface FaceInfo {
-  faceId: number;
-  personId: number | null;
-  personName: string | null;
-  faceSrc: string;
-  assignStatus?: "assigned" | "uncertain" | "unreviewed";
-}
-
-export interface Photo {
-  id: number;
-  src: string;
-  path: string;
-  takenAt: string;
-  faces: FaceInfo[];
-}
+// Re-exported so test files can keep importing fixture + type from one place.
+export type { Person, FaceInfo, Photo } from "../types";
 
 export const MOCK_PEOPLE: Person[] = [
   { id: 1, name: "Alice", avatarSrc: "/mock/alice.jpg", photoCount: 23 },
   { id: 2, name: "Bob", avatarSrc: "/mock/bob.jpg", photoCount: 11 },
 ];
-
-export const MOCK_UNNAMED_COUNT = 7;
 
 export const MOCK_PHOTOS: Photo[] = [
   {

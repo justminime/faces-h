@@ -7,6 +7,9 @@ import "./UncertainQueue.css";
 interface UncertainQueueProps {
   items: QueueItem[];
   onReviewed: (faceId: number) => void;
+  /** Called when the user skips a card without deciding; falls back to
+   *  onReviewed so existing callers keep their behavior. */
+  onSkipped?: (faceId: number) => void;
 }
 
 interface PickerProps {
@@ -38,9 +41,10 @@ function PersonPicker({ people, onPick, onClose }: PickerProps) {
 interface CardProps {
   item: QueueItem;
   onReviewed: (faceId: number) => void;
+  onSkipped: (faceId: number) => void;
 }
 
-function QueueCard({ item, onReviewed }: CardProps) {
+function QueueCard({ item, onReviewed, onSkipped }: CardProps) {
   const people = useUIStore((s) => s.people);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -99,7 +103,7 @@ function QueueCard({ item, onReviewed }: CardProps) {
         <button
           className="uq-card__btn uq-card__btn--skip"
           disabled={busy}
-          onClick={() => onReviewed(item.face_id)}
+          onClick={() => onSkipped(item.face_id)}
         >
           Skip
         </button>
@@ -116,7 +120,7 @@ function QueueCard({ item, onReviewed }: CardProps) {
   );
 }
 
-export function UncertainQueue({ items, onReviewed }: UncertainQueueProps) {
+export function UncertainQueue({ items, onReviewed, onSkipped }: UncertainQueueProps) {
   if (items.length === 0) {
     return (
       <div className="uq-empty">
@@ -132,6 +136,7 @@ export function UncertainQueue({ items, onReviewed }: UncertainQueueProps) {
           key={item.face_id}
           item={item}
           onReviewed={onReviewed}
+          onSkipped={onSkipped ?? onReviewed}
         />
       ))}
     </section>

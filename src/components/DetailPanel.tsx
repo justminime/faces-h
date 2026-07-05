@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Medallion } from "./Medallion";
-import type { Photo, FaceInfo } from "../mocks/data";
+import type { Photo, FaceInfo } from "../types";
 import "./DetailPanel.css";
 
 interface FaceEntryProps {
