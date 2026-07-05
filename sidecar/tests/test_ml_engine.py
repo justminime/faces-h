@@ -16,6 +16,7 @@ import pytest
 from PIL import Image
 
 from ml.base import FaceRecognizer, FaceResult
+from config import Config
 from ml.factory import get_recognizer
 from ml.insightface_recognizer import InsightFaceRecognizer
 
@@ -158,7 +159,7 @@ def test_factory_returns_insightface_recognizer(tmp_path: Path) -> None:
         self._app = mock_app
 
     with patch.object(InsightFaceRecognizer, "__init__", _no_download_init):
-        recognizer = get_recognizer({"face_model": "insightface_buffalo_l"}, str(tmp_path))
+        recognizer = get_recognizer(Config(face_model="insightface_buffalo_l"), str(tmp_path))
 
     assert isinstance(recognizer, InsightFaceRecognizer)
     assert isinstance(recognizer, FaceRecognizer)
@@ -166,7 +167,7 @@ def test_factory_returns_insightface_recognizer(tmp_path: Path) -> None:
 
 def test_factory_raises_for_unknown_model(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Unknown face model"):
-        get_recognizer({"face_model": "mystery_model_v99"}, str(tmp_path))
+        get_recognizer(Config(face_model="mystery_model_v99"), str(tmp_path))
 
 
 # ---------------------------------------------------------------------------

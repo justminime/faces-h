@@ -319,9 +319,10 @@ async def run_scan(
     recognizer = None
     clustering = None
     try:
-        from ml.insightface_recognizer import InsightFaceRecognizer  # noqa: PLC0415
+        from config import get_config  # noqa: PLC0415
+        from ml.factory import get_recognizer  # noqa: PLC0415
         from services.clustering import ClusteringService  # noqa: PLC0415
-        recognizer = await asyncio.to_thread(InsightFaceRecognizer, data_dir)
+        recognizer = await asyncio.to_thread(get_recognizer, get_config(), data_dir)
         clustering = ClusteringService()
         logger.info("face recognizer loaded — face detection active")
     except Exception as exc:

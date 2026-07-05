@@ -10,10 +10,9 @@ from typing import Literal
 import aiosqlite
 import numpy as np
 
-AssignStatus = Literal["assigned", "uncertain", "unreviewed"]
+from config import get_config
 
-_AUTO_ASSIGN_THRESHOLD = 0.68
-_UNCERTAIN_THRESHOLD = 0.50
+AssignStatus = Literal["assigned", "uncertain", "unreviewed"]
 
 
 def _serialize_centroid(v: np.ndarray) -> bytes:
@@ -25,15 +24,32 @@ def _deserialize_centroid(b: bytes) -> np.ndarray:
 
 
 class ClusteringService:
-    """Assigns face embeddings to person clusters with reliability guarantees."""
+    """Assigns face embeddings to person clusters with reliability guarantees.
+
+    Thresholds default to config.json (#107), resolved lazily so a service
+    constructed at module-import time (before --data-dir is applied) still
+    reads the user's configured values.
+    """
 
     def __init__(
         self,
-        auto_assign_threshold: float = _AUTO_ASSIGN_THRESHOLD,
-        uncertain_threshold: float = _UNCERTAIN_THRESHOLD,
+        auto_assign_threshold: float | None = None,
+        uncertain_threshold: float | None = None,
     ) -> None:
-        self.auto_assign_threshold = auto_assign_threshold
-        self.uncertain_threshold = uncertain_threshold
+        self._auto_assign_threshold = auto_assign_threshold
+        self._uncertain_threshold = uncertain_threshold
+
+    @property
+    def auto_assign_threshold(self) -> float:
+        if self._auto_assign_threshold is not None:
+            return self._auto_assign_threshold
+        return get_config().auto_assign_threshold
+
+    @property
+    def uncertain_threshold(self) -> float:
+        if self._uncertain_threshold is not None:
+            return self._uncertain_threshold
+        return get_config().uncertain_threshold
 
     def _status(self, conf: float) -> AssignStatus:
         """Rule 1 + Rule 3: derive assignment status from cosine similarity."""

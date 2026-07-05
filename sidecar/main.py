@@ -148,9 +148,10 @@ def _run_selftest(image_path: str, data_dir: str, logger: logging.Logger) -> Non
     Results land in {data_dir}/logs/sidecar.log.
     """
     try:
-        from ml.insightface_recognizer import InsightFaceRecognizer
+        from config import get_config
+        from ml.factory import get_recognizer
 
-        recognizer = InsightFaceRecognizer(data_dir)
+        recognizer = get_recognizer(get_config(), data_dir)
         results = recognizer.detect_and_embed(image_path)
         logger.info("selftest: detected %d face(s) in %s", len(results), image_path)
         for i, face in enumerate(results):

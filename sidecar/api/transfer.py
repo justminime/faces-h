@@ -16,8 +16,8 @@ import numpy as np
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from config import get_config
 from db.database import get_db
-from services.clustering import _AUTO_ASSIGN_THRESHOLD
 
 router = APIRouter(tags=["transfer"])
 
@@ -32,8 +32,9 @@ class ExportedPerson(BaseModel):
 class ImportBundle(BaseModel):
     version: int = _EXPORT_VERSION
     people: list[ExportedPerson]
-    # Cosine-similarity threshold for matching an imported centroid to a cluster.
-    match_threshold: float = _AUTO_ASSIGN_THRESHOLD
+    # Cosine-similarity threshold for matching an imported centroid to a
+    # cluster. None → the configured auto-assign threshold at request time.
+    match_threshold: float | None = None
 
 
 def _normalise(v: np.ndarray) -> np.ndarray:
@@ -106,7 +107,12 @@ async def import_library(bundle: ImportBundle) -> dict[str, Any]:
                 if sim > best_sim:
                     best_sim, best_id, best_name = sim, cid, cname
 
-            if best_id is None or best_sim < bundle.match_threshold:
+            threshold = (
+                bundle.match_threshold
+                if bundle.match_threshold is not None
+                else get_config().auto_assign_threshold
+            )
+            if best_id is None or best_sim < threshold:
                 unmatched.append(person.name)
                 continue
 
