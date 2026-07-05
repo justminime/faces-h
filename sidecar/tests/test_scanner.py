@@ -1,6 +1,7 @@
 """Tests for the file scanner service."""
 
 import io
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -260,7 +261,10 @@ async def test_extract_faces_inserts_and_clusters(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_extract_faces_swallows_recognizer_errors(tmp_path: Path) -> None:
-    """A recognizer failure on one photo must not crash the scan or insert faces."""
+    """A recognizer failure on one photo must not crash the scan or insert faces.
+
+    The photo also stays faces_extracted = 0 so it is retried on the next scan.
+    """
     db = await _open_db(str(tmp_path / "test.db"))
     db.row_factory = aiosqlite.Row
     try:
@@ -269,5 +273,211 @@ async def test_extract_faces_swallows_recognizer_errors(tmp_path: Path) -> None:
 
         nrow = await (await db.execute("SELECT COUNT(*) AS c FROM faces")).fetchone()
         assert nrow is not None and nrow["c"] == 0
+
+        prow = await (await db.execute(
+            "SELECT faces_extracted FROM photos WHERE id = ?", (photo_id,)
+        )).fetchone()
+        assert prow is not None and prow["faces_extracted"] == 0
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_extract_faces_marks_photo_extracted(tmp_path: Path) -> None:
+    """faces_extracted is set to 1 after all faces commit — even for zero faces."""
+    db = await _open_db(str(tmp_path / "test.db"))
+    db.row_factory = aiosqlite.Row
+    try:
+        with_faces = await _insert_photo(db, "/p/a.jpg")
+        no_faces = await _insert_photo(db, "/p/b.jpg")
+        await _extract_faces("/p/a.jpg", with_faces, _FakeRecognizer([_face(1)]), ClusteringService(), db)
+        await _extract_faces("/p/b.jpg", no_faces, _FakeRecognizer([]), ClusteringService(), db)
+
+        for photo_id in (with_faces, no_faces):
+            row = await (await db.execute(
+                "SELECT faces_extracted FROM photos WHERE id = ?", (photo_id,)
+            )).fetchone()
+            assert row is not None and row["faces_extracted"] == 1
+    finally:
+        await db.close()
+
+
+# ---------------------------------------------------------------------------
+# Crash-resume and re-extraction gate (#90 / #104)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_crash_resume_replaces_partial_faces(tmp_path: Path) -> None:
+    """A photo left with faces_extracted=0 and a partial face row (mid-extraction
+    crash) is re-extracted cleanly: stale rows — and corrections pointing at
+    them — are replaced, no duplicates, and the flag becomes 1."""
+    db = await _open_db(str(tmp_path / "test.db"))
+    db.row_factory = aiosqlite.Row
+    try:
+        photo_id = await _insert_photo(db)  # faces_extracted defaults to 0
+
+        # Simulate the crash: one face row committed, flag still 0, plus a
+        # correction referencing the partial face (FK: corrections → faces).
+        cur = await db.execute(
+            """INSERT INTO faces (photo_id, detection_conf, assign_status)
+               VALUES (?, 0.9, 'unreviewed')""",
+            (photo_id,),
+        )
+        assert cur.lastrowid is not None
+        await db.execute(
+            "INSERT INTO corrections (face_id, corrected_at) VALUES (?, ?)",
+            (cur.lastrowid, int(time.time())),
+        )
+        await db.commit()
+
+        recognizer = _FakeRecognizer([_face(1), _face(2)])
+        await _extract_faces("/p/a.jpg", photo_id, recognizer, ClusteringService(), db)
+
+        frow = await (await db.execute(
+            "SELECT COUNT(*) AS c FROM faces WHERE photo_id = ?", (photo_id,)
+        )).fetchone()
+        assert frow is not None and frow["c"] == 2  # exactly the new set — no leftovers
+
+        prow = await (await db.execute(
+            "SELECT faces_extracted FROM photos WHERE id = ?", (photo_id,)
+        )).fetchone()
+        assert prow is not None and prow["faces_extracted"] == 1
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_reextraction_rebuilds_affected_centroids(tmp_path: Path) -> None:
+    """Deleting a photo's faces rebuilds the affected person's centroid from the
+    remaining assigned faces, so stale embeddings stop voting (#104)."""
+    db = await _open_db(str(tmp_path / "test.db"))
+    db.row_factory = aiosqlite.Row
+    try:
+        clustering = ClusteringService()
+        photo1 = await _insert_photo(db, "/p/1.jpg")
+        photo2 = await _insert_photo(db, "/p/2.jpg")
+
+        # Face 1 (photo1) seeds person P; face 2 (photo2) is similar enough to
+        # auto-assign to P and blend into its centroid.
+        emb1 = _face(1).embedding
+        blend = 0.9 * emb1 + 0.1 * _face(2).embedding
+        emb2 = (blend / np.linalg.norm(blend)).astype(np.float32)
+
+        face_ids = []
+        for photo_id, emb in ((photo1, emb1), (photo2, emb2)):
+            cur = await db.execute(
+                """INSERT INTO faces (photo_id, detection_conf, assign_status)
+                   VALUES (?, 0.95, 'unreviewed')""",
+                (photo_id,),
+            )
+            await db.commit()
+            assert cur.lastrowid is not None
+            face_ids.append(int(cur.lastrowid))
+            await clustering.assign_face(int(cur.lastrowid), emb, db)
+
+        prow = await (await db.execute("SELECT COUNT(*) AS c FROM people")).fetchone()
+        assert prow is not None and prow["c"] == 1  # both faces on one person
+
+        # photo1 was modified and now contains no faces: its face row is
+        # deleted and the centroid must be rebuilt from emb2 alone.
+        await _extract_faces("/p/1.jpg", photo1, _FakeRecognizer([]), clustering, db)
+
+        crow = await (await db.execute("SELECT centroid FROM people")).fetchone()
+        assert crow is not None
+        centroid = np.frombuffer(crow["centroid"], dtype=np.float32)
+        assert np.allclose(centroid, emb2, atol=1e-5)
+
+        # The surviving face is untouched (status unchanged — Rule 6: nothing
+        # is promoted or demoted by the rebuild).
+        srow = await (await db.execute(
+            "SELECT assign_status FROM faces WHERE id = ?", (face_ids[1],)
+        )).fetchone()
+        assert srow is not None and srow["assign_status"] == "assigned"
+    finally:
+        await db.close()
+
+
+class _CountingRecognizer:
+    """Fake recognizer that records how many times detection ran."""
+
+    def __init__(self, faces: list[FaceResult]) -> None:
+        self._faces = faces
+        self.calls = 0
+
+    def detect_and_embed(self, path: str) -> list[FaceResult]:
+        self.calls += 1
+        return list(self._faces)
+
+
+def _install_recognizer(
+    monkeypatch: pytest.MonkeyPatch, recognizer: _CountingRecognizer
+) -> None:
+    """Make run_scan use the given fake instead of loading buffalo_l."""
+    import ml.insightface_recognizer as ir
+
+    monkeypatch.setattr(ir, "InsightFaceRecognizer", lambda data_dir: recognizer)
+
+
+@pytest.mark.asyncio
+async def test_zero_face_photo_not_reprocessed_on_rescan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A photo with no detected faces gets faces_extracted=1 and is NOT re-run
+    through detection on the next scan (fixes perpetual re-processing)."""
+    (tmp_path / "photo.jpg").write_bytes(_jpeg_bytes())
+    recognizer = _CountingRecognizer([])
+    _install_recognizer(monkeypatch, recognizer)
+
+    db = await _open_db(str(tmp_path / "test.db"))
+    try:
+        await run_scan(str(tmp_path), _noop_broadcast, db)
+        assert recognizer.calls == 1
+
+        row = await (await db.execute(
+            "SELECT faces_extracted FROM photos WHERE path LIKE '%photo.jpg'"
+        )).fetchone()
+        assert row is not None and row["faces_extracted"] == 1
+
+        reset_status()
+        await run_scan(str(tmp_path), _noop_broadcast, db)
+        assert recognizer.calls == 1  # unchanged file + flag=1 → no re-detection
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_modified_photo_faces_replaced_not_duplicated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """scan → touch mtime → rescan: the photo's face count is unchanged (#104)."""
+    photo = tmp_path / "photo.jpg"
+    photo.write_bytes(_jpeg_bytes())
+    recognizer = _CountingRecognizer([_face(1)])
+    _install_recognizer(monkeypatch, recognizer)
+
+    db = await _open_db(str(tmp_path / "test.db"))
+    try:
+        await run_scan(str(tmp_path), _noop_broadcast, db)
+        assert recognizer.calls == 1
+
+        # Touch the file: bump mtime by well over a second so the int compare sees it.
+        new_time = time.time() + 100
+        os.utime(photo, (new_time, new_time))
+
+        reset_status()
+        await run_scan(str(tmp_path), _noop_broadcast, db)
+        assert recognizer.calls == 2  # modified file was re-detected
+
+        row = await (await db.execute(
+            """SELECT COUNT(*) AS c FROM faces
+               WHERE photo_id = (SELECT id FROM photos WHERE path LIKE '%photo.jpg')"""
+        )).fetchone()
+        assert row is not None and row["c"] == 1  # replaced, not doubled
+
+        prow = await (await db.execute(
+            "SELECT faces_extracted FROM photos WHERE path LIKE '%photo.jpg'"
+        )).fetchone()
+        assert prow is not None and prow["faces_extracted"] == 1
     finally:
         await db.close()

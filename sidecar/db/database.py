@@ -39,10 +39,15 @@ async def get_db() -> AsyncIterator[aiosqlite.Connection]:
         for idx in INDEXES:
             await conn.execute(idx)
         # Best-effort column migrations — silently ignored if already applied.
-        for migration in ALL_MIGRATIONS:
+        # A followup (e.g. a data backfill) runs exactly once: only on the
+        # connection whose ALTER actually added the column. If the ALTER
+        # raises (duplicate column), the followup is skipped too.
+        for alter_stmt, followup_stmt in ALL_MIGRATIONS:
             try:
-                await conn.execute(migration)
+                await conn.execute(alter_stmt)
             except Exception:
-                pass
+                continue
+            if followup_stmt is not None:
+                await conn.execute(followup_stmt)
         await conn.commit()
         yield conn

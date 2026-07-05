@@ -3,13 +3,14 @@ this module is idempotent — safe to call on every startup."""
 
 PHOTOS = """
 CREATE TABLE IF NOT EXISTS photos (
-    id          INTEGER PRIMARY KEY,
-    path        TEXT    NOT NULL UNIQUE,
-    mtime       INTEGER NOT NULL,
-    scanned_at  INTEGER,
-    width       INTEGER,
-    height      INTEGER,
-    taken_at    INTEGER
+    id              INTEGER PRIMARY KEY,
+    path            TEXT    NOT NULL UNIQUE,
+    mtime           INTEGER NOT NULL,
+    scanned_at      INTEGER,
+    width           INTEGER,
+    height          INTEGER,
+    taken_at        INTEGER,
+    faces_extracted INTEGER NOT NULL DEFAULT 0
 )
 """
 
@@ -67,11 +68,29 @@ CREATE TABLE IF NOT EXISTS scan_roots (
 )
 """
 
-# Migration: add columns introduced after initial schema deployment.
-# SQLite raises OperationalError if the column already exists; we swallow it.
-SCAN_ROOTS_MIGRATIONS = [
-    "ALTER TABLE scan_roots ADD COLUMN is_network   INTEGER NOT NULL DEFAULT 0",
-    "ALTER TABLE scan_roots ADD COLUMN last_seen_at INTEGER",
+# Migrations: add columns introduced after initial schema deployment.
+# Each entry is (alter_stmt, one_shot_followup_or_None). SQLite raises
+# OperationalError from the ALTER if the column already exists; the caller
+# swallows that and MUST also skip the followup — followups run exactly once,
+# on the connection that actually added the column.
+SCAN_ROOTS_MIGRATIONS: list[tuple[str, str | None]] = [
+    ("ALTER TABLE scan_roots ADD COLUMN is_network   INTEGER NOT NULL DEFAULT 0", None),
+    ("ALTER TABLE scan_roots ADD COLUMN last_seen_at INTEGER", None),
+]
+
+# faces_extracted (#90/#104): tracks whether face extraction fully completed
+# for a photo. Upgrade path: photos that already have face rows were extracted
+# by a pre-flag version, so backfill them to 1 — otherwise every existing photo
+# would be re-extracted, destroying named face assignments. Photos with zero
+# faces stay 0 (cheap re-check). The backfill is a one-shot followup: it must
+# NOT re-run on later connections, because after a crash a partially-extracted
+# photo legitimately has face rows while its flag is 0.
+PHOTOS_MIGRATIONS: list[tuple[str, str | None]] = [
+    (
+        "ALTER TABLE photos ADD COLUMN faces_extracted INTEGER NOT NULL DEFAULT 0",
+        "UPDATE photos SET faces_extracted = 1 "
+        "WHERE EXISTS (SELECT 1 FROM faces WHERE photo_id = photos.id)",
+    ),
 ]
 
 INDEXES = [
@@ -84,4 +103,4 @@ INDEXES = [
 ]
 
 ALL_TABLES = [PHOTOS, FACES, PEOPLE, CORRECTIONS, SCAN_STATE, SCAN_ROOTS]
-ALL_MIGRATIONS = SCAN_ROOTS_MIGRATIONS
+ALL_MIGRATIONS: list[tuple[str, str | None]] = SCAN_ROOTS_MIGRATIONS + PHOTOS_MIGRATIONS

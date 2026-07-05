@@ -5,6 +5,39 @@ import aiosqlite
 import pytest
 
 from db.database import get_db
+from db.schema import FACES, PEOPLE
+
+# The photos table as it existed before the faces_extracted column (#90),
+# used to simulate a user's pre-migration database file.
+_OLD_PHOTOS = """
+CREATE TABLE photos (
+    id          INTEGER PRIMARY KEY,
+    path        TEXT    NOT NULL UNIQUE,
+    mtime       INTEGER NOT NULL,
+    scanned_at  INTEGER,
+    width       INTEGER,
+    height      INTEGER,
+    taken_at    INTEGER
+)
+"""
+
+
+async def _seed_pre_migration_db(tmp_path: Path) -> None:
+    """Create faces.db with the old photos schema: photo 1 has a face, photo 2 has none."""
+    conn = await aiosqlite.connect(str(tmp_path / "faces.db"))
+    try:
+        await conn.execute(_OLD_PHOTOS)
+        await conn.execute(PEOPLE)
+        await conn.execute(FACES)
+        await conn.execute("INSERT INTO photos (id, path, mtime) VALUES (1, '/a.jpg', 0)")
+        await conn.execute("INSERT INTO photos (id, path, mtime) VALUES (2, '/b.jpg', 0)")
+        await conn.execute(
+            """INSERT INTO faces (photo_id, detection_conf, assign_status)
+               VALUES (1, 0.9, 'assigned')"""
+        )
+        await conn.commit()
+    finally:
+        await conn.close()
 
 
 @pytest.fixture(autouse=True)
@@ -72,6 +105,46 @@ async def test_schema_is_idempotent() -> None:
         pass
     async with get_db():
         pass
+
+
+@pytest.mark.asyncio
+async def test_faces_extracted_migration_backfills_existing_faces(tmp_path: Path) -> None:
+    """Upgrading a pre-#90 DB adds faces_extracted and backfills it to 1 for
+    photos that already have face rows, so they are NOT re-extracted (which
+    would destroy named assignments). Photos without faces stay 0."""
+    await _seed_pre_migration_db(tmp_path)
+
+    async with get_db() as conn:
+        rows = await (
+            await conn.execute("SELECT id, faces_extracted FROM photos ORDER BY id")
+        ).fetchall()
+
+    flags = {row["id"]: row["faces_extracted"] for row in rows}
+    assert flags == {1: 1, 2: 0}
+
+
+@pytest.mark.asyncio
+async def test_faces_extracted_backfill_runs_only_once(tmp_path: Path) -> None:
+    """The backfill is one-shot: after the column exists, a photo with face
+    rows but flag 0 (crash mid-extraction) must NOT be flipped to 1 by a
+    later connection."""
+    await _seed_pre_migration_db(tmp_path)
+
+    async with get_db() as conn:
+        # Simulate a crash mid-extraction after the migration: photo 2 gains a
+        # partial face row while its flag is still 0.
+        await conn.execute(
+            """INSERT INTO faces (photo_id, detection_conf, assign_status)
+               VALUES (2, 0.8, 'unreviewed')"""
+        )
+        await conn.commit()
+
+    async with get_db() as conn:
+        row = await (
+            await conn.execute("SELECT faces_extracted FROM photos WHERE id = 2")
+        ).fetchone()
+
+    assert row is not None and row["faces_extracted"] == 0
 
 
 @pytest.mark.asyncio
