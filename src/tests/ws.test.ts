@@ -98,3 +98,27 @@ describe("scan_progress refetch throttle (#110)", () => {
     expect(scanVersion()).toBe(2);
   });
 });
+
+describe("ws engine log forwarding (#126)", () => {
+  it("pushes engine log messages into the activity log with the [engine] tag", async () => {
+    const { useLogStore } = await import("../store/log");
+    useLogStore.setState({ entries: [] });
+    handleMessage(
+      msg({ type: "log", source: "engine", level: "warning", message: "migration failed" }),
+    );
+    const entries = useLogStore.getState().entries;
+    expect(entries).toHaveLength(1);
+    expect(entries[0].message).toBe("[engine] migration failed");
+    expect(entries[0].kind).toBe("warn");
+  });
+
+  it("maps info level to info kind and ignores empty messages", async () => {
+    const { useLogStore } = await import("../store/log");
+    useLogStore.setState({ entries: [] });
+    handleMessage(msg({ type: "log", level: "info", message: "scan starting" }));
+    handleMessage(msg({ type: "log", level: "error", message: "" }));
+    const entries = useLogStore.getState().entries;
+    expect(entries).toHaveLength(1);
+    expect(entries[0].kind).toBe("info");
+  });
+});
