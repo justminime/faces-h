@@ -1,8 +1,10 @@
 """Async database connection using aiosqlite.
 
 WAL mode and foreign-key enforcement are set on every new connection so they
-survive across reconnects. Schema DDL is applied on first connect — idempotent
-because every statement uses CREATE … IF NOT EXISTS.
+survive across reconnects. Schema DDL and migrations are applied once per
+database path per process (#113) — every API request opens a connection, and
+re-running the full DDL set plus try/except ALTERs on each one was measurable
+overhead and hid real migration failures.
 """
 
 import logging
@@ -16,6 +18,10 @@ from db.schema import ALL_MIGRATIONS, ALL_TABLES, INDEXES
 
 logger = logging.getLogger(__name__)
 
+# DB paths whose schema+migrations have been applied this process. Keyed by
+# path (not a bool) because tests point FACES_H_DATA_DIR at fresh tmp dirs.
+_initialized_paths: set[str] = set()
+
 
 def _db_path() -> str:
     """Resolve the database file path from the runtime environment."""
@@ -23,31 +29,44 @@ def _db_path() -> str:
     return os.path.join(data_dir, "faces.db")
 
 
+def _is_duplicate_column_error(exc: Exception) -> bool:
+    return "duplicate column" in str(exc).lower()
+
+
+async def _apply_schema(conn: aiosqlite.Connection) -> None:
+    for ddl in ALL_TABLES:
+        await conn.execute(ddl)
+    for idx in INDEXES:
+        await conn.execute(idx)
+    # A followup (e.g. a data backfill) runs exactly once: only on the
+    # connection whose ALTER actually added the column. "Duplicate column"
+    # means already applied and is expected; anything else is a real
+    # migration failure and must be visible, not swallowed (#113).
+    for alter_stmt, followup_stmt in ALL_MIGRATIONS:
+        try:
+            await conn.execute(alter_stmt)
+        except Exception as exc:
+            if not _is_duplicate_column_error(exc):
+                logger.error("migration failed: %s — %s", alter_stmt, exc)
+            continue
+        if followup_stmt is not None:
+            await conn.execute(followup_stmt)
+    await conn.commit()
+
+
 @asynccontextmanager
 async def get_db() -> AsyncIterator[aiosqlite.Connection]:
     """Yield an open, configured aiosqlite connection.
 
-    Applies schema DDL and PRAGMAs on each connection; keeps them cheap
-    because CREATE IF NOT EXISTS is a no-op after the first run.
+    PRAGMAs are per-connection; schema DDL + migrations run only for the
+    first connection to each database path in this process.
     """
-    async with aiosqlite.connect(_db_path()) as conn:
+    path = _db_path()
+    async with aiosqlite.connect(path) as conn:
         conn.row_factory = aiosqlite.Row
         await conn.execute("PRAGMA journal_mode=WAL")
         await conn.execute("PRAGMA foreign_keys=ON")
-        for ddl in ALL_TABLES:
-            await conn.execute(ddl)
-        for idx in INDEXES:
-            await conn.execute(idx)
-        # Best-effort column migrations — silently ignored if already applied.
-        # A followup (e.g. a data backfill) runs exactly once: only on the
-        # connection whose ALTER actually added the column. If the ALTER
-        # raises (duplicate column), the followup is skipped too.
-        for alter_stmt, followup_stmt in ALL_MIGRATIONS:
-            try:
-                await conn.execute(alter_stmt)
-            except Exception:
-                continue
-            if followup_stmt is not None:
-                await conn.execute(followup_stmt)
-        await conn.commit()
+        if path not in _initialized_paths:
+            await _apply_schema(conn)
+            _initialized_paths.add(path)
         yield conn
