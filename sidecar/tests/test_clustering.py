@@ -101,6 +101,25 @@ async def _insert_assigned_face(
     return int(cur.lastrowid)
 
 
+async def _insert_uncertain_face(
+    conn: aiosqlite.Connection,
+    photo_id: int,
+    suggested_person_id: int,
+    conf: float = 0.60,
+) -> int:
+    cur = await conn.execute(
+        """
+        INSERT INTO faces
+               (photo_id, detection_conf, suggested_person_id, assign_conf, assign_status)
+        VALUES (?, ?, ?, ?, 'uncertain')
+        """,
+        (photo_id, 0.99, suggested_person_id, conf),
+    )
+    await conn.commit()
+    assert cur.lastrowid is not None
+    return int(cur.lastrowid)
+
+
 # ---------------------------------------------------------------------------
 # Threshold / reliability rule tests
 # ---------------------------------------------------------------------------
@@ -309,6 +328,74 @@ async def test_merge_moves_faces_and_deletes_source(tmp_path: Path) -> None:
         ).fetchone()
         assert row is not None
         assert row["person_id"] == target_id
+    await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_merge_repoints_uncertain_suggestions_to_target(tmp_path: Path) -> None:
+    """Merging a person that uncertain faces still *suggest* must succeed (the FK
+    on suggested_person_id aborted the DELETE before #102) and re-point those
+    suggestions at the surviving person."""
+    svc = ClusteringService()
+    conn = await _open_db(tmp_path)
+
+    centroid = _unit_vec(seed=1)
+    source_id = await _insert_person(conn, "Ghost", centroid)
+    target_id = await _insert_person(conn, "Real", centroid)
+    photo_id = await _insert_photo(conn)
+
+    uncertain_id = await _insert_uncertain_face(conn, photo_id, source_id)
+
+    await svc.merge_people(source_id, target_id, confirmed=True, db=conn)
+
+    src_row = await (
+        await conn.execute("SELECT id FROM people WHERE id = ?", (source_id,))
+    ).fetchone()
+    assert src_row is None, "source person should be deleted despite pending suggestions"
+
+    row = await (
+        await conn.execute(
+            "SELECT suggested_person_id, assign_status FROM faces WHERE id = ?",
+            (uncertain_id,),
+        )
+    ).fetchone()
+    assert row is not None
+    assert row["suggested_person_id"] == target_id
+    assert row["assign_status"] == "uncertain"  # still needs user review (Rule 6)
+    await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_delete_person_clears_uncertain_suggestions(tmp_path: Path) -> None:
+    """Deleting a person that uncertain faces still suggest must succeed (FK on
+    suggested_person_id) and return those faces to 'unreviewed' with no
+    suggestion and no confidence."""
+    svc = ClusteringService()
+    conn = await _open_db(tmp_path)
+
+    centroid = _unit_vec(seed=1)
+    person_id = await _insert_person(conn, "Frank", centroid)
+    photo_id = await _insert_photo(conn)
+
+    uncertain_id = await _insert_uncertain_face(conn, photo_id, person_id)
+
+    await svc.delete_person(person_id, conn)
+
+    person_row = await (
+        await conn.execute("SELECT id FROM people WHERE id = ?", (person_id,))
+    ).fetchone()
+    assert person_row is None, "person should be deleted despite pending suggestions"
+
+    row = await (
+        await conn.execute(
+            "SELECT suggested_person_id, assign_conf, assign_status FROM faces WHERE id = ?",
+            (uncertain_id,),
+        )
+    ).fetchone()
+    assert row is not None
+    assert row["suggested_person_id"] is None
+    assert row["assign_conf"] is None
+    assert row["assign_status"] == "unreviewed"
     await conn.close()
 
 

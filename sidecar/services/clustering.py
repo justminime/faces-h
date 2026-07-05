@@ -181,6 +181,12 @@ class ClusteringService:
             "UPDATE faces SET person_id = ? WHERE person_id = ?",
             (target_id, source_id),
         )
+        # Re-point uncertain suggestions at the surviving person — the FK on
+        # suggested_person_id would otherwise abort the DELETE below.
+        await db.execute(
+            "UPDATE faces SET suggested_person_id = ? WHERE suggested_person_id = ?",
+            (target_id, source_id),
+        )
         await db.execute("DELETE FROM people WHERE id = ?", (source_id,))
         await db.commit()
 
@@ -194,6 +200,18 @@ class ClusteringService:
             UPDATE faces
                SET person_id = NULL, assign_conf = NULL, assign_status = 'unreviewed'
              WHERE person_id = ?
+            """,
+            (person_id,),
+        )
+        # Uncertain faces whose suggestion was this person lose the suggestion
+        # and return to 'unreviewed' — also required by the FK on
+        # suggested_person_id, which would otherwise abort the DELETE below.
+        await db.execute(
+            """
+            UPDATE faces
+               SET suggested_person_id = NULL, assign_conf = NULL,
+                   assign_status = 'unreviewed'
+             WHERE suggested_person_id = ?
             """,
             (person_id,),
         )
