@@ -187,6 +187,35 @@ class ClusteringService:
             "UPDATE faces SET suggested_person_id = ? WHERE suggested_person_id = ?",
             (target_id, source_id),
         )
+
+        # Rebuild the surviving centroid from every assigned face and refresh
+        # assign_conf against it (Rule 2) — the merged-in faces' stored conf
+        # referenced the deleted source centroid (#115). Statuses are left
+        # untouched: the user explicitly confirmed the merge, so nothing is
+        # demoted here (Rule 6 governs automatic moves only).
+        async with db.execute(
+            "SELECT id, embedding FROM faces"
+            " WHERE person_id = ? AND assign_status = 'assigned'"
+            "   AND embedding IS NOT NULL",
+            (target_id,),
+        ) as cur:
+            rows = await cur.fetchall()
+        if rows:
+            vecs = [_deserialize_centroid(r["embedding"]) for r in rows]
+            mean = np.mean(vecs, axis=0).astype(np.float32)
+            norm = float(np.linalg.norm(mean))
+            new_centroid = (mean / norm).astype(np.float32) if norm > 0 else mean
+            await db.execute(
+                "UPDATE people SET centroid = ? WHERE id = ?",
+                (_serialize_centroid(new_centroid), target_id),
+            )
+            for r in rows:
+                conf = float(np.dot(_deserialize_centroid(r["embedding"]), new_centroid))
+                await db.execute(
+                    "UPDATE faces SET assign_conf = ? WHERE id = ?",
+                    (conf, int(r["id"])),
+                )
+
         await db.execute("DELETE FROM people WHERE id = ?", (source_id,))
         await db.commit()
 

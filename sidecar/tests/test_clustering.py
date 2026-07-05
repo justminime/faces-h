@@ -332,6 +332,59 @@ async def test_merge_moves_faces_and_deletes_source(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_merge_rebuilds_target_centroid_and_conf(tmp_path: Path) -> None:
+    """#115: after a merge the surviving centroid is the normalised mean of all
+    assigned embeddings, and every face's assign_conf is similarity to it
+    (Rule 2) — not the stale value vs. the deleted source centroid."""
+    svc = ClusteringService()
+    conn = await _open_db(tmp_path)
+
+    emb_a = _unit_vec(seed=1)
+    emb_b = _vec_at_sim(emb_a, 0.80)
+    source_id = await _insert_person(conn, "Ghost", emb_b)
+    target_id = await _insert_person(conn, "Real", emb_a)
+    photo_id = await _insert_photo(conn)
+
+    async def _face_with_embedding(person_id: int, emb: np.ndarray, conf: float) -> int:
+        cur = await conn.execute(
+            """INSERT INTO faces
+                   (photo_id, detection_conf, person_id, assign_conf, assign_status, embedding)
+               VALUES (?, 0.99, ?, ?, 'assigned', ?)""",
+            (photo_id, person_id, conf, emb.astype(np.float32).tobytes()),
+        )
+        await conn.commit()
+        assert cur.lastrowid is not None
+        return int(cur.lastrowid)
+
+    face_a = await _face_with_embedding(target_id, emb_a, 0.95)
+    face_b = await _face_with_embedding(source_id, emb_b, 0.42)  # stale vs source
+
+    await svc.merge_people(source_id, target_id, confirmed=True, db=conn)
+
+    # Centroid == normalised mean of both embeddings.
+    row = await (
+        await conn.execute("SELECT centroid FROM people WHERE id = ?", (target_id,))
+    ).fetchone()
+    assert row is not None
+    centroid = _deserialize_centroid(row["centroid"])
+    expected = (emb_a + emb_b).astype(np.float32)
+    expected /= np.linalg.norm(expected)
+    assert float(np.dot(centroid, expected)) == pytest.approx(1.0, abs=1e-4)
+
+    # Both faces' conf recomputed against the new centroid.
+    for fid, emb in ((face_a, emb_a), (face_b, emb_b)):
+        frow = await (
+            await conn.execute(
+                "SELECT assign_conf, assign_status FROM faces WHERE id = ?", (fid,)
+            )
+        ).fetchone()
+        assert frow is not None
+        assert frow["assign_status"] == "assigned"  # user-confirmed — no demotion
+        assert frow["assign_conf"] == pytest.approx(float(np.dot(emb, centroid)), abs=1e-4)
+    await conn.close()
+
+
+@pytest.mark.asyncio
 async def test_merge_repoints_uncertain_suggestions_to_target(tmp_path: Path) -> None:
     """Merging a person that uncertain faces still *suggest* must succeed (the FK
     on suggested_person_id aborted the DELETE before #102) and re-point those

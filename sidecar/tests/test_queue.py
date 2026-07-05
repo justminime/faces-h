@@ -108,3 +108,78 @@ async def test_confirm_promotes_to_assigned(tmp_path: pytest.TempPathFactory) ->
     assert row["assign_status"] == "assigned"
     assert row["person_id"] == 1
     assert row["suggested_person_id"] is None
+
+
+async def test_confirm_recomputes_conf_against_confirmed_person(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    """Rule 2 (#103): confirming stores cosine similarity to the *confirmed*
+    person's centroid, not the stale suggestion-time value (seeded 0.60)."""
+    data_dir = str(tmp_path)
+    await _init_db(data_dir)
+    # Seeded face embedding equals Alice's centroid → similarity 1.0.
+    await _seed_uncertain_face(data_dir)
+
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.post("/queue/1/confirm", json={"person_id": 1})
+    assert r.status_code == 200
+    assert r.json()["assign_conf"] == pytest.approx(1.0, abs=1e-4)
+
+    from db.database import get_db
+
+    async with get_db() as db:
+        row = await (
+            await db.execute("SELECT assign_conf FROM faces WHERE id = 1")
+        ).fetchone()
+    assert row is not None
+    assert row["assign_conf"] == pytest.approx(1.0, abs=1e-4)
+
+
+async def test_confirm_to_other_person_uses_that_centroid(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    """Confirming to someone other than the suggestion computes conf vs. that
+    person's centroid (near-orthogonal here → conf far from the stale 0.60)."""
+    data_dir = str(tmp_path)
+    await _init_db(data_dir)
+    embedding = await _seed_uncertain_face(data_dir)
+
+    # A second person with an orthogonal centroid.
+    perp = np.random.randn(512).astype(np.float32)
+    perp -= np.dot(perp, embedding) * embedding
+    perp /= float(np.linalg.norm(perp))
+
+    from db.database import get_db
+
+    async with get_db() as db:
+        await db.execute(
+            "INSERT INTO people (id, name, created_at, centroid) VALUES (2, 'Bob', 0, ?)",
+            (perp.tobytes(),),
+        )
+        await db.commit()
+
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.post("/queue/1/confirm", json={"person_id": 2})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["person_id"] == 2
+    assert body["assign_conf"] == pytest.approx(0.0, abs=1e-3)
+
+
+async def test_confirm_unknown_person_returns_404(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    """Confirming to a nonexistent person is a 404, not an FK 500 (#103)."""
+    data_dir = str(tmp_path)
+    await _init_db(data_dir)
+    await _seed_uncertain_face(data_dir)
+
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.post("/queue/1/confirm", json={"person_id": 9999})
+    assert r.status_code == 404
