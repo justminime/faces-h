@@ -6,6 +6,8 @@ import logging.handlers
 import os
 import platform
 import sys
+import threading
+import time
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -101,6 +103,43 @@ def _setup_logging(data_dir: str, log_level: str = "INFO") -> None:
         root.addHandler(console)
 
 
+def _parent_alive(parent_pid: int) -> bool:
+    """Best-effort check that the Tauri shell that spawned us still exists.
+
+    Falls back to True (assume alive) when psutil is unavailable or errors,
+    so a broken probe can never take down a healthy sidecar.
+    """
+    try:
+        import psutil  # noqa: PLC0415 — optional dependency, probed lazily
+    except ImportError:
+        return True
+    try:
+        return bool(psutil.pid_exists(parent_pid))
+    except Exception:
+        return True
+
+
+def _start_parent_watchdog(parent_pid: int, poll_seconds: float = 2.0) -> None:
+    """Exit the sidecar when the app that spawned it dies (#119).
+
+    Covers force-kills of faces-h.exe where the window-close handler never
+    runs — without this an orphan sidecar keeps the port and the SQLite WAL
+    locked, breaking the next launch and in-place upgrades.
+    """
+
+    def _watch() -> None:
+        logger = logging.getLogger(__name__)
+        while True:
+            if not _parent_alive(parent_pid):
+                logger.warning(
+                    "parent process %d exited — shutting down sidecar", parent_pid
+                )
+                os._exit(0)
+            time.sleep(poll_seconds)
+
+    threading.Thread(target=_watch, daemon=True, name="parent-watchdog").start()
+
+
 def _run_selftest(image_path: str, data_dir: str, logger: logging.Logger) -> None:
     """Load the recognizer and run detection on one image, logging the outcome.
 
@@ -128,6 +167,13 @@ def main() -> None:
     parser.add_argument("--data-dir", type=str, required=True)
     parser.add_argument("--app-version", type=str, default="unknown")
     parser.add_argument("--token", type=str, default="", help="Shared secret required on X-Faces-Token header")
+    parser.add_argument(
+        "--parent-pid",
+        type=int,
+        default=0,
+        help="PID of the app shell that spawned this sidecar; the sidecar exits "
+        "when that process dies so no orphan holds the DB/port (#119).",
+    )
     parser.add_argument(
         "--log-level",
         type=str,
@@ -165,6 +211,10 @@ def main() -> None:
     if args.selftest is not None:
         _run_selftest(args.selftest, args.data_dir, logger)
         return
+
+    if args.parent_pid > 0:
+        _start_parent_watchdog(args.parent_pid)
+        logger.info("parent watchdog active — following pid %d", args.parent_pid)
 
     db_path = os.path.join(args.data_dir, "faces.db")
     model_dir = os.path.join(args.data_dir, "models", "buffalo_l")

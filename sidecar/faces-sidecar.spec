@@ -46,6 +46,8 @@ a = Analysis(
         # anyio backends
         "anyio._backends._asyncio",
         "anyio._backends._trio",
+        # parent-process watchdog (#119) — imported lazily in main._parent_alive
+        "psutil",
     ],
     hookspath=[],
     hooksconfig={},
