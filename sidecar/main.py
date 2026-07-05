@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 import logging.handlers
 import os
@@ -8,6 +9,7 @@ import platform
 import sys
 import threading
 import time
+from collections import deque
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -70,6 +72,91 @@ async def health() -> dict:  # type: ignore[type-arg]
     return {"status": "ok"}
 
 
+class WsLogHandler(logging.Handler):
+    """Buffer engine log records for the UI activity log (#126).
+
+    WARNING+ from every logger, plus INFO from the scanner/ML/clustering
+    loggers users actually care about. uvicorn/websockets loggers are
+    excluded entirely — request/WS noise, and forwarding a failed WS send's
+    own error would feed back into the WS. Rate-limited so a log storm
+    can't flood the socket; drops are counted and reported. The log files
+    remain the complete record — this is a filtered live view.
+    """
+
+    _INFO_PREFIXES = ("services.", "ml.", "api.models", "__main__", "main")
+    _EXCLUDED = ("uvicorn", "websockets")
+    _MAX_PER_SECOND = 20
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.INFO)
+        self.queue: deque[dict[str, object]] = deque(maxlen=200)
+        self.dropped = 0
+        self._window_start = 0.0
+        self._window_count = 0
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            if record.name.startswith(self._EXCLUDED):
+                return
+            if record.levelno < logging.WARNING and not record.name.startswith(
+                self._INFO_PREFIXES
+            ):
+                return
+
+            now = time.monotonic()
+            if now - self._window_start >= 1.0:
+                self._window_start = now
+                self._window_count = 0
+            if self._window_count >= self._MAX_PER_SECOND:
+                self.dropped += 1
+                return
+            self._window_count += 1
+
+            self.queue.append(
+                {
+                    "type": "log",
+                    "source": "engine",
+                    "level": record.levelname.lower(),
+                    "message": record.getMessage(),
+                    "logger": record.name,
+                }
+            )
+        except Exception:  # noqa: BLE001 — a logging handler must never raise
+            pass
+
+
+_ws_log_handler = WsLogHandler()
+
+
+@app.on_event("startup")
+async def _start_log_pump() -> None:
+    """Drain buffered log records to WebSocket clients twice a second."""
+
+    async def _pump() -> None:
+        from api.scan import broadcast_ws  # noqa: PLC0415 — avoid circular import
+
+        while True:
+            try:
+                while _ws_log_handler.queue:
+                    await broadcast_ws(_ws_log_handler.queue.popleft())
+                if _ws_log_handler.dropped:
+                    n, _ws_log_handler.dropped = _ws_log_handler.dropped, 0
+                    await broadcast_ws(
+                        {
+                            "type": "log",
+                            "source": "engine",
+                            "level": "warning",
+                            "message": f"…{n} log message(s) dropped (rate limit)",
+                            "logger": "main",
+                        }
+                    )
+            except Exception:  # noqa: BLE001 — the pump must survive anything
+                pass
+            await asyncio.sleep(0.5)
+
+    asyncio.create_task(_pump())
+
+
 def _setup_logging(data_dir: str, log_level: str = "INFO") -> None:
     """Configure rotating file logging to {data_dir}/logs/sidecar.log.
 
@@ -96,6 +183,8 @@ def _setup_logging(data_dir: str, log_level: str = "INFO") -> None:
     root = logging.getLogger()
     root.setLevel(getattr(logging, log_level.upper(), logging.INFO))
     root.addHandler(file_handler)
+    # Live view for the in-app activity log (#126); drained by the pump task.
+    root.addHandler(_ws_log_handler)
 
     if sys.stdout is not None and hasattr(sys.stdout, "isatty") and sys.stdout.isatty():
         console = logging.StreamHandler(sys.stdout)

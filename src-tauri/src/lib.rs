@@ -316,6 +316,11 @@ pub fn run() {
                         file_name: Some("app".into()),
                     },
                 ))
+                // Mirror shell logs to the webview (log://log events) so the
+                // in-app activity log can show them tagged as [app] (#126).
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::Webview,
+                ))
                 .max_file_size(5 * 1024 * 1024)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
                 .build(),

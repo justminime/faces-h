@@ -36,6 +36,7 @@ import { withRetry } from "./api/retry";
 import type { ApiPerson, ApiPhoto } from "./api/types";
 import { useQueueStore } from "./store/queue";
 import { useToastStore } from "./store/toast";
+import { useLogStore } from "./store/log";
 
 const PAGE_SIZE = 50;
 const PEOPLE_CACHE_KEY = "faces_h_people_cache";
@@ -299,6 +300,22 @@ function App() {
       unlistenReady?.();
       unlistenError?.();
     };
+  }, []);
+
+  // ── App-shell logs → activity log (#126) ──────────────────────────────────
+  // tauri-plugin-log's Webview target emits log://log events; levels are
+  // numeric (1 trace … 5 error). Only warn+ and info are surfaced.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<{ level: number; message: string }>("log://log", (event) => {
+      const { level, message } = event.payload;
+      if (!message || level < 3) return; // skip trace/debug noise
+      const kind = level >= 4 ? "warn" : "info";
+      useLogStore.getState().push(`[app] ${message}`, kind);
+    })
+      .then((fn) => { unlisten = fn; })
+      .catch(() => {});
+    return () => unlisten?.();
   }, []);
 
   const selectedPhoto = photos.find((p) => p.id === selectedPhotoId) ?? null;

@@ -105,6 +105,19 @@ export function handleMessage(event: MessageEvent): void {
       log.push(msg, "success");
       bumpScanVersionNow();
     }
+  } else if (p.type === "log") {
+    // Engine log records forwarded by the sidecar's WsLogHandler (#126).
+    const message = p.message as string | undefined;
+    if (message) {
+      const level = (p.level as string | undefined) ?? "info";
+      const kind =
+        level === "error" || level === "critical" || level === "warning"
+          ? "warn"
+          : level === "debug"
+            ? "debug"
+            : "info";
+      log.push(`[engine] ${message}`, kind);
+    }
   }
 }
 
