@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
 from db.database import get_db
+from services import image_cache
 
 router = APIRouter(prefix="/photos", tags=["photos"])
 
@@ -19,6 +20,8 @@ async def get_photo_thumbnail(
 ) -> Response:
     """Serve a downscaled JPEG thumbnail of a photo.
 
+    Generated thumbnails are cached on disk keyed by the photo's DB mtime
+    (#114), so repeat requests skip decoding the full-size original entirely.
     The source file is opened read-only — never modified, moved, or deleted —
     so this respects the project rule against touching photo files.
     """
@@ -29,10 +32,21 @@ async def get_photo_thumbnail(
 
     async with get_db() as db:
         row = await (
-            await db.execute("SELECT path FROM photos WHERE id = ?", (photo_id,))
+            await db.execute("SELECT path, mtime FROM photos WHERE id = ?", (photo_id,))
         ).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="Photo not found")
+
+    cache_path = image_cache.cache_key(
+        "thumbs", photo_id, int(row["mtime"]), variant=str(size)
+    )
+    cached = image_cache.get(cache_path)
+    if cached is not None:
+        return Response(
+            content=cached,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "max-age=86400", "X-Cache": "hit"},
+        )
 
     try:
         with Image.open(row["path"]) as src_img:
@@ -41,10 +55,12 @@ async def get_photo_thumbnail(
             rgb.thumbnail((size, size))
             buf = io.BytesIO()
             rgb.save(buf, format="JPEG", quality=85)
+        data = buf.getvalue()
+        image_cache.put(cache_path, data)
         return Response(
-            content=buf.getvalue(),
+            content=data,
             media_type="image/jpeg",
-            headers={"Cache-Control": "max-age=86400"},
+            headers={"Cache-Control": "max-age=86400", "X-Cache": "miss"},
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Photo file missing") from exc
