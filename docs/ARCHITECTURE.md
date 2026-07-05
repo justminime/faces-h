@@ -20,8 +20,9 @@
 | D-08 | Packaging | PyInstaller (sidecar) + Tauri NSIS | Single `.exe` installer; user installs nothing extra |
 | D-09 | CI/CD | GitHub Actions | All issues, builds, tests, and releases on GitHub; all third-party actions pinned to immutable commit SHAs |
 | D-10 | Code signing | SignPath Foundation | Free OSS certificate; signing runs in SignPath infrastructure — private key never touches GitHub runners; installer signed before upload to GitHub Releases |
-| D-11 | IPC auth | Per-session token (32-char hex) | Generated in Rust at startup (port + PID + nanos, double-hashed); passed as `--token` CLI arg to sidecar; required on all HTTP requests (`X-Faces-Token` header) and WebSocket connections (`?token=` query param); `/health` exempt |
+| D-11 | IPC auth | Per-session token (64-char hex, 256-bit OS CSPRNG) | Generated in Rust at startup via `rand::rngs::OsRng` (#112); passed as `--token` CLI arg to sidecar; required on all HTTP requests (`X-Faces-Token` header) and WebSocket connections (`?token=` query param); `/health` exempt |
 | D-12 | Content Security Policy | Tauri `csp` field | `default-src 'self'`; `connect-src http://127.0.0.1:* ws://127.0.0.1:*`; no external script or font sources |
+| D-13 | Scan-root trust boundary | Token is the boundary — no separate allowlist | Any local process holding the per-session token is treated as the user. A `/scan/start` allowlist enforced by the sidecar would add no security (the same token authorizes adding roots) while complicating the dialog→scan flow; revisit if the token ever becomes long-lived (#112 M-2, decided 2026-07-05) |
 
 ---
 
