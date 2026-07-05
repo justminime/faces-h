@@ -68,11 +68,16 @@ class ScanStatus:
     start_time: float = 0.0
 
     def eta_seconds(self) -> int:
-        if self.scanned == 0:
+        # Rate counts skipped files too — incremental rescans are dominated by
+        # near-instant skips, and a scanned-only rate inflated the ETA by
+        # orders of magnitude on mostly-unchanged libraries (#113).
+        processed = self.scanned + self.skipped
+        if processed == 0:
             return 0
         elapsed = time.monotonic() - self.start_time
-        rate = self.scanned / elapsed if elapsed > 0 else 0
-        return int((self.total - self.scanned - self.skipped) / rate) if rate > 0 else 0
+        rate = processed / elapsed if elapsed > 0 else 0
+        remaining = max(0, self.total - processed - self.error_count)
+        return int(remaining / rate) if rate > 0 else 0
 
 
 _status = ScanStatus()
@@ -85,6 +90,22 @@ def get_status() -> ScanStatus:
 def reset_status() -> None:
     global _status
     _status = ScanStatus()
+
+
+def begin_scan(root_path: str) -> None:
+    """Mark a scan as running, synchronously.
+
+    Called from the request handler BEFORE the scan task is scheduled: the
+    old pattern set `running` inside the task, so two rapid /scan/start
+    calls could both pass the already-running check (#113).
+    """
+    global _status
+    _status = ScanStatus(running=True, root_path=root_path, start_time=time.monotonic())
+
+
+def end_scan() -> None:
+    """Mark the current scan finished. Callers using preset=True own this."""
+    _status.running = False
 
 
 # ── Network path detection ────────────────────────────────────────────────────
@@ -288,7 +309,6 @@ async def _extract_faces(
         (photo_id,),
     )
     await db.execute("DELETE FROM faces WHERE photo_id = ?", (photo_id,))
-    await db.commit()
 
     for face in results:
         x, y, w, h = face.bbox
@@ -299,16 +319,18 @@ async def _extract_faces(
             (photo_id, x, y, w, h, face.detection_confidence,
              face.embedding.astype(np.float32).tobytes()),
         )
-        await db.commit()
         assert cur.lastrowid is not None
-        await clustering.assign_face(int(cur.lastrowid), face.embedding, db)
+        await clustering.assign_face(int(cur.lastrowid), face.embedding, db, commit=False)
 
     for person_id in affected_people:
-        await clustering.rebuild_centroid(person_id, db)
+        await clustering.rebuild_centroid(person_id, db, commit=False)
 
     await db.execute(
         "UPDATE photos SET faces_extracted = 1 WHERE id = ?", (photo_id,)
     )
+    # One commit per photo (#113): the stale-row deletes, all face inserts,
+    # assignments, and the extraction flag land atomically — a crash anywhere
+    # above rolls back to flag 0 and the photo is retried cleanly (#90).
     await db.commit()
 
 
@@ -318,6 +340,7 @@ async def run_scan(
     root_path: str,
     broadcast: BroadcastFn,
     db: aiosqlite.Connection,
+    preset: bool = False,
 ) -> None:
     """Walk root_path, persist new/changed images to DB, run face detection.
 
@@ -328,17 +351,25 @@ async def run_scan(
     """
     global _status
     network = is_network_path(root_path)
-    _status = ScanStatus(running=True, root_path=root_path, start_time=time.monotonic())
+    if preset:
+        # Caller already ran begin_scan() and owns the running flag (end_scan)
+        # — keep accumulating totals so a multi-root rescan reports coherent
+        # aggregate progress instead of resetting per root (#113).
+        _status.running = True
+        _status.root_path = root_path
+    else:
+        _status = ScanStatus(running=True, root_path=root_path, start_time=time.monotonic())
 
     # Reachability check — bail early rather than hanging on an offline share.
     if not check_reachable(root_path):
         logger.warning("run_scan: root unreachable at start: %s", root_path)
-        _status.running = False
+        if not preset:
+            _status.running = False
         await broadcast({"type": "drive_offline", "path": root_path})
         return
 
     paths = await asyncio.to_thread(_collect_files, root_path)
-    _status.total = len(paths)
+    _status.total += len(paths)
 
     data_dir = os.environ.get("FACES_H_DATA_DIR", ".")
     recognizer = None
@@ -403,7 +434,8 @@ async def run_scan(
                         break
                 if not recovered:
                     logger.error("Network path offline after %d retries: %s", _NETWORK_RETRY_ATTEMPTS, root_path)
-                    _status.running = False
+                    if not preset:
+                        _status.running = False
                     await broadcast({"type": "drive_offline", "path": root_path})
                     return
 
@@ -421,7 +453,8 @@ async def run_scan(
         if i % 50 == 0:
             await asyncio.sleep(0)
 
-    _status.running = False
+    if not preset:
+        _status.running = False
     if _status.skipped_faces:
         logger.info("scan skipped %d too-small/low-confidence face detection(s)", _status.skipped_faces)
     await broadcast({

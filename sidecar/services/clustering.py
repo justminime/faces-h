@@ -64,6 +64,7 @@ class ClusteringService:
         face_id: int,
         embedding: np.ndarray,
         db: aiosqlite.Connection,
+        commit: bool = True,
     ) -> AssignStatus:
         """Compare embedding against all person centroids; update face row.
 
@@ -89,7 +90,9 @@ class ClusteringService:
 
         if best_person_id is None or best_conf < self.uncertain_threshold:
             # No suitable cluster — seed a new unnamed person with this face as centroid.
-            new_id = await self.create_person("", db, initial_embedding=embedding)
+            new_id = await self.create_person(
+                "", db, initial_embedding=embedding, commit=commit
+            )
             await db.execute(
                 """UPDATE faces
                       SET person_id = ?,
@@ -99,7 +102,8 @@ class ClusteringService:
                     WHERE id = ?""",
                 (new_id, embedding.astype(np.float32).tobytes(), face_id),
             )
-            await db.commit()
+            if commit:
+                await db.commit()
             return "assigned"
 
         status = self._status(best_conf)
@@ -124,11 +128,12 @@ class ClusteringService:
                 face_id,
             ),
         )
-        await db.commit()
+        if commit:
+            await db.commit()
 
         # Update centroid so future faces cluster more accurately.
         if status == "assigned":
-            await self.update_centroid(best_person_id, embedding, db)
+            await self.update_centroid(best_person_id, embedding, db, commit=commit)
 
         return status
 
@@ -137,6 +142,7 @@ class ClusteringService:
         person_id: int,
         embedding: np.ndarray,
         db: aiosqlite.Connection,
+        commit: bool = True,
     ) -> None:
         """Rolling average: new_centroid = normalise(old + embedding)."""
         row = await (
@@ -162,12 +168,14 @@ class ClusteringService:
             "UPDATE people SET centroid = ? WHERE id = ?",
             (_serialize_centroid(new_centroid), person_id),
         )
-        await db.commit()
+        if commit:
+            await db.commit()
 
     async def rebuild_centroid(
         self,
         person_id: int,
         db: aiosqlite.Connection,
+        commit: bool = True,
     ) -> None:
         """Recompute a person's centroid from their remaining assigned faces.
 
@@ -203,20 +211,23 @@ class ClusteringService:
             "UPDATE people SET centroid = ? WHERE id = ?",
             (_serialize_centroid(mean), person_id),
         )
-        await db.commit()
+        if commit:
+            await db.commit()
 
     async def create_person(
         self,
         name: str,
         db: aiosqlite.Connection,
         initial_embedding: np.ndarray | None = None,
+        commit: bool = True,
     ) -> int:
         centroid = _serialize_centroid(initial_embedding) if initial_embedding is not None else None
         cur = await db.execute(
             "INSERT INTO people (name, created_at, centroid) VALUES (?, ?, ?)",
             (name, int(time.time()), centroid),
         )
-        await db.commit()
+        if commit:
+            await db.commit()
         assert cur.lastrowid is not None
         return int(cur.lastrowid)
 
