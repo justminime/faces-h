@@ -17,13 +17,19 @@
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ],
+    "publisher": "shifth",
+    "copyright": "Copyright © 2026 shifth",
+    "shortDescription": "Local face recognition photo organizer",
+    "longDescription": "faces-h organizes your personal photo library by face recognition, entirely on your device. No cloud, no account, no uploads — every photo stays on your drive.",
     "resources": [],
     "externalBin": ["../sidecar/dist/faces-sidecar"],
     "windows": {
       "nsis": {
         "installMode": "perMachine",
         "displayLanguageSelector": false,
-        "installerHooks": "./nsis/hooks.nsi"
+        "installerHooks": "./nsis/hooks.nsi",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
       }
     }
   },
