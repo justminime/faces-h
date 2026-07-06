@@ -205,13 +205,16 @@ def _read_taken_at(path: str) -> int | None:
 async def _process_file(path: str, db: aiosqlite.Connection) -> ProcessResult:
     """Insert/update one image in the DB. Never modifies the source file."""
     try:
-        mtime = int(os.path.getmtime(path))
+        st = os.stat(path)
+        mtime = int(st.st_mtime)
+        file_size = int(st.st_size)
     except OSError as exc:
         logger.warning("Cannot stat %s: %s", path, exc)
         return "error"
 
     cur = await db.execute(
-        "SELECT id, missing FROM photos WHERE path=? AND mtime=?", (path, mtime)
+        "SELECT id, missing, blur_score, phash, file_size FROM photos"
+        " WHERE path=? AND mtime=?", (path, mtime)
     )
     row = await cur.fetchone()
     if row:
@@ -219,6 +222,19 @@ async def _process_file(path: str, db: aiosqlite.Connection) -> ProcessResult:
             # File reappeared at the same path (drive remounted, restored from
             # recycle bin) — revive it with its faces intact (#105).
             await db.execute("UPDATE photos SET missing = 0 WHERE id = ?", (int(row["id"]),))
+            await db.commit()
+        # Backfill analysis for photos scanned before #154/#155 shipped —
+        # cheap: the thumbnail is usually already in the disk cache.
+        if row["blur_score"] is None or row["phash"] is None or row["file_size"] is None:
+            from services import image_cache  # noqa: PLC0415
+            score, phash = await asyncio.to_thread(
+                image_cache.analyze_photo, int(row["id"]), path, mtime
+            )
+            await db.execute(
+                "UPDATE photos SET blur_score = COALESCE(?, blur_score),"
+                " phash = COALESCE(?, phash), file_size = ? WHERE id = ?",
+                (score, phash, file_size, int(row["id"])),
+            )
             await db.commit()
         return "skip"
 
@@ -237,15 +253,17 @@ async def _process_file(path: str, db: aiosqlite.Connection) -> ProcessResult:
         # once the new faces are fully committed.
         await db.execute(
             """
-            INSERT INTO photos (path, mtime, taken_at)
-            VALUES (?, ?, ?)
+            INSERT INTO photos (path, mtime, taken_at, file_size)
+            VALUES (?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE
                 SET mtime           = excluded.mtime,
                     taken_at        = excluded.taken_at,
+                    file_size       = excluded.file_size,
                     faces_extracted = 0,
-                    missing         = 0
+                    missing         = 0,
+                    content_hash    = NULL
             """,
-            (path, mtime, taken_at),
+            (path, mtime, taken_at, file_size),
         )
         await db.commit()
     except Exception as exc:
@@ -429,15 +447,17 @@ async def run_scan(
                     await _extract_faces(path, int(row["id"]), recognizer, clustering, db)
                 # Pre-generate the gallery thumbnail so the first visit is a
                 # disk-cache read instead of a full-resolution decode (#150),
-                # and score sharpness from the same decode (#154).
+                # scoring sharpness (#154) and the perceptual hash (#155)
+                # from the same decode.
                 from services import image_cache  # noqa: PLC0415
-                score = await asyncio.to_thread(
-                    image_cache.warm_and_score, int(row["id"]), path, int(row["mtime"])
+                score, phash = await asyncio.to_thread(
+                    image_cache.analyze_photo, int(row["id"]), path, int(row["mtime"])
                 )
-                if score is not None:
+                if score is not None or phash is not None:
                     await db.execute(
-                        "UPDATE photos SET blur_score = ? WHERE id = ?",
-                        (score, int(row["id"])),
+                        "UPDATE photos SET blur_score = COALESCE(?, blur_score),"
+                        " phash = COALESCE(?, phash) WHERE id = ?",
+                        (score, phash, int(row["id"])),
                     )
                     await db.commit()
         elif result == "skip":

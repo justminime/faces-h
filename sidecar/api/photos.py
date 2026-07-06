@@ -161,3 +161,117 @@ async def trash_photos(body: TrashRequest) -> dict[str, Any]:
 
     logger.info("moved %d photo(s) to the Recycle Bin (%d failed)", trashed, len(failed))
     return {"trashed": trashed, "failed": failed}
+
+
+def _sha256_file(path: str) -> str:
+    import hashlib  # noqa: PLC0415
+
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _photo_entry(r: Any) -> dict[str, Any]:
+    import os as _os  # noqa: PLC0415
+
+    return {
+        "id": int(r["id"]),
+        "path": r["path"],
+        "folder": _os.path.dirname(r["path"]),
+        "filename": _os.path.basename(r["path"]),
+        "file_size": r["file_size"],
+        "taken_at": r["taken_at"],
+    }
+
+
+@router.get("/duplicates")
+async def list_duplicates() -> list[dict[str, Any]]:
+    """Duplicate groups (#155): byte-identical files ("exact") and visually
+    identical shots saved at different sizes/formats ("similar").
+
+    Heavy SHA-256 hashing runs only here, only for files sharing a size, and
+    results are cached in photos.content_hash — normal scans never pay it.
+    """
+    async with get_db() as db:
+        # Candidate exact duplicates: same size, 2+ files.
+        async with db.execute(
+            """
+            SELECT id, path, taken_at, file_size, content_hash
+              FROM photos
+             WHERE missing = 0 AND file_size IS NOT NULL
+               AND file_size IN (
+                   SELECT file_size FROM photos
+                    WHERE missing = 0 AND file_size IS NOT NULL
+                    GROUP BY file_size HAVING COUNT(*) > 1
+               )
+            """
+        ) as cur:
+            candidates = await cur.fetchall()
+
+        # Hash the candidates that don't have a cached content hash yet.
+        for r in candidates:
+            if r["content_hash"] is None:
+                try:
+                    digest = await asyncio.to_thread(_sha256_file, r["path"])
+                except OSError:
+                    continue
+                await db.execute(
+                    "UPDATE photos SET content_hash = ? WHERE id = ?",
+                    (digest, int(r["id"])),
+                )
+        await db.commit()
+
+        groups: list[dict[str, Any]] = []
+        exact_ids: set[int] = set()
+
+        async with db.execute(
+            """
+            SELECT id, path, taken_at, file_size, content_hash
+              FROM photos
+             WHERE missing = 0 AND content_hash IS NOT NULL
+               AND content_hash IN (
+                   SELECT content_hash FROM photos
+                    WHERE missing = 0 AND content_hash IS NOT NULL
+                    GROUP BY content_hash HAVING COUNT(*) > 1
+               )
+             ORDER BY content_hash, path
+            """
+        ) as cur:
+            by_hash: dict[str, list[Any]] = {}
+            async for r in cur:
+                by_hash.setdefault(r["content_hash"], []).append(r)
+        for rows in by_hash.values():
+            groups.append({"kind": "exact", "photos": [_photo_entry(r) for r in rows]})
+            exact_ids.update(int(r["id"]) for r in rows)
+
+        # Similar groups: same perceptual hash, minus groups that are just
+        # the exact sets again.
+        async with db.execute(
+            """
+            SELECT id, path, taken_at, file_size, phash
+              FROM photos
+             WHERE missing = 0 AND phash IS NOT NULL
+               AND phash IN (
+                   SELECT phash FROM photos
+                    WHERE missing = 0 AND phash IS NOT NULL
+                    GROUP BY phash HAVING COUNT(*) > 1
+               )
+             ORDER BY phash, path
+            """
+        ) as cur:
+            by_phash: dict[int, list[Any]] = {}
+            async for r in cur:
+                by_phash.setdefault(int(r["phash"]), []).append(r)
+        for rows in by_phash.values():
+            ids = {int(r["id"]) for r in rows}
+            if ids <= exact_ids:
+                continue  # already fully covered by an exact group
+            groups.append({"kind": "similar", "photos": [_photo_entry(r) for r in rows]})
+
+    # Biggest space-savers first.
+    groups.sort(
+        key=lambda g: sum(p["file_size"] or 0 for p in g["photos"]), reverse=True
+    )
+    return groups

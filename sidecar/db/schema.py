@@ -12,7 +12,10 @@ CREATE TABLE IF NOT EXISTS photos (
     taken_at        INTEGER,
     faces_extracted INTEGER NOT NULL DEFAULT 0,
     missing         INTEGER NOT NULL DEFAULT 0,
-    blur_score      REAL
+    blur_score      REAL,
+    file_size       INTEGER,
+    phash           INTEGER,
+    content_hash    TEXT
 )
 """
 
@@ -99,6 +102,12 @@ PHOTOS_MIGRATIONS: list[tuple[str, str | None]] = [
     # blur_score (#154): Laplacian-variance sharpness computed at scan time;
     # NULL = not yet scored (scored on the photo's next scan).
     ("ALTER TABLE photos ADD COLUMN blur_score REAL", None),
+    # Duplicate detection (#155): size + perceptual hash captured at scan
+    # time; content_hash (SHA-256) computed lazily only for same-size
+    # candidates when the duplicates view is used.
+    ("ALTER TABLE photos ADD COLUMN file_size INTEGER", None),
+    ("ALTER TABLE photos ADD COLUMN phash INTEGER", None),
+    ("ALTER TABLE photos ADD COLUMN content_hash TEXT", None),
 ]
 
 INDEXES = [
@@ -108,6 +117,8 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_photos_path     ON photos(path)",
     "CREATE INDEX IF NOT EXISTS idx_photos_taken_at ON photos(taken_at)",
     "CREATE INDEX IF NOT EXISTS idx_photos_missing  ON photos(missing)",
+    "CREATE INDEX IF NOT EXISTS idx_photos_phash    ON photos(phash)",
+    "CREATE INDEX IF NOT EXISTS idx_photos_size     ON photos(file_size)",
     "CREATE INDEX IF NOT EXISTS idx_scan_roots_path ON scan_roots(path)",
 ]
 

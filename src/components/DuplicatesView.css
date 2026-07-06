@@ -1,0 +1,185 @@
+.dupes-view {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+}
+.dupes-view__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 20px 18px 12px;
+}
+.dupes-view__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--color-text);
+}
+.dupes-view__subtitle {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+}
+.dupes-view__controls {
+  display: flex;
+  gap: 10px;
+}
+.dupes-view__btn {
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-family: var(--font-family);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.dupes-view__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.dupes-view__btn--ghost {
+  background: var(--color-surface-2);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+.dupes-view__btn--danger {
+  background: #b3392b;
+  color: #fff;
+}
+.dupes-view__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 6px 18px 24px;
+}
+.dupes-view__group-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.dupes-view__kind {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+.dupes-view__kind--exact {
+  background: #b3392b;
+  color: #fff;
+}
+.dupes-view__kind--similar {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+.dupes-view__group-count {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.dupes-view__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dupes-view__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-family);
+}
+.dupes-view__row--selected {
+  border-color: var(--color-accent);
+}
+.dupes-view__row img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.dupes-view__fileinfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.dupes-view__filename {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dupes-view__folder {
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* ellipsis at the START so the deepest folder stays visible */
+  text-align: left;
+}
+.dupes-view__size {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.dupes-view__check {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+  opacity: 0;
+  flex-shrink: 0;
+}
+.dupes-view__row--selected .dupes-view__check {
+  opacity: 1;
+}
+.dupes-view__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.dupes-view__dialog {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 20px;
+  max-width: 380px;
+}
+.dupes-view__dialog h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--color-text);
+}
+.dupes-view__dialog p {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+.dupes-view__dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
