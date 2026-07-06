@@ -2,7 +2,7 @@
 
 **Version:** 1.3
 **Status:** Draft
-**Last updated:** 2026-07-04
+**Last updated:** 2026-07-05
 
 ---
 
@@ -420,16 +420,29 @@ attribute 'shape'`. Restricting `allowed_modules` skips those models entirely.
 - Runtime: TensorFlow Lite (CPU)
 - Model files: bundled inside sidecar (~250MB)
 
-### Switching models
+### Runtime configuration (`config.json`, #107)
 
-Edit `%APPDATA%\faces-h\config.json`:
+Optional file at `%APPDATA%\com.faces-h.app\config.json`. All keys optional;
+invalid values fall back to defaults with a logged warning. Defaults:
+
 ```json
-{ "face_model": "insightface_buffalo_l" }
+{
+  "face_model": "insightface_buffalo_l",
+  "auto_assign_threshold": 0.68,
+  "uncertain_threshold": 0.50,
+  "min_face_px": 20,
+  "min_detection_confidence": 0.5,
+  "ui_log_level": "info"
+}
 ```
-or
-```json
-{ "face_model": "deepface_facenet512" }
-```
+
+- `face_model` selects the recognizer via `ml/factory.py`; unknown names fail loudly at startup
+- the two thresholds gate Reliability Rules 1/3 (validated: 0 < uncertain < auto_assign <= 1)
+- `min_face_px` / `min_detection_confidence` implement OD-04's tiny/low-confidence detection skip (#111)
+- `ui_log_level` (`warning`|`info`|`debug`) tunes the engine->UI activity-log stream (#143); log files always capture everything
+
+Generated artifacts live alongside it: `cache/thumbs/` and `cache/faces/` (image disk cache, #114 — 2 GB LRU)
+and `faces.index` (the FAISS candidate index, #106); all rebuildable, safe to delete.
 
 A model change invalidates the FAISS index and triggers a re-scan prompt. Embeddings are not cross-model compatible.
 
