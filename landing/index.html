@@ -251,6 +251,106 @@
     </div>
   </section>
 
+  <!-- ── User guide (linked from the in-app Help menu) ── -->
+  <section class="how" id="guide">
+    <div class="how-inner">
+      <h2>User guide</h2>
+      <ol class="steps">
+
+        <li class="step">
+          <span class="step-num">&#9998;</span>
+          <div class="step-body">
+            <h3>Name people</h3>
+            <p>
+              Click a face cluster in the sidebar, open <em>Name this person</em>, and type a name —
+              every photo of them is labeled instantly. Typing a name that already exists offers to
+              <em>merge</em> the two clusters instead, so nobody ends up duplicated.
+              One-photo clusters wait under <em>Single-face clusters</em> until you name or merge them.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <span class="step-num">&#10003;</span>
+          <div class="step-body">
+            <h3>Review uncertain faces</h3>
+            <p>
+              When the app isn't confident enough to assign a face automatically, it lands in the
+              <em>To review</em> queue (the badge in the sidebar). Each card shows the best guess —
+              confirm it, pick someone else, or skip. The app never silently guesses:
+              anything below its confidence threshold waits for you.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <span class="step-num">&#8635;</span>
+          <div class="step-body">
+            <h3>Fix mistakes</h3>
+            <p>
+              In a photo's detail panel, hover a wrongly-labeled face and click
+              <em>This person is wrong</em>. The correction re-evaluates the whole cluster in the
+              background — faces that no longer fit are pulled out for review automatically.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <span class="step-num">&#128269;</span>
+          <div class="step-body">
+            <h3>Search by people and dates</h3>
+            <p>
+              Pick one or more people to find every photo they appear in <em>together</em>,
+              optionally within a date range. Switch to <em>exact people</em> mode to find photos
+              of only those people — no one else in the frame.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <span class="step-num">&#128193;</span>
+          <div class="step-body">
+            <h3>Folders and rescans</h3>
+            <p>
+              Add more folders any time (<kbd>Ctrl+O</kbd>) — network drives and NAS shares included —
+              and rescan the library with <kbd>Ctrl+R</kbd>. Photos deleted from disk hide themselves
+              on the next scan and come back automatically if the file returns. Your photo files are
+              never modified, moved, or deleted.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <span class="step-num">&#8644;</span>
+          <div class="step-body">
+            <h3>Move recognition between libraries</h3>
+            <p>
+              <em>Export Named People</em> saves a small file with your named identities — no photos
+              inside. Import it on another machine or library and matching clusters get their
+              names back automatically.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <span class="step-num">&#9881;</span>
+          <div class="step-body">
+            <h3>Under the hood</h3>
+            <p>
+              The activity log at the bottom shows what the engine is doing live (drag its verbosity
+              slider for more or less detail). Full logs live in
+              <code>%APPDATA%\com.faces-h.app\logs</code>. Power users can tune recognition
+              thresholds, detection filters, and log verbosity in
+              <code>%APPDATA%\com.faces-h.app\config.json</code> — first launch after installing
+              takes a minute or two while the face engine warms up.
+            </p>
+          </div>
+        </li>
+
+      </ol>
+    </div>
+  </section>
+
   <!-- ── System requirements ── -->
   <section class="requirements">
     <div class="req-inner">

@@ -17,18 +17,22 @@ Active development — core features complete. See [GitHub Issues](https://githu
 | M3 — Gallery UI (three-panel layout, naming, merge, corrections) | ✅ Done |
 | M4 — Search (multi-person AND, date filter, exact-people mode) | ✅ Done |
 | M5 — Corrections (mark wrong, re-evaluation pipeline) | ✅ Done |
-| M6 — Ship (onboarding, installer, security hardening, code signing) | 🔲 In progress |
+| M6 — Ship (onboarding, installer, security hardening) | ✅ Done |
+| Code signing (SignPath Foundation) | 🔲 Pending approval |
 
 ---
 
 ## What It Does
 
-- **Scan** a folder of any size (tested to 5TB / ~1M photos) in the background while you use your computer
-- **Detect and cluster** faces automatically — each cluster represents one likely person
-- **Name people** by clicking a cluster; all their photos are labeled instantly
-- **Search** by one or more people — find every photo where Mom and Dad appear together
-- **Correct mistakes** — mark a face wrong, and the app re-evaluates the whole cluster automatically
-- **Never touches your files** — read-only; no moves, renames, or copies
+- **Scan** folders of any size (tested to 5TB / ~1M photos) in the background — local drives, network shares, and NAS included
+- **Detect and cluster** faces automatically — each cluster represents one likely person; FAISS-backed matching stays fast as the library grows
+- **Name people** by clicking a cluster; all their photos are labeled instantly (duplicate names offer a merge)
+- **Review uncertain faces** — anything below the confidence threshold waits in a queue for your confirmation; the app never silently guesses
+- **Search** by one or more people together, with date ranges and an "exactly these people" mode
+- **Correct mistakes** — mark a face wrong and the whole cluster re-evaluates automatically
+- **Carry recognition across libraries** — export/import named identities as a small file (no photos inside)
+- **See what it's doing** — live activity log with engine and app streams, adjustable verbosity
+- **Never touches your files** — read-only; no moves, renames, or copies; photos deleted from disk hide themselves and revive if restored
 
 ---
 
@@ -65,7 +69,7 @@ See [`CLAUDE.md`](CLAUDE.md) for how to work on this project with Claude Code.
 # Python sidecar
 python -m venv sidecar/.venv
 sidecar/.venv/Scripts/pip install -r sidecar/requirements.txt
-python sidecar/main.py --port 51423 --data-dir "%APPDATA%\faces-h"
+python sidecar/main.py --port 51423 --data-dir "%APPDATA%\com.faces-h.app"
 
 # Frontend + Tauri (in a second terminal)
 npm install
@@ -82,9 +86,26 @@ cargo test --manifest-path src-tauri/Cargo.toml  # Rust
 
 ---
 
+## Configuration
+
+Optional `config.json` in `%APPDATA%\com.faces-h.app\` (all keys optional; defaults shown):
+
+```json
+{
+  "face_model": "insightface_buffalo_l",
+  "auto_assign_threshold": 0.68,
+  "uncertain_threshold": 0.50,
+  "min_face_px": 20,
+  "min_detection_confidence": 0.5,
+  "ui_log_level": "info"
+}
+```
+
+Invalid values fall back to defaults with a logged warning. Logs: `%APPDATA%\com.faces-h.app\logs\`.
+
 ## Security
 
-- IPC between Tauri and the sidecar is authenticated with a per-session token (generated at startup, never reused)
+- IPC between Tauri and the sidecar is authenticated with a 256-bit per-session token from the OS CSPRNG (generated at startup, never reused)
 - Strict Content Security Policy — no external script or font sources
 - All third-party GitHub Actions pinned to immutable commit SHAs
 - Installer code-signed via [SignPath Foundation](https://signpath.org) (pending approval)
