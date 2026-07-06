@@ -271,3 +271,72 @@ def test_shortlist_stays_fast_as_index_grows(tmp_path: Path) -> None:
     assert t_large < max(t_small * 10, 5.0), (
         f"query time grew too much: {t_small:.2f}ms → {t_large:.2f}ms"
     )
+
+
+def test_promote_skipped_without_training_cache(tmp_path: Path) -> None:
+    """#142: a loaded index has no vector cache — promote() must be a safe
+    no-op instead of building a broken next tier."""
+    from index.faiss_manager import FAISSManager, _FLAT_LIMIT
+
+    mgr = FAISSManager(str(tmp_path))
+    for i in range(3):
+        mgr.add(i, _unit(i))
+    mgr.save()
+
+    loaded = FAISSManager(str(tmp_path))
+    loaded.load()
+    assert loaded.ntotal == 3
+    assert not loaded.has_training_cache
+    # Force the promotion condition regardless of size, then attempt it.
+    loaded._tier = "flat"
+    original_limit = _FLAT_LIMIT
+    try:
+        import index.faiss_manager as fm
+        fm._FLAT_LIMIT = 1  # make needs_promotion() true at 3 entries
+        assert loaded.needs_promotion()
+        loaded.promote()  # must not raise and must not swap in a broken index
+        assert loaded.ntotal == 3
+        assert loaded._tier == "flat", "tier must be unchanged after skipped promote"
+    finally:
+        fm._FLAT_LIMIT = original_limit
+
+
+@pytest.mark.asyncio
+async def test_ensure_ready_rebuilds_when_promotion_due_without_cache(
+    tmp_path: Path,
+) -> None:
+    """#142: loaded-from-disk index that is due for promotion gets rebuilt
+    from the DB so the training cache exists again."""
+    import index.faiss_manager as fm
+
+    db = await _open_db(tmp_path)
+    try:
+        await db.execute("INSERT INTO photos (id, path, mtime) VALUES (1, '/a.jpg', 1)")
+        for i in range(1, 4):
+            await db.execute(
+                """INSERT INTO faces (id, photo_id, detection_conf, assign_status, embedding)
+                   VALUES (?, 1, 0.9, 'unreviewed', ?)""",
+                (i, _unit(i).tobytes()),
+            )
+        await db.commit()
+
+        # Persist an index so ensure_ready loads (not rebuilds) it initially.
+        seed = FaceIndex(str(tmp_path))
+        for i in range(1, 4):
+            seed.add(i, _unit(i))
+        seed.save()
+
+        original_limit = fm._FLAT_LIMIT
+        try:
+            fm._FLAT_LIMIT = 2  # loaded index (3 entries) is now "due"
+            reset_face_index()
+            idx = get_face_index()
+            await idx.ensure_ready(db)
+            assert idx.size == 3
+            assert idx._mgr.has_training_cache, (
+                "rebuild from DB must repopulate the training cache"
+            )
+        finally:
+            fm._FLAT_LIMIT = original_limit
+    finally:
+        await db.close()

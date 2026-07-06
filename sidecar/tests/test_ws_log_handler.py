@@ -52,3 +52,43 @@ def test_handler_never_raises() -> None:
     bad = _record("services.scanner", logging.WARNING, "%s %s")  # broken format
     bad.args = ("only-one",)
     h.emit(bad)  # must not raise
+
+
+def _set_ui_log_level(tmp_path: object, level: str) -> None:
+    import json
+    import os
+    from pathlib import Path
+
+    from config import reset_config_cache
+
+    Path(str(tmp_path), "config.json").write_text(
+        json.dumps({"ui_log_level": level}), encoding="utf-8"
+    )
+    os.environ["FACES_H_DATA_DIR"] = str(tmp_path)
+    reset_config_cache()
+
+
+def test_ui_log_level_warning_suppresses_info(tmp_path: object) -> None:
+    _set_ui_log_level(tmp_path, "warning")
+    h = WsLogHandler()
+    h.emit(_record("services.scanner", logging.INFO, "scan starting"))
+    h.emit(_record("services.scanner", logging.WARNING, "still surfaced"))
+    assert [e["message"] for e in h.queue] == ["still surfaced"]
+
+
+def test_ui_log_level_debug_forwards_debug_from_interesting_loggers(
+    tmp_path: object,
+) -> None:
+    _set_ui_log_level(tmp_path, "debug")
+    h = WsLogHandler()
+    h.emit(_record("services.scanner", logging.DEBUG, "verbose detail"))
+    h.emit(_record("db.database", logging.DEBUG, "not interesting"))  # excluded
+    assert [e["message"] for e in h.queue] == ["verbose detail"]
+
+
+def test_ui_log_level_invalid_falls_back_to_info(tmp_path: object) -> None:
+    _set_ui_log_level(tmp_path, "yelling")
+    h = WsLogHandler()
+    h.emit(_record("services.scanner", logging.INFO, "default behavior"))
+    h.emit(_record("services.scanner", logging.DEBUG, "hidden at info"))
+    assert [e["message"] for e in h.queue] == ["default behavior"]
