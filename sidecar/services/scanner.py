@@ -421,12 +421,18 @@ async def run_scan(
         if result == "ok":
             _status.scanned += 1
             consecutive_errors = 0
-            if recognizer is not None:
-                row = await (await db.execute(
-                    "SELECT id FROM photos WHERE path = ?", (path,)
-                )).fetchone()
-                if row:
+            row = await (await db.execute(
+                "SELECT id, mtime FROM photos WHERE path = ?", (path,)
+            )).fetchone()
+            if row:
+                if recognizer is not None:
                     await _extract_faces(path, int(row["id"]), recognizer, clustering, db)
+                # Pre-generate the gallery thumbnail so the first visit is a
+                # disk-cache read instead of a full-resolution decode (#150).
+                from services import image_cache  # noqa: PLC0415
+                await asyncio.to_thread(
+                    image_cache.warm_thumbnail, int(row["id"]), path, int(row["mtime"])
+                )
         elif result == "skip":
             _status.skipped += 1
             consecutive_errors = 0

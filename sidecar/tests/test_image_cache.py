@@ -173,3 +173,46 @@ async def test_face_crop_served_from_cache(tmp_path: Path) -> None:
         assert r2.status_code == 200
         assert r2.headers["x-cache"] == "hit"
         assert r2.content == r1.content
+
+
+@pytest.mark.asyncio
+async def test_scan_warms_thumbnail_cache(tmp_path: Path) -> None:
+    """#150: after a scan, the 256px thumbnail is already on disk so the
+    first gallery visit never decodes the full-resolution original."""
+    from services import image_cache
+    from services.scanner import run_scan
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    os.environ["FACES_H_DATA_DIR"] = str(data_dir)
+
+    root = tmp_path / "lib"
+    root.mkdir()
+    photo = root / "warm.jpg"
+    _write_jpeg(photo)
+
+    import aiosqlite
+
+    from db.schema import ALL_TABLES, INDEXES
+
+    db = await aiosqlite.connect(str(data_dir / "t.db"))
+    db.row_factory = aiosqlite.Row
+    for ddl in ALL_TABLES:
+        await db.execute(ddl)
+    for idx in INDEXES:
+        await db.execute(idx)
+    await db.commit()
+
+    async def _noop(_msg: object) -> None:
+        return None
+
+    try:
+        await run_scan(str(root), _noop, db)
+        row = await (
+            await db.execute("SELECT id, mtime FROM photos WHERE path = ?", (str(photo),))
+        ).fetchone()
+        assert row is not None
+        key = image_cache.cache_key("thumbs", int(row["id"]), int(row["mtime"]), variant="256")
+        assert image_cache.get(key) is not None, "scan must pre-generate the thumbnail"
+    finally:
+        await db.close()

@@ -1,6 +1,6 @@
 """Photo image serving endpoints."""
 
-import io
+import asyncio
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
@@ -26,7 +26,7 @@ async def get_photo_thumbnail(
     so this respects the project rule against touching photo files.
     """
     try:
-        from PIL import Image, ImageOps  # type: ignore[import-untyped]
+        import PIL  # type: ignore[import-untyped]  # noqa: F401
     except ImportError as exc:
         raise HTTPException(status_code=503, detail="Pillow not installed") from exc
 
@@ -49,13 +49,11 @@ async def get_photo_thumbnail(
         )
 
     try:
-        with Image.open(row["path"]) as src_img:
-            oriented = ImageOps.exif_transpose(src_img) or src_img  # honour orientation tag
-            rgb = oriented.convert("RGB")
-            rgb.thumbnail((size, size))
-            buf = io.BytesIO()
-            rgb.save(buf, format="JPEG", quality=85)
-        data = buf.getvalue()
+        # Worker thread: PIL in the async handler serialized every image
+        # request behind one core and starved the rest of the API (#150).
+        data = await asyncio.to_thread(
+            image_cache.generate_thumbnail_bytes, row["path"], size
+        )
         image_cache.put(cache_path, data)
         return Response(
             content=data,

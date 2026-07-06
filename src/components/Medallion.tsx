@@ -15,7 +15,9 @@ export function Medallion({ src, alt, selected = false, size = 48 }: MedallionPr
       aria-label={alt}
     >
       {src ? (
-        <img src={src} alt={alt} />
+        // lazy: with hundreds of people, eager medallions monopolize the
+        // WebView's ~6 connections and starve photo-grid thumbnails (#150).
+        <img src={src} alt={alt} loading="lazy" decoding="async" />
       ) : (
         <span className="medallion__placeholder" aria-hidden="true" />
       )}
