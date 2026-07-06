@@ -156,3 +156,57 @@ async def test_trash_failure_reported_per_file(tmp_path: Path, monkeypatch: pyte
             await db.execute("SELECT missing FROM photos WHERE id = 1")
         ).fetchone()
     assert row is not None and row["missing"] == 0, "failed trash must not hide the photo"
+
+
+@pytest.mark.asyncio
+async def test_trash_network_file_deleted_permanently_when_allowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Network shares have no Recycle Bin (#158): with the explicit flag the
+    file is permanently removed and counted separately; without it, it fails
+    safely and stays visible."""
+    os.environ["FACES_H_DATA_DIR"] = str(tmp_path / "data")
+    os.makedirs(str(tmp_path / "data"), exist_ok=True)
+
+    photo = tmp_path / "nas" / "shot.jpg"
+    photo.parent.mkdir()
+    photo.write_bytes(_blurry_jpeg())
+    await _seed(str(tmp_path / "data"), [(1, str(photo), 5.0)])
+
+    import send2trash as s2t
+
+    def _no_bin(path: str) -> None:
+        raise OSError("no recycle bin on this volume")
+
+    monkeypatch.setattr(s2t, "send2trash", _no_bin)
+    import api.photos as photos_api
+
+    monkeypatch.setattr(photos_api, "is_network_path", lambda p: True)
+
+    from main import app
+
+    # Without the flag: fails safely, photo untouched and still visible.
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as ac:
+        r = await ac.post("/photos/trash", json={"photo_ids": [1], "confirmed": True})
+    body = r.json()
+    assert body["trashed"] == 0 and body["deleted_permanently"] == 0
+    assert body["failed"][0]["id"] == 1
+    assert photo.exists()
+
+    # With the flag (UI warned the user): permanently deleted and hidden.
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as ac:
+        r = await ac.post(
+            "/photos/trash",
+            json={"photo_ids": [1], "confirmed": True, "allow_permanent_on_network": True},
+        )
+    body = r.json()
+    assert body["deleted_permanently"] == 1 and body["failed"] == []
+    assert not photo.exists(), "network file must actually be removed"
+
+    from db.database import get_db
+
+    async with get_db() as db:
+        row = await (
+            await db.execute("SELECT missing FROM photos WHERE id = 1")
+        ).fetchone()
+    assert row is not None and row["missing"] == 1

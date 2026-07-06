@@ -5,6 +5,7 @@ import {
   photoThumbUrl,
   type DuplicateGroup,
 } from "../api/client";
+import { TrashConfirmDialog } from "./TrashConfirmDialog";
 import { useToastStore } from "../store/toast";
 import { useUIStore } from "../store/ui";
 import "./DuplicatesView.css";
@@ -151,35 +152,22 @@ export function DuplicatesView() {
       </div>
 
       {confirming && (
-        <div className="dupes-view__overlay" role="dialog" aria-label="Confirm delete">
-          <div className="dupes-view__dialog">
-            <h3>
-              Delete {selected.size} photo{selected.size === 1 ? "" : "s"}?
-            </h3>
-            <p>
-              The files will be moved to the Windows Recycle Bin — removed from
-              your library folders, recoverable from the Bin until you empty it.
-            </p>
-            <div className="dupes-view__dialog-actions">
-              <button
-                type="button"
-                className="dupes-view__btn dupes-view__btn--ghost"
-                onClick={() => setConfirming(false)}
-                disabled={busy}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="dupes-view__btn dupes-view__btn--danger"
-                onClick={() => void confirmTrash()}
-                disabled={busy}
-              >
-                {busy ? "Moving…" : "Move to Recycle Bin"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <TrashConfirmDialog
+          items={groups
+            .flatMap((g) => g.photos)
+            .filter((p) => selected.has(p.id))
+            .map((p) => ({
+              id: p.id,
+              filename: p.filename,
+              folder: p.folder,
+              fileSize: p.file_size,
+              thumbSrc: photoThumbUrl(p.id, 64),
+              isNetwork: p.is_network,
+            }))}
+          busy={busy}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => void confirmTrash()}
+        />
       )}
     </div>
   );

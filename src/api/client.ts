@@ -183,6 +183,8 @@ export interface BlurryPhoto {
   path: string;
   taken_at: number | null;
   blur_score: number;
+  file_size: number | null;
+  is_network: boolean;
 }
 
 /** Photos below the sharpness cutoff, most blurred first (#154).
@@ -198,6 +200,7 @@ export function fetchBlurryPhotos(
 
 export interface TrashResult {
   trashed: number;
+  deleted_permanently: number;
   failed: { id: number; error: string }[];
 }
 
@@ -206,7 +209,13 @@ export interface TrashResult {
 export function trashPhotos(photoIds: number[]): Promise<TrashResult> {
   return apiFetch<TrashResult>("/photos/trash", {
     method: "POST",
-    body: JSON.stringify({ photo_ids: photoIds, confirmed: true }),
+    body: JSON.stringify({
+      photo_ids: photoIds,
+      confirmed: true,
+      // The dialog warns which files are on network folders (no Recycle Bin
+      // there) before this is sent — those are deleted permanently (#158).
+      allow_permanent_on_network: true,
+    }),
   });
 }
 
@@ -217,6 +226,7 @@ export interface DuplicatePhoto {
   filename: string;
   file_size: number | null;
   taken_at: number | null;
+  is_network: boolean;
 }
 
 export interface DuplicateGroup {

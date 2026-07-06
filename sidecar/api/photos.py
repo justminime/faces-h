@@ -2,11 +2,13 @@
 
 import asyncio
 import logging
+import os
 from typing import Any
 
 from pydantic import BaseModel
 
 from config import get_config
+from services.scanner import is_network_path
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
@@ -90,7 +92,7 @@ async def list_blurry_photos(
     async with get_db() as db:
         async with db.execute(
             """
-            SELECT id, path, taken_at, blur_score
+            SELECT id, path, taken_at, blur_score, file_size
               FROM photos
              WHERE missing = 0
                AND blur_score IS NOT NULL
@@ -107,6 +109,8 @@ async def list_blurry_photos(
             "path": r["path"],
             "taken_at": r["taken_at"],
             "blur_score": r["blur_score"],
+            "file_size": r["file_size"],
+            "is_network": is_network_path(r["path"]),
         }
         for r in rows
     ]
@@ -115,6 +119,10 @@ async def list_blurry_photos(
 class TrashRequest(BaseModel):
     photo_ids: list[int]
     confirmed: bool = False
+    # Network shares have no Recycle Bin on Windows. When true (set by the UI
+    # after warning the user which files are on network folders), files that
+    # cannot be recycled AND live on a network path are deleted permanently.
+    allow_permanent_on_network: bool = False
 
 
 @router.post("/trash")
@@ -135,6 +143,7 @@ async def trash_photos(body: TrashRequest) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="send2trash not installed") from exc
 
     trashed = 0
+    deleted_permanently = 0
     failed: list[dict[str, Any]] = []
     async with get_db() as db:
         for photo_id in body.photo_ids:
@@ -147,20 +156,43 @@ async def trash_photos(body: TrashRequest) -> dict[str, Any]:
             if row is None:
                 failed.append({"id": photo_id, "error": "not found"})
                 continue
+            path = row["path"]
+            removed = False
             try:
-                await asyncio.to_thread(send2trash, row["path"])
-            except Exception as exc:  # noqa: BLE001 — report per file, keep going
-                logger.warning("recycle-bin move failed for %s: %s", row["path"], exc)
-                failed.append({"id": photo_id, "error": str(exc.__class__.__name__)})
-                continue
-            await db.execute(
-                "UPDATE photos SET missing = 1 WHERE id = ?", (photo_id,)
-            )
-            trashed += 1
+                await asyncio.to_thread(send2trash, path)
+                trashed += 1
+                removed = True
+            except Exception as exc:  # noqa: BLE001 — try the network fallback
+                if body.allow_permanent_on_network and is_network_path(path):
+                    # No Recycle Bin exists on network shares — the user was
+                    # warned in the dialog that these are permanent (#158).
+                    try:
+                        await asyncio.to_thread(os.remove, path)
+                        deleted_permanently += 1
+                        removed = True
+                        logger.warning(
+                            "permanently deleted network file (no Recycle Bin): %s", path
+                        )
+                    except OSError as rm_exc:
+                        failed.append(
+                            {"id": photo_id, "error": str(rm_exc.__class__.__name__)}
+                        )
+                else:
+                    logger.warning("recycle-bin move failed for %s: %s", path, exc)
+                    failed.append({"id": photo_id, "error": str(exc.__class__.__name__)})
+            if removed:
+                await db.execute(
+                    "UPDATE photos SET missing = 1 WHERE id = ?", (photo_id,)
+                )
         await db.commit()
 
-    logger.info("moved %d photo(s) to the Recycle Bin (%d failed)", trashed, len(failed))
-    return {"trashed": trashed, "failed": failed}
+    logger.info(
+        "moved %d photo(s) to the Recycle Bin, %d permanently deleted on network shares (%d failed)",
+        trashed,
+        deleted_permanently,
+        len(failed),
+    )
+    return {"trashed": trashed, "deleted_permanently": deleted_permanently, "failed": failed}
 
 
 def _sha256_file(path: str) -> str:
@@ -183,6 +215,7 @@ def _photo_entry(r: Any) -> dict[str, Any]:
         "filename": _os.path.basename(r["path"]),
         "file_size": r["file_size"],
         "taken_at": r["taken_at"],
+        "is_network": is_network_path(r["path"]),
     }
 
 

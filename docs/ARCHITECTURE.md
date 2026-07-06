@@ -191,7 +191,7 @@ and `:root[data-theme="dark"]` (explicit dark override).
 - Mid-scan disconnection: after 5 consecutive per-file OS errors on a network path, the scanner pauses, retries up to 3× with 5 s delay, then broadcasts `drive_offline` and stops cleanly without DB corruption
 - On rescan: each root is checked for reachability first; offline roots emit `drive_offline` and are skipped while online roots continue normally
 - The scanner **never writes, moves, or deletes** any file — network or local
-- The ONLY file-modifying action in the product is the explicit, user-confirmed **Move to Recycle Bin** delete (#154): send2trash, never a permanent erase; the DB row is marked `missing` (#105) so restoring the file + rescanning revives it with its faces intact
+- The ONLY file-modifying action in the product is the explicit, user-confirmed delete (#154/#158): local files go to the Recycle Bin via send2trash (never a permanent erase); network shares have no Recycle Bin, so files there are permanently removed ONLY when the request carries `allow_permanent_on_network` — which the UI sets after the confirmation dialog has listed those files with an explicit permanent-delete warning. The DB row is marked `missing` (#105) so restoring a file + rescanning revives it with its faces intact
 - `scan_roots` table gains `is_network` (INTEGER) and `last_seen_at` (INTEGER) columns; applied via idempotent `ALTER TABLE` migrations
 
 Throughput target: ≥500 photos/min on mid-range CPU (i5/Ryzen 5). Network scans may be 10–100× slower; progress bar reflects real counts.
@@ -433,7 +433,8 @@ invalid values fall back to defaults with a logged warning. Defaults:
   "uncertain_threshold": 0.50,
   "min_face_px": 20,
   "min_detection_confidence": 0.5,
-  "ui_log_level": "info"
+  "ui_log_level": "info",
+  "blur_threshold": 60
 }
 ```
 
@@ -441,6 +442,7 @@ invalid values fall back to defaults with a logged warning. Defaults:
 - the two thresholds gate Reliability Rules 1/3 (validated: 0 < uncertain < auto_assign <= 1)
 - `min_face_px` / `min_detection_confidence` implement OD-04's tiny/low-confidence detection skip (#111)
 - `ui_log_level` (`warning`|`info`|`debug`) tunes the engine->UI activity-log stream (#143); log files always capture everything
+- `blur_threshold` is the default sharpness cutoff for the blurry-photos view (#154); the UI slider overrides it per request
 
 Generated artifacts live alongside it: `cache/thumbs/` and `cache/faces/` (image disk cache, #114 — 2 GB LRU)
 and `faces.index` (the FAISS candidate index, #106); all rebuildable, safe to delete.
