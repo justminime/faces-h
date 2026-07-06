@@ -204,18 +204,13 @@ export interface TrashResult {
   failed: { id: number; error: string }[];
 }
 
-/** Move photos to the OS Recycle Bin — deletes the real files (recoverable
- *  from the Bin). The only file-modifying action in the app (#154). */
+/** Delete photos — local and network folders behave identically (#164):
+ *  every file is backed up in the app first, then Recycle Bin is attempted,
+ *  falling back to a (safe, already-backed-up) permanent removal. */
 export function trashPhotos(photoIds: number[]): Promise<TrashResult> {
   return apiFetch<TrashResult>("/photos/trash", {
     method: "POST",
-    body: JSON.stringify({
-      photo_ids: photoIds,
-      confirmed: true,
-      // The dialog warns which files are on network folders (no Recycle Bin
-      // there) before this is sent — those are deleted permanently (#158).
-      allow_permanent_on_network: true,
-    }),
+    body: JSON.stringify({ photo_ids: photoIds, confirmed: true }),
   });
 }
 
@@ -269,13 +264,15 @@ export interface RotateResult {
   failed: { id: number; error: string }[];
 }
 
-/** Rotate original files in place — undoable (Recycle Bin / backup) (#160). */
+/** Rotate original files in place — undoable everywhere alike (#160/#164):
+ *  every original is backed up in the app first, then Recycle Bin is
+ *  attempted, falling back to a (safe, already-backed-up) permanent removal. */
 export function rotatePhotos(
   items: { photo_id: number; degrees: number }[],
 ): Promise<RotateResult> {
   return apiFetch<RotateResult>("/photos/rotate", {
     method: "POST",
-    body: JSON.stringify({ items, confirmed: true, allow_permanent_on_network: true }),
+    body: JSON.stringify({ items, confirmed: true }),
   });
 }
 

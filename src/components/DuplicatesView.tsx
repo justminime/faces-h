@@ -59,11 +59,11 @@ export function DuplicatesView() {
     setBusy(true);
     try {
       const result = await trashPhotos([...selected]);
-      useToastStore
-        .getState()
-        .addToast(
-          `Moved ${result.trashed} duplicate${result.trashed === 1 ? "" : "s"} to the Recycle Bin`,
-        );
+      const parts = [`Deleted ${result.trashed + result.deleted_permanently} duplicate${result.trashed + result.deleted_permanently === 1 ? "" : "s"}`];
+      if (result.deleted_permanently > 0) {
+        parts.push(`${result.deleted_permanently} backed up in-app (no Recycle Bin available)`);
+      }
+      useToastStore.getState().addToast(parts.join(" — "));
       setSelected(new Set());
       setConfirming(false);
       load();

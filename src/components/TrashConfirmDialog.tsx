@@ -7,7 +7,9 @@ export interface TrashItem {
   fileSize: number | null;
   /** Thumbnail URL so the user sees the actual photo before deleting. */
   thumbSrc: string;
-  /** Network shares have no Recycle Bin — these deletes are permanent. */
+  /** Network shares typically have no Recycle Bin, so these usually end up
+   *  app-backed-up rather than Bin-recycled — every file gets an app backup
+   *  either way (#164), so this is informational, not a different outcome. */
   isNetwork: boolean;
 }
 
@@ -45,21 +47,22 @@ export function TrashConfirmDialog({
           Delete {items.length} photo{items.length === 1 ? "" : "s"}?
         </h3>
         <p className="trash-dialog__summary">
-          These files will be <strong>removed from your library folders</strong> and
-          moved to the Windows Recycle Bin
+          These files will be <strong>removed from your library folders</strong>
           {knownSizes ? (
             <>
-              , freeing <strong>{fmtSize(totalBytes)}</strong> once the Bin is emptied
+              , freeing <strong>{fmtSize(totalBytes)}</strong>
             </>
           ) : null}
-          . They stay recoverable from the Bin until you empty it.
+          . Every file is also <strong>backed up inside the app for 7 days</strong>{" "}
+          before removal — local files also go to the Windows Recycle Bin when
+          possible; restore any of them anytime from Restore Backups (··· menu)
+          or the Recycle Bin.
         </p>
         {networkCount > 0 && (
           <p className="trash-dialog__network-warning" role="alert">
-            ⚠ {networkCount} file{networkCount === 1 ? " is" : "s are"} on a
-            network folder (marked below). Network locations have no Recycle
-            Bin — {networkCount === 1 ? "it" : "they"} will be{" "}
-            <strong>deleted permanently</strong>.
+            ℹ {networkCount} file{networkCount === 1 ? " is" : "s are"} on a
+            network folder (marked below) — those typically skip the Windows
+            Recycle Bin, but the app backup covers them the same way.
           </p>
         )}
 
@@ -77,7 +80,7 @@ export function TrashConfirmDialog({
                 {item.folder}
               </span>
               {item.isNetwork && (
-                <span className="trash-dialog__network-tag">network — permanent</span>
+                <span className="trash-dialog__network-tag">network</span>
               )}
               <span className="trash-dialog__size">{fmtSize(item.fileSize)}</span>
             </li>
