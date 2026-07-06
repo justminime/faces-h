@@ -34,6 +34,9 @@ DEFAULT_MIN_DETECTION_CONFIDENCE = 0.5
 # Log FILES always capture everything regardless of this setting.
 DEFAULT_UI_LOG_LEVEL = "info"
 _UI_LOG_LEVELS = ("debug", "info", "warning")
+# Photos with a Laplacian-variance sharpness score (computed on the 256px
+# thumbnail) below this count as "blurry" in the review view (#154).
+DEFAULT_BLUR_THRESHOLD = 60.0
 
 
 @dataclass(frozen=True)
@@ -44,6 +47,7 @@ class Config:
     min_face_px: float = DEFAULT_MIN_FACE_PX
     min_detection_confidence: float = DEFAULT_MIN_DETECTION_CONFIDENCE
     ui_log_level: str = DEFAULT_UI_LOG_LEVEL
+    blur_threshold: float = DEFAULT_BLUR_THRESHOLD
 
 
 _cached: Config | None = None
@@ -88,6 +92,12 @@ def _validate(raw: dict[str, object]) -> Config:
         )
         min_det_f = DEFAULT_MIN_DETECTION_CONFIDENCE
 
+    blur = raw.get("blur_threshold", DEFAULT_BLUR_THRESHOLD)
+    blur_f = float(blur) if isinstance(blur, (int, float)) and float(blur) > 0 else None
+    if blur_f is None:
+        logger.warning("config.json: invalid blur_threshold %r — using default", blur)
+        blur_f = DEFAULT_BLUR_THRESHOLD
+
     ui_log = raw.get("ui_log_level", DEFAULT_UI_LOG_LEVEL)
     if not isinstance(ui_log, str) or ui_log.lower() not in _UI_LOG_LEVELS:
         logger.warning("config.json: invalid ui_log_level %r — using default", ui_log)
@@ -102,6 +112,7 @@ def _validate(raw: dict[str, object]) -> Config:
         min_face_px=min_px_f,
         min_detection_confidence=min_det_f,
         ui_log_level=ui_log,
+        blur_threshold=blur_f,
     )
 
 

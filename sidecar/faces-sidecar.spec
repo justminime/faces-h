@@ -48,6 +48,8 @@ a = Analysis(
         "anyio._backends._trio",
         # parent-process watchdog (#119) — imported lazily in main._parent_alive
         "psutil",
+        # Recycle-Bin deletion (#154) — imported lazily in api/photos.py
+        "send2trash",
     ],
     hookspath=[],
     hooksconfig={},

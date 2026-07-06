@@ -1,6 +1,12 @@
 """Photo image serving endpoints."""
 
 import asyncio
+import logging
+from typing import Any
+
+from pydantic import BaseModel
+
+from config import get_config
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
@@ -9,6 +15,7 @@ from db.database import get_db
 from services import image_cache
 
 router = APIRouter(prefix="/photos", tags=["photos"])
+logger = logging.getLogger(__name__)
 
 _MAX_THUMB_PX = 1024
 
@@ -66,3 +73,91 @@ async def get_photo_thumbnail(
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Could not generate thumbnail") from exc
+
+
+@router.get("/blurry")
+async def list_blurry_photos(
+    limit: int = 100,
+    offset: int = 0,
+    threshold: float | None = None,
+) -> list[dict[str, Any]]:
+    """Photos whose sharpness score is below the cutoff (#154), most blurred
+    first. `threshold` (the UI slider) overrides config.blur_threshold. NULL
+    scores (not yet scanned since the feature shipped) are excluded — they
+    get scored on their next scan."""
+    if threshold is None or threshold <= 0:
+        threshold = get_config().blur_threshold
+    async with get_db() as db:
+        async with db.execute(
+            """
+            SELECT id, path, taken_at, blur_score
+              FROM photos
+             WHERE missing = 0
+               AND blur_score IS NOT NULL
+               AND blur_score < ?
+             ORDER BY blur_score ASC
+             LIMIT ? OFFSET ?
+            """,
+            (threshold, limit, offset),
+        ) as cur:
+            rows = await cur.fetchall()
+    return [
+        {
+            "id": int(r["id"]),
+            "path": r["path"],
+            "taken_at": r["taken_at"],
+            "blur_score": r["blur_score"],
+        }
+        for r in rows
+    ]
+
+
+class TrashRequest(BaseModel):
+    photo_ids: list[int]
+    confirmed: bool = False
+
+
+@router.post("/trash")
+async def trash_photos(body: TrashRequest) -> dict[str, Any]:
+    """Move photos to the OS Recycle Bin — the ONLY file-modifying action in
+    the product (#154). Requires explicit confirmation; never a permanent
+    delete. Trashed photos are marked missing (#105), so restoring the file
+    from the Recycle Bin + rescanning revives it with its faces intact.
+    """
+    if not body.confirmed:
+        raise HTTPException(status_code=400, detail="confirmed must be true")
+    if not body.photo_ids:
+        return {"trashed": 0, "failed": []}
+
+    try:
+        from send2trash import send2trash  # noqa: PLC0415
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="send2trash not installed") from exc
+
+    trashed = 0
+    failed: list[dict[str, Any]] = []
+    async with get_db() as db:
+        for photo_id in body.photo_ids:
+            row = await (
+                await db.execute(
+                    "SELECT path FROM photos WHERE id = ? AND missing = 0",
+                    (photo_id,),
+                )
+            ).fetchone()
+            if row is None:
+                failed.append({"id": photo_id, "error": "not found"})
+                continue
+            try:
+                await asyncio.to_thread(send2trash, row["path"])
+            except Exception as exc:  # noqa: BLE001 — report per file, keep going
+                logger.warning("recycle-bin move failed for %s: %s", row["path"], exc)
+                failed.append({"id": photo_id, "error": str(exc.__class__.__name__)})
+                continue
+            await db.execute(
+                "UPDATE photos SET missing = 1 WHERE id = ?", (photo_id,)
+            )
+            trashed += 1
+        await db.commit()
+
+    logger.info("moved %d photo(s) to the Recycle Bin (%d failed)", trashed, len(failed))
+    return {"trashed": trashed, "failed": failed}

@@ -157,3 +157,49 @@ def warm_thumbnail(photo_id: int, photo_path: str, mtime: int, size: int = 256) 
         put(path, generate_thumbnail_bytes(photo_path, size))
     except Exception as exc:  # noqa: BLE001 — warmup must never break a scan
         logger.debug("thumbnail warm failed for %s: %s", photo_path, exc)
+
+
+def blur_score_from_jpeg(jpeg_bytes: bytes) -> float | None:
+    """Sharpness score: variance of the Laplacian on the grayscale thumbnail.
+
+    Computed on the already-generated 256px thumbnail so blur analysis (#154)
+    adds no extra full-resolution decode to the scan. Higher = sharper;
+    values below config.blur_threshold count as blurry. None on failure.
+    """
+    import io  # noqa: PLC0415
+
+    import numpy as np  # noqa: PLC0415
+    from PIL import Image  # noqa: PLC0415
+
+    try:
+        with Image.open(io.BytesIO(jpeg_bytes)) as img:
+            gray = np.asarray(img.convert("L"), dtype=np.float32)
+        if gray.shape[0] < 3 or gray.shape[1] < 3:
+            return None
+        lap = (
+            gray[:-2, 1:-1]
+            + gray[2:, 1:-1]
+            + gray[1:-1, :-2]
+            + gray[1:-1, 2:]
+            - 4.0 * gray[1:-1, 1:-1]
+        )
+        return float(lap.var())
+    except Exception:  # noqa: BLE001 — scoring must never break a scan
+        return None
+
+
+def warm_and_score(photo_id: int, photo_path: str, mtime: int, size: int = 256) -> float | None:
+    """Generate+cache the thumbnail AND return its blur score in one decode.
+
+    Replaces warm_thumbnail in the scan path (#150 + #154).
+    """
+    path = cache_key("thumbs", photo_id, mtime, variant=str(size))
+    data = get(path)
+    try:
+        if data is None:
+            data = generate_thumbnail_bytes(photo_path, size)
+            put(path, data)
+    except Exception as exc:  # noqa: BLE001 — warmup must never break a scan
+        logger.debug("thumbnail warm failed for %s: %s", photo_path, exc)
+        return None
+    return blur_score_from_jpeg(data)

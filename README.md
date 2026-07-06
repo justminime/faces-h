@@ -32,7 +32,8 @@ Active development — core features complete. See [GitHub Issues](https://githu
 - **Correct mistakes** — mark a face wrong and the whole cluster re-evaluates automatically
 - **Carry recognition across libraries** — export/import named identities as a small file (no photos inside)
 - **See what it's doing** — live activity log with engine and app streams, adjustable verbosity
-- **Never touches your files** — read-only; no moves, renames, or copies; photos deleted from disk hide themselves and revive if restored
+- **Find blurry photos** — a live cutoff slider surfaces them worst-first; delete the ones you don't want straight to the Windows Recycle Bin
+- **Never touches your files otherwise** — scanning and browsing are strictly read-only; the ONLY file-modifying action is that explicit, confirmed Recycle-Bin delete (always recoverable); photos removed from disk hide themselves and revive if restored
 
 ---
 
@@ -109,7 +110,7 @@ Invalid values fall back to defaults with a logged warning. Logs: `%APPDATA%\com
 - Strict Content Security Policy — no external script or font sources
 - All third-party GitHub Actions pinned to immutable commit SHAs
 - Installer code-signed via [SignPath Foundation](https://signpath.org) (pending approval)
-- The app never writes, moves, or deletes any photo file — scanner is strictly read-only
+- Scanning and browsing never write, move, or delete any photo file; the single file-modifying action is the explicit, user-confirmed "Move to Recycle Bin" delete — never a permanent erase
 
 ## Privacy
 

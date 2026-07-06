@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS photos (
     height          INTEGER,
     taken_at        INTEGER,
     faces_extracted INTEGER NOT NULL DEFAULT 0,
-    missing         INTEGER NOT NULL DEFAULT 0
+    missing         INTEGER NOT NULL DEFAULT 0,
+    blur_score      REAL
 )
 """
 
@@ -95,6 +96,9 @@ PHOTOS_MIGRATIONS: list[tuple[str, str | None]] = [
     # missing (#105): set when a scan of a reachable root no longer finds the
     # file on disk; cleared automatically if it reappears at the same path.
     ("ALTER TABLE photos ADD COLUMN missing INTEGER NOT NULL DEFAULT 0", None),
+    # blur_score (#154): Laplacian-variance sharpness computed at scan time;
+    # NULL = not yet scored (scored on the photo's next scan).
+    ("ALTER TABLE photos ADD COLUMN blur_score REAL", None),
 ]
 
 INDEXES = [

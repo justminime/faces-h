@@ -191,6 +191,7 @@ and `:root[data-theme="dark"]` (explicit dark override).
 - Mid-scan disconnection: after 5 consecutive per-file OS errors on a network path, the scanner pauses, retries up to 3× with 5 s delay, then broadcasts `drive_offline` and stops cleanly without DB corruption
 - On rescan: each root is checked for reachability first; offline roots emit `drive_offline` and are skipped while online roots continue normally
 - The scanner **never writes, moves, or deletes** any file — network or local
+- The ONLY file-modifying action in the product is the explicit, user-confirmed **Move to Recycle Bin** delete (#154): send2trash, never a permanent erase; the DB row is marked `missing` (#105) so restoring the file + rescanning revives it with its faces intact
 - `scan_roots` table gains `is_network` (INTEGER) and `last_seen_at` (INTEGER) columns; applied via idempotent `ALTER TABLE` migrations
 
 Throughput target: ≥500 photos/min on mid-range CPU (i5/Ryzen 5). Network scans may be 10–100× slower; progress bar reflects real counts.
