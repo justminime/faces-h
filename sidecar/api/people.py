@@ -54,16 +54,32 @@ async def list_person_photos(
     limit: int = 50,
     offset: int = 0,
     order: str = "date",
+    seed: int = 0,
 ) -> list[dict[str, Any]]:
     """Return photos for a person, grouped with nested faces — Rule 5: only 'assigned'.
 
-    order='random' samples from the full pool using RANDOM() — used for the first
-    page so each visit surfaces a different mix of old and new photos.
-    order='date' (default) gives stable chronological order for pagination.
+    order='random' + seed (#145): a *seeded* shuffle spanning ALL the person's
+    photos regardless of dates. The same seed yields one stable pseudo-random
+    order, so pages never repeat and eventually cover everything; a new seed
+    (each time the person is selected) yields a different mix. Both the paging
+    subquery and the returned rows follow the shuffle — previously the outer
+    query re-sorted the "random" page by taken_at, which made it look
+    date-clustered anyway.
+    order='date' (default) gives stable chronological order.
     """
     # Only 'random' or 'date' are valid; anything else falls back to 'date'.
     use_random = order == "random"
-    inner_order = "RANDOM()" if use_random else "f2.photo_id ASC"
+    # Deterministic per-seed shuffle: Knuth multiplicative hash of
+    # (photo_id + seed). The seed changes the hash INPUT (not an additive
+    # shift, which would preserve ordering), so each seed yields a genuinely
+    # different permutation. SQLite ints are 64-bit — no overflow.
+    _shuffle = "((({col} + ?) * 2654435761) % 4294967296)"
+    inner_order = _shuffle.format(col="f2.photo_id") if use_random else "f2.photo_id ASC"
+    outer_order = (
+        _shuffle.format(col="ph.id")
+        if use_random
+        else "ph.taken_at ASC NULLS LAST, ph.id ASC"
+    )
 
     async with get_db() as db:
         row = await (
@@ -76,6 +92,12 @@ async def list_person_photos(
         # the paging query), then return ALL detected faces in those photos —
         # assigned, uncertain, and unreviewed — so the detail panel shows
         # every person present, not only confidently-matched ones.
+        params: list[Any] = [person_id]
+        if use_random:
+            params.append(seed)
+        params.extend([limit, offset])
+        if use_random:
+            params.append(seed)
         async with db.execute(
             f"""
             SELECT ph.id          AS photo_id,
@@ -97,9 +119,9 @@ async def list_person_photos(
               ) page
               JOIN photos ph ON ph.id = page.photo_id
               JOIN faces  f  ON f.photo_id = ph.id
-             ORDER BY ph.taken_at ASC NULLS LAST, ph.id ASC
+             ORDER BY {outer_order}
             """,
-            (person_id, limit, offset),
+            params,
         ) as cur:
             rows = await cur.fetchall()
 

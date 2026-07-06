@@ -107,6 +107,7 @@ function App() {
   const photoOffsetRef = useRef(0);
   const personGenRef = useRef(0);   // incremented on each person switch to cancel stale loads
   const pageLoadingRef = useRef(false); // guards against concurrent page fetches
+  const shuffleSeedRef = useRef(1);     // per-visit shuffle seed (#145)
 
   const [view, setView] = useState<"gallery" | "search" | "queue">("gallery");
   const [onboardingDone, setOnboardingDone] = useState(
@@ -213,10 +214,12 @@ function App() {
     setIsLoadingPhotos(true);
     photoOffsetRef.current = 0;
     pageLoadingRef.current = true;
+    // New seed per visit (#145): every page of this visit follows one stable
+    // shuffle spanning ALL the person's photos regardless of dates — no
+    // repeats across pages, and a different mix next time they're selected.
+    shuffleSeedRef.current = Math.floor(Math.random() * 2_147_483_646) + 1;
 
-    // Use order=random so SQLite samples from the full pool — each visit
-    // surfaces a different mix of old and new photos, not always the first 50.
-    fetchPersonPhotos(selectedPersonId, 0, PAGE_SIZE, "random")
+    fetchPersonPhotos(selectedPersonId, 0, PAGE_SIZE, "random", shuffleSeedRef.current)
       .then((apiPhotos) => {
         if (personGenRef.current !== gen) return;
         const mapped = apiPhotos.map(mapPhoto);
@@ -241,7 +244,13 @@ function App() {
     pageLoadingRef.current = true;
     setIsLoadingPhotos(true);
 
-    fetchPersonPhotos(selectedPersonId, photoOffsetRef.current, PAGE_SIZE)
+    fetchPersonPhotos(
+      selectedPersonId,
+      photoOffsetRef.current,
+      PAGE_SIZE,
+      "random",
+      shuffleSeedRef.current,
+    )
       .then((apiPhotos) => {
         if (personGenRef.current !== gen) return;
         const mapped = apiPhotos.map(mapPhoto);
