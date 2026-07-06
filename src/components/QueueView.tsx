@@ -4,6 +4,7 @@ import type { QueueItem } from "../api/types";
 import { UncertainQueue } from "./UncertainQueue";
 import { useQueueStore } from "../store/queue";
 import { useUIStore } from "../store/ui";
+import { useToastStore } from "../store/toast";
 import "./QueueView.css";
 
 const QUEUE_PAGE = 100;
@@ -35,6 +36,19 @@ export function QueueView() {
     refresh();
   }, [refresh]);
 
+  // A background sweep (#169) — triggered by confirming a face elsewhere —
+  // can resolve several OTHER faces in this exact list without this
+  // component knowing. scanVersion is the same signal the sidebar/people
+  // list already use to refresh after that happens; without it, resolved
+  // cards stayed stuck showing stale Yes/No/Not relevant buttons (#178).
+  const scanVersion = useUIStore((s) => s.scanVersion);
+  const mountedVersion = useRef(scanVersion);
+  useEffect(() => {
+    if (scanVersion === mountedVersion.current) return;
+    mountedVersion.current = scanVersion;
+    refresh();
+  }, [scanVersion, refresh]);
+
   const handleReviewed = useCallback(
     (faceId: number, mode: "confirmed" | "skipped" | "dismissed") => {
       if (mode === "skipped") skippedRef.current.add(faceId);
@@ -60,6 +74,16 @@ export function QueueView() {
     [refresh, setQueueCount],
   );
 
+  // A card's action failed — most likely another sweep/refresh already
+  // resolved this exact face server-side. Don't leave a dead card in place;
+  // tell the user and resync the whole list (#178).
+  const handleError = useCallback(() => {
+    useToastStore
+      .getState()
+      .addToast("This face was already updated elsewhere — refreshing the queue");
+    refresh();
+  }, [refresh]);
+
   return (
     <div className="queue-view">
       <header className="queue-view__header">
@@ -78,6 +102,7 @@ export function QueueView() {
           onReviewed={(faceId) => handleReviewed(faceId, "confirmed")}
           onSkipped={(faceId) => handleReviewed(faceId, "skipped")}
           onDismissed={(faceId) => handleReviewed(faceId, "dismissed")}
+          onError={handleError}
         />
       )}
     </div>

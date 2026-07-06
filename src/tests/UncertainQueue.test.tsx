@@ -84,3 +84,33 @@ describe("UncertainQueue Not relevant (#168)", () => {
     await waitFor(() => expect(onDismissed).toHaveBeenCalledWith(1));
   });
 });
+
+describe("UncertainQueue stale-card errors (#178)", () => {
+  it("calls onError instead of onReviewed when confirmFace fails", async () => {
+    vi.mocked(confirmFace).mockRejectedValueOnce(new Error("Face is not uncertain"));
+    const onReviewed = vi.fn();
+    const onError = vi.fn();
+    render(<UncertainQueue items={[makeItem()]} onReviewed={onReviewed} onError={onError} />);
+    fireEvent.click(screen.getByRole("button", { name: /yes, this is alice/i }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(1));
+    expect(onReviewed).not.toHaveBeenCalled();
+  });
+
+  it("calls onError instead of onDismissed when dismissFace fails", async () => {
+    const { dismissFace } = await import("../api/client");
+    vi.mocked(dismissFace).mockRejectedValueOnce(new Error("Face is not uncertain"));
+    const onDismissed = vi.fn();
+    const onError = vi.fn();
+    render(
+      <UncertainQueue
+        items={[makeItem()]}
+        onReviewed={vi.fn()}
+        onDismissed={onDismissed}
+        onError={onError}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /not relevant/i }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(1));
+    expect(onDismissed).not.toHaveBeenCalled();
+  });
+});
