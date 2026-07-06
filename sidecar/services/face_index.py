@@ -60,7 +60,20 @@ class FaceIndex:
             if self._ready:
                 return
             self._mgr.load()
-        if self._mgr.ntotal == 0:
+        needs_rebuild = self._mgr.ntotal == 0 or (
+            # Loaded from disk without the training cache while a tier
+            # promotion is due — rebuilding from the DB repopulates the
+            # cache so promotion can actually run (#142).
+            self._mgr.needs_promotion() and not self._mgr.has_training_cache
+        )
+        if needs_rebuild:
+            if self._mgr.ntotal > 0:
+                logger.info(
+                    "face index needs promotion but lacks its training cache — rebuilding from DB"
+                )
+                self._mgr = FAISSManager(
+                    os.path.dirname(self._mgr._path) or "."
+                )
             count = 0
             async with db.execute(
                 "SELECT id, embedding FROM faces WHERE embedding IS NOT NULL"
@@ -70,6 +83,8 @@ class FaceIndex:
                     self._mgr.add(int(row["id"]), emb)
                     count += 1
             if count:
+                if self._mgr.needs_promotion():
+                    self._mgr.promote()
                 self._mgr.save()
                 logger.info("face index rebuilt from DB — %d embeddings", count)
         else:

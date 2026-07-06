@@ -88,7 +88,7 @@ class WsLogHandler(logging.Handler):
     _MAX_PER_SECOND = 20
 
     def __init__(self) -> None:
-        super().__init__(level=logging.INFO)
+        super().__init__(level=logging.DEBUG)
         self.queue: deque[dict[str, object]] = deque(maxlen=200)
         self.dropped = 0
         self._window_start = 0.0
@@ -98,10 +98,21 @@ class WsLogHandler(logging.Handler):
         try:
             if record.name.startswith(self._EXCLUDED):
                 return
-            if record.levelno < logging.WARNING and not record.name.startswith(
-                self._INFO_PREFIXES
-            ):
-                return
+            # ui_log_level (#143): "warning" → warnings+ only; "info"
+            # (default) → warnings+ everywhere plus INFO from the interesting
+            # loggers; "debug" → also DEBUG from those loggers. Read lazily so
+            # a config edit takes effect on restart without touching code.
+            from config import get_config  # noqa: PLC0415
+
+            ui_level = get_config().ui_log_level
+            if record.levelno < logging.WARNING:
+                if ui_level == "warning":
+                    return
+                floor = logging.DEBUG if ui_level == "debug" else logging.INFO
+                if record.levelno < floor or not record.name.startswith(
+                    self._INFO_PREFIXES
+                ):
+                    return
 
             now = time.monotonic()
             if now - self._window_start >= 1.0:

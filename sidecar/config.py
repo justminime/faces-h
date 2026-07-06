@@ -28,6 +28,12 @@ DEFAULT_UNCERTAIN_THRESHOLD = 0.50
 # below the detector-confidence floor are skipped and counted (#111).
 DEFAULT_MIN_FACE_PX = 20
 DEFAULT_MIN_DETECTION_CONFIDENCE = 0.5
+# Verbosity of the engine→UI activity-log stream (#143). One of
+# "warning" (only warnings+), "info" (default: warnings+ everywhere plus
+# INFO from scanner/ML loggers), "debug" (also DEBUG from those loggers).
+# Log FILES always capture everything regardless of this setting.
+DEFAULT_UI_LOG_LEVEL = "info"
+_UI_LOG_LEVELS = ("debug", "info", "warning")
 
 
 @dataclass(frozen=True)
@@ -37,6 +43,7 @@ class Config:
     uncertain_threshold: float = DEFAULT_UNCERTAIN_THRESHOLD
     min_face_px: float = DEFAULT_MIN_FACE_PX
     min_detection_confidence: float = DEFAULT_MIN_DETECTION_CONFIDENCE
+    ui_log_level: str = DEFAULT_UI_LOG_LEVEL
 
 
 _cached: Config | None = None
@@ -81,12 +88,20 @@ def _validate(raw: dict[str, object]) -> Config:
         )
         min_det_f = DEFAULT_MIN_DETECTION_CONFIDENCE
 
+    ui_log = raw.get("ui_log_level", DEFAULT_UI_LOG_LEVEL)
+    if not isinstance(ui_log, str) or ui_log.lower() not in _UI_LOG_LEVELS:
+        logger.warning("config.json: invalid ui_log_level %r — using default", ui_log)
+        ui_log = DEFAULT_UI_LOG_LEVEL
+    else:
+        ui_log = ui_log.lower()
+
     return Config(
         face_model=face_model,
         auto_assign_threshold=auto_f,
         uncertain_threshold=uncertain_f,
         min_face_px=min_px_f,
         min_detection_confidence=min_det_f,
+        ui_log_level=ui_log,
     )
 
 

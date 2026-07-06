@@ -85,6 +85,17 @@ class FAISSManager:
         return sorted(pairs, key=lambda x: x[1], reverse=True)
 
     @property
+    def has_training_cache(self) -> bool:
+        """True when the in-memory vector cache covers the whole index.
+
+        load() restores the index structure but not this cache, so a
+        just-restarted process cannot train the next tier (#142) — callers
+        should rebuild from the database instead.
+        """
+        with self._lock:
+            return len(self._vecs) == int(self._index.ntotal)  # type: ignore[attr-defined]
+
+    @property
     def ntotal(self) -> int:
         """Number of embeddings currently in the index."""
         with self._lock:
@@ -143,17 +154,36 @@ class FAISSManager:
         with self._lock:
             if not self.needs_promotion():
                 return
+            if len(self._vecs) != int(self._index.ntotal):  # type: ignore[attr-defined]
+                # Training cache incomplete (index was loaded from disk, #142)
+                # — promoting would build a broken next tier. Callers rebuild
+                # from the DB via FaceIndex.ensure_ready instead.
+                import logging  # noqa: PLC0415
+                logging.getLogger(__name__).warning(
+                    "promotion skipped: training cache incomplete (%d of %d)",
+                    len(self._vecs), int(self._index.ntotal),  # type: ignore[attr-defined]
+                )
+                return
             vecs = np.vstack(self._vecs).astype(np.float32)
             ids = np.array(self._ids, dtype=np.int64)
             current_tier = self._tier
 
-        # Train + build OUTSIDE the lock — old index stays usable
-        if current_tier == "flat":
-            new_index = self._build_ivf_flat(vecs, ids)
-            new_tier: Tier = "ivf_flat"
-        else:
-            new_index = self._build_ivf_pq(vecs, ids)
-            new_tier = "ivf_pq"
+        # Train + build OUTSIDE the lock — old index stays usable. A training
+        # failure (e.g. fewer points than IVF clusters) keeps the current
+        # tier serving rather than taking down the scan (#142).
+        try:
+            if current_tier == "flat":
+                new_index = self._build_ivf_flat(vecs, ids)
+                new_tier: Tier = "ivf_flat"
+            else:
+                new_index = self._build_ivf_pq(vecs, ids)
+                new_tier = "ivf_pq"
+        except Exception as exc:  # noqa: BLE001 — index is advisory
+            import logging  # noqa: PLC0415
+            logging.getLogger(__name__).warning(
+                "tier promotion failed, keeping %s: %s", current_tier, exc
+            )
+            return
 
         # Atomic swap
         with self._lock:
