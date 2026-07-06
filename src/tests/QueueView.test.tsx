@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueueView } from "../components/QueueView";
 import {
   confirmFace,
+  dismissFace,
   fetchQueueCount,
   fetchUncertainQueue,
 } from "../api/client";
@@ -10,6 +11,7 @@ import type { QueueItem } from "../api/types";
 
 vi.mock("../api/client", () => ({
   confirmFace: vi.fn(),
+  dismissFace: vi.fn(),
   fetchQueueCount: vi.fn(),
   fetchUncertainQueue: vi.fn(),
   faceCropUrl: (faceId: number) => `http://test/faces/${faceId}/crop`,
@@ -34,6 +36,10 @@ describe("QueueView", () => {
       person_id: 1,
       assign_status: "assigned",
     });
+    vi.mocked(dismissFace).mockResolvedValue({
+      face_id: 1,
+      assign_status: "dismissed",
+    });
   });
 
   it("fetches the queue on mount and renders a card per item", async () => {
@@ -53,6 +59,17 @@ describe("QueueView", () => {
     );
     await waitFor(() => expect(confirmFace).toHaveBeenCalledWith(1, 1));
     await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(1));
+  });
+
+  it("marking a face 'not relevant' calls dismissFace and removes its card from view", async () => {
+    vi.mocked(fetchUncertainQueue).mockResolvedValue([makeItem(1), makeItem(2)]);
+    render(<QueueView />);
+    await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(2));
+
+    fireEvent.click(screen.getAllByRole("button", { name: /not relevant/i })[0]);
+    await waitFor(() => expect(dismissFace).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(1));
+    expect(screen.queryByTestId("queue-card-1")).not.toBeInTheDocument();
   });
 
   it("skipping removes the card without calling confirmFace, and a skipped face does not reappear on refetch", async () => {

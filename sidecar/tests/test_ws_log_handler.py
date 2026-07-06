@@ -29,14 +29,16 @@ def test_forwards_info_only_from_interesting_loggers() -> None:
     assert [e["message"] for e in h.queue] == ["scan starting"]
 
 
-def test_excludes_uvicorn_and_websockets_entirely() -> None:
-    """Request/WS noise stays file-only — forwarding a failed WS send's own
-    error over the WS would feed back into itself."""
+def test_excludes_access_log_and_websockets_but_not_uvicorn_error() -> None:
+    """Per-request access-log noise and the websockets library (forwarding a
+    failed WS send's own error would feed back into itself) stay file-only —
+    but uvicorn.error is where unhandled API exceptions get logged (#175),
+    and a WARNING+ from there must reach the UI like any other logger."""
     h = WsLogHandler()
     h.emit(_record("uvicorn.access", logging.ERROR, "GET /x 500"))
-    h.emit(_record("uvicorn.error", logging.WARNING, "boom"))
     h.emit(_record("websockets.server", logging.ERROR, "send failed"))
-    assert len(h.queue) == 0
+    h.emit(_record("uvicorn.error", logging.WARNING, "boom"))
+    assert [e["message"] for e in h.queue] == ["boom"]
 
 
 def test_rate_limit_drops_and_counts() -> None:

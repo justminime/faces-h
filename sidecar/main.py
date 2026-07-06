@@ -80,15 +80,18 @@ class WsLogHandler(logging.Handler):
     """Buffer engine log records for the UI activity log (#126).
 
     WARNING+ from every logger, plus INFO from the scanner/ML/clustering
-    loggers users actually care about. uvicorn/websockets loggers are
-    excluded entirely — request/WS noise, and forwarding a failed WS send's
-    own error would feed back into the WS. Rate-limited so a log storm
-    can't flood the socket; drops are counted and reported. The log files
-    remain the complete record — this is a filtered live view.
+    loggers users actually care about. uvicorn.access (per-request noise) and
+    the websockets library logger (forwarding a failed WS send's own error
+    would feed back into the WS) are excluded — but NOT uvicorn.error (#175):
+    that's where unhandled exceptions in API endpoints get logged (a 500 the
+    user should actually see), a distinct code path from WS send failures.
+    Rate-limited so a log storm can't flood the socket; drops are counted and
+    reported. The log files remain the complete record — this is a filtered
+    live view.
     """
 
     _INFO_PREFIXES = ("services.", "ml.", "api.models", "__main__", "main")
-    _EXCLUDED = ("uvicorn", "websockets")
+    _EXCLUDED = ("uvicorn.access", "websockets")
     _MAX_PER_SECOND = 20
 
     def __init__(self) -> None:

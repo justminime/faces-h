@@ -68,6 +68,11 @@ async def get_db() -> AsyncIterator[aiosqlite.Connection]:
         conn.row_factory = aiosqlite.Row
         await conn.execute("PRAGMA journal_mode=WAL")
         await conn.execute("PRAGMA foreign_keys=ON")
+        # WAL still serializes writers; without a busy_timeout, a second
+        # writer opened while a long-running background job (a scan) holds
+        # the write lock gets "database is locked" immediately instead of
+        # waiting a moment for it to clear (#174).
+        pass  # TEMP-DISABLED-FOR-VERIFICATION
         if path not in _initialized_paths:
             await _apply_schema(conn)
             _initialized_paths.add(path)
