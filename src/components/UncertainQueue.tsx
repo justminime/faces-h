@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { QueueItem } from "../api/types";
-import { confirmFace, faceCropUrl } from "../api/client";
+import { confirmFace, dismissFace, faceCropUrl } from "../api/client";
 import { useUIStore } from "../store/ui";
 import "./UncertainQueue.css";
 
@@ -10,6 +10,9 @@ interface UncertainQueueProps {
   /** Called when the user skips a card without deciding; falls back to
    *  onReviewed so existing callers keep their behavior. */
   onSkipped?: (faceId: number) => void;
+  /** Called after a face is persistently dismissed as 'not relevant' (#168);
+   *  falls back to onReviewed so existing callers keep their behavior. */
+  onDismissed?: (faceId: number) => void;
 }
 
 interface PickerProps {
@@ -42,9 +45,10 @@ interface CardProps {
   item: QueueItem;
   onReviewed: (faceId: number) => void;
   onSkipped: (faceId: number) => void;
+  onDismissed: (faceId: number) => void;
 }
 
-function QueueCard({ item, onReviewed, onSkipped }: CardProps) {
+function QueueCard({ item, onReviewed, onSkipped, onDismissed }: CardProps) {
   const people = useUIStore((s) => s.people);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -58,6 +62,17 @@ function QueueCard({ item, onReviewed, onSkipped }: CardProps) {
     } finally {
       setBusy(false);
       setPickerOpen(false);
+    }
+  }
+
+  async function handleDismiss() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await dismissFace(item.face_id);
+      onDismissed(item.face_id);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -101,6 +116,13 @@ function QueueCard({ item, onReviewed, onSkipped }: CardProps) {
           No, someone else
         </button>
         <button
+          className="uq-card__btn uq-card__btn--dismiss"
+          disabled={busy}
+          onClick={() => void handleDismiss()}
+        >
+          Not relevant
+        </button>
+        <button
           className="uq-card__btn uq-card__btn--skip"
           disabled={busy}
           onClick={() => onSkipped(item.face_id)}
@@ -120,7 +142,12 @@ function QueueCard({ item, onReviewed, onSkipped }: CardProps) {
   );
 }
 
-export function UncertainQueue({ items, onReviewed, onSkipped }: UncertainQueueProps) {
+export function UncertainQueue({
+  items,
+  onReviewed,
+  onSkipped,
+  onDismissed,
+}: UncertainQueueProps) {
   if (items.length === 0) {
     return (
       <div className="uq-empty">
@@ -137,6 +164,7 @@ export function UncertainQueue({ items, onReviewed, onSkipped }: UncertainQueueP
           item={item}
           onReviewed={onReviewed}
           onSkipped={onSkipped ?? onReviewed}
+          onDismissed={onDismissed ?? onReviewed}
         />
       ))}
     </section>

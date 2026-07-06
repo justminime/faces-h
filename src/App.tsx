@@ -19,6 +19,8 @@ import { BlurryView } from "./components/BlurryView";
 import { DuplicatesView } from "./components/DuplicatesView";
 import { RotationView } from "./components/RotationView";
 import { BackupsView } from "./components/BackupsView";
+import { DismissedView } from "./components/DismissedView";
+import { AboutModal } from "./components/AboutModal";
 import { useUIStore } from "./store/ui";
 import { useConnectionStore } from "./store/connection";
 import type { Person, Photo } from "./types";
@@ -114,7 +116,14 @@ function App() {
   const shuffleSeedRef = useRef(1);     // per-visit shuffle seed (#145)
 
   const [view, setView] = useState<
-    "gallery" | "search" | "queue" | "blurry" | "duplicates" | "rotation" | "backups"
+    | "gallery"
+    | "search"
+    | "queue"
+    | "blurry"
+    | "duplicates"
+    | "rotation"
+    | "backups"
+    | "dismissed"
   >("gallery");
   const [onboardingDone, setOnboardingDone] = useState(
     () => localStorage.getItem(ONBOARDING_KEY) !== null,
@@ -124,6 +133,7 @@ function App() {
     photoId: number;
   } | null>(null);
   const [namingPersonId, setNamingPersonId] = useState<number | null>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const nameByPersonId = useMemo(() => {
@@ -288,6 +298,7 @@ function App() {
         case "theme-light":  setTheme("light");             break;
         case "theme-dark":   setTheme("dark");              break;
         case "theme-system": setTheme("system");            break;
+        case "about":         setAboutOpen(true);           break;
       }
     })
       .then((fn) => { unlisten = fn; })
@@ -444,6 +455,8 @@ function App() {
         onFindDuplicates={() => setView("duplicates")}
         onFindRotation={() => setView("rotation")}
         onShowBackups={() => setView("backups")}
+        onShowDismissed={() => setView("dismissed")}
+        onShowAbout={() => setAboutOpen(true)}
         appVersion={__APP_VERSION__}
       />
       <input
@@ -461,7 +474,9 @@ function App() {
       <div className="app-content">
         <ConnectionBanner />
         <div className="app-content__panels">
-          {view === "backups" ? (
+          {view === "dismissed" ? (
+            <DismissedView />
+          ) : view === "backups" ? (
             <BackupsView />
           ) : view === "rotation" ? (
             <RotationView />
@@ -532,6 +547,9 @@ function App() {
             />
           </div>
         </div>
+      )}
+      {aboutOpen && (
+        <AboutModal version={__APP_VERSION__} onClose={() => setAboutOpen(false)} />
       )}
       <ToastContainer />
     </div>

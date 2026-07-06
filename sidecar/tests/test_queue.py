@@ -1,7 +1,9 @@
 """Tests for the uncertain face review queue API."""
 
 import os
+from typing import Any
 
+import aiosqlite
 import numpy as np
 import pytest
 from httpx import AsyncClient, ASGITransport
@@ -183,3 +185,187 @@ async def test_confirm_unknown_person_returns_404(
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         r = await ac.post("/queue/1/confirm", json={"person_id": 9999})
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Dismiss / restore ("not relevant", #168)
+# ---------------------------------------------------------------------------
+
+
+async def test_dismiss_removes_face_from_uncertain_queue(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    data_dir = str(tmp_path)
+    await _init_db(data_dir)
+    await _seed_uncertain_face(data_dir)
+
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.post("/queue/1/dismiss")
+        assert r.status_code == 200
+        assert r.json()["assign_status"] == "dismissed"
+
+        r = await ac.get("/queue/uncertain")
+        assert r.json() == [], "dismissed face must not reappear in the main queue"
+
+        r = await ac.get("/queue/count")
+        assert r.json()["count"] == 0
+
+    from db.database import get_db
+
+    async with get_db() as db:
+        row = await (
+            await db.execute(
+                "SELECT assign_status, person_id, suggested_person_id, assign_conf"
+                " FROM faces WHERE id = 1"
+            )
+        ).fetchone()
+    assert row is not None
+    assert row["assign_status"] == "dismissed"
+    assert row["person_id"] is None
+    assert row["suggested_person_id"] is None
+    assert row["assign_conf"] is None
+
+
+async def test_dismiss_non_uncertain_face_is_rejected(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    data_dir = str(tmp_path)
+    await _init_db(data_dir)
+    await _seed_uncertain_face(data_dir)
+
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        await ac.post("/queue/1/dismiss")
+        r = await ac.post("/queue/1/dismiss")
+        assert r.status_code == 400, "already-dismissed face cannot be dismissed again"
+
+    r_missing = None
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r_missing = await ac.post("/queue/9999/dismiss")
+    assert r_missing.status_code == 404
+
+
+async def test_dismissed_list_and_restore_roundtrip(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    data_dir = str(tmp_path)
+    await _init_db(data_dir)
+    await _seed_uncertain_face(data_dir)
+
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        await ac.post("/queue/1/dismiss")
+
+        r = await ac.get("/queue/dismissed")
+        assert r.status_code == 200
+        items = r.json()
+        assert len(items) == 1
+        assert items[0]["face_id"] == 1
+        assert items[0]["face_crop_url"] == "/faces/1/crop"
+
+        r = await ac.post("/queue/1/restore")
+        assert r.status_code == 200
+        assert r.json()["assign_status"] == "unreviewed"
+
+        r = await ac.get("/queue/dismissed")
+        assert r.json() == [], "restored face leaves the dismissed list"
+
+    from db.database import get_db
+
+    async with get_db() as db:
+        row = await (
+            await db.execute("SELECT assign_status FROM faces WHERE id = 1")
+        ).fetchone()
+    assert row is not None and row["assign_status"] == "unreviewed"
+
+
+async def test_restore_non_dismissed_face_is_rejected(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    data_dir = str(tmp_path)
+    await _init_db(data_dir)
+    await _seed_uncertain_face(data_dir)  # status = 'uncertain', not dismissed
+
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.post("/queue/1/restore")
+        assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Sweep after confirm (#169)
+# ---------------------------------------------------------------------------
+
+
+async def test_confirm_triggers_sweep_for_more_matches(
+    tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """After confirming a face to a person, other unreviewed faces that now
+    score above the auto-assign threshold against that person's refreshed
+    centroid are picked up automatically (#169), mirroring the naming flow."""
+    import asyncio
+
+    import api.queue as queue_api
+
+    data_dir = str(tmp_path)
+    await _init_db(data_dir)
+    embedding = await _seed_uncertain_face(data_dir)
+
+    from db.database import get_db
+
+    # A second, unreviewed face that is a near-perfect match for the same
+    # person's embedding — the sweep should pick it up once confirm runs.
+    async with get_db() as db:
+        await db.execute(
+            """
+            INSERT INTO faces (id, photo_id, detection_conf, assign_status, embedding)
+            VALUES (2, 1, 0.9, 'unreviewed', ?)
+            """,
+            (embedding.tobytes(),),
+        )
+        await db.commit()
+
+    # The sweep runs fire-and-forget via asyncio.create_task; wrap the real
+    # call so the test can await its completion deterministically instead of
+    # polling/sleeping and racing the event loop's teardown.
+    swept = asyncio.Event()
+    original_sweep = queue_api._reeval.sweep_for_person
+
+    async def _sweep_and_signal(
+        person_id: int,
+        db: aiosqlite.Connection,
+        broadcast_fn: Any,
+    ) -> None:
+        try:
+            await original_sweep(person_id, db, broadcast_fn)
+        finally:
+            swept.set()
+
+    monkeypatch.setattr(queue_api._reeval, "sweep_for_person", _sweep_and_signal)
+
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.post("/queue/1/confirm", json={"person_id": 1})
+        assert r.status_code == 200
+
+    await asyncio.wait_for(swept.wait(), timeout=5)
+    # One more loop turn so the sweep's own connection finishes closing
+    # (aiosqlite's worker thread posts back via call_soon_threadsafe) before
+    # the test coroutine — and its event loop — winds down.
+    await asyncio.sleep(0.05)
+
+    async with get_db() as db:
+        row = await (
+            await db.execute(
+                "SELECT assign_status, person_id FROM faces WHERE id = 2"
+            )
+        ).fetchone()
+    assert row is not None
+    assert row["assign_status"] == "assigned"
+    assert row["person_id"] == 1

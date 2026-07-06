@@ -17,11 +17,15 @@ function FaceEntry({
   highlighted = false,
 }: FaceEntryProps) {
   const [hovered, setHovered] = useState(false);
+  const isDismissed = face.assignStatus === "dismissed";
   const isUncertain =
-    face.assignStatus === "uncertain" || face.assignStatus === "unreviewed";
-  const displayName = isUncertain
-    ? "Unrecognised"
-    : (face.personName ?? resolvePersonName?.(face.personId) ?? "Unknown");
+    !isDismissed &&
+    (face.assignStatus === "uncertain" || face.assignStatus === "unreviewed");
+  const displayName = isDismissed
+    ? "Not relevant"
+    : isUncertain
+      ? "Unrecognised"
+      : (face.personName ?? resolvePersonName?.(face.personId) ?? "Unknown");
 
   return (
     <div

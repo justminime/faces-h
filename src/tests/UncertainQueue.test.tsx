@@ -6,6 +6,7 @@ import type { QueueItem } from "../api/types";
 
 vi.mock("../api/client", () => ({
   confirmFace: vi.fn(),
+  dismissFace: vi.fn(),
   faceCropUrl: (faceId: number) => `http://test/faces/${faceId}/crop`,
 }));
 
@@ -69,5 +70,17 @@ describe("UncertainQueue", () => {
     ];
     render(<UncertainQueue items={items} onReviewed={vi.fn()} />);
     expect(screen.getAllByRole("article")).toHaveLength(items.length);
+  });
+});
+
+describe("UncertainQueue Not relevant (#168)", () => {
+  it("Not relevant button calls dismissFace and reports via onDismissed", async () => {
+    const { dismissFace } = await import("../api/client");
+    vi.mocked(dismissFace).mockResolvedValue({ face_id: 1, assign_status: "dismissed" });
+    const onDismissed = vi.fn();
+    render(<UncertainQueue items={[makeItem()]} onReviewed={vi.fn()} onDismissed={onDismissed} />);
+    fireEvent.click(screen.getByRole("button", { name: /not relevant/i }));
+    await waitFor(() => expect(dismissFace).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(onDismissed).toHaveBeenCalledWith(1));
   });
 });

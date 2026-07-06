@@ -22,6 +22,8 @@ interface SidebarProps {
   onFindDuplicates?: () => void;
   onFindRotation?: () => void;
   onShowBackups?: () => void;
+  onShowDismissed?: () => void;
+  onShowAbout?: () => void;
   appVersion?: string;
 }
 
@@ -33,7 +35,6 @@ const THEME_OPTIONS: { value: Theme; label: string; icon: string }[] = [
 
 const HELP_LINKS = [
   { label: "shifth.com",         url: "https://shifth.com" },
-  { label: "About faces-h",      url: "https://shifth.com/faces-h" },
   { label: "User Guide",         url: "https://shifth.com/faces-h#guide" },
   { label: "Report an issue",    url: "https://github.com/justminime/faces-h/issues" },
   { label: "Release notes",      url: "https://github.com/justminime/faces-h/releases" },
@@ -62,6 +63,8 @@ export function Sidebar({
   onFindDuplicates,
   onFindRotation,
   onShowBackups,
+  onShowDismissed,
+  onShowAbout,
   appVersion,
 }: SidebarProps) {
   const queueCount = useQueueStore((s) => s.queueCount);
@@ -159,6 +162,10 @@ export function Sidebar({
                 <span className="sidebar__menu-icon">🗄</span>
                 Restore Backups…
               </button>
+              <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onShowDismissed)}>
+                <span className="sidebar__menu-icon">🚫</span>
+                Not Relevant Faces…
+              </button>
 
               <div className="sidebar__menu-divider" />
 
@@ -196,6 +203,14 @@ export function Sidebar({
 
               {/* Help section */}
               <div className="sidebar__menu-section">Help</div>
+              <button
+                type="button"
+                className="sidebar__menu-item"
+                onClick={action(onShowAbout)}
+              >
+                <span className="sidebar__menu-icon">ℹ</span>
+                About faces-h
+              </button>
               {HELP_LINKS.map((link) => (
                 <a
                   key={link.url}
@@ -248,6 +263,9 @@ export function Sidebar({
       </button>
       <button type="button" className="sidebar__nav-btn" onClick={onFindDuplicates} aria-label="Duplicates">
         Duplicates
+      </button>
+      <button type="button" className="sidebar__nav-btn" onClick={onFindRotation} aria-label="Rotate sideways photos">
+        Rotate
       </button>
       <button
         type="button"

@@ -27,7 +27,8 @@ Active development — core features complete. See [GitHub Issues](https://githu
 - **Scan** folders of any size (tested to 5TB / ~1M photos) in the background — local drives, network shares, and NAS included
 - **Detect and cluster** faces automatically — each cluster represents one likely person; FAISS-backed matching stays fast as the library grows
 - **Name people** by clicking a cluster; all their photos are labeled instantly (duplicate names offer a merge)
-- **Review uncertain faces** — anything below the confidence threshold waits in a queue for your confirmation; the app never silently guesses
+- **Review uncertain faces** — anything below the confidence threshold waits in a queue for your confirmation; the app never silently guesses. Not a real face worth naming? Mark it "Not relevant" — it moves to a secondary Not Relevant view instead of the main queue, and can be restored for review anytime
+- **Confirming a match re-checks for more** — once you confirm an uncertain face as a person, the app immediately sweeps the library for other faces that now match, so one confirmation can resolve several at once
 - **Search** by one or more people together, with date ranges and an "exactly these people" mode
 - **Correct mistakes** — mark a face wrong and the whole cluster re-evaluates automatically
 - **Carry recognition across libraries** — export/import named identities as a small file (no photos inside)
