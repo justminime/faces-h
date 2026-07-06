@@ -239,3 +239,65 @@ export interface DuplicateGroup {
 export function fetchDuplicates(): Promise<DuplicateGroup[]> {
   return apiFetch<DuplicateGroup[]>("/photos/duplicates");
 }
+
+export interface RotationSuggestion {
+  id: number;
+  path: string;
+  folder: string;
+  filename: string;
+  file_size: number | null;
+  degrees: number;
+  source: "faces" | "exif";
+  is_network: boolean;
+  rotatable: boolean;
+}
+
+/** Photos that look sideways — EXIF-tagged or face-probed (#160). */
+export function fetchRotationSuggestions(): Promise<RotationSuggestion[]> {
+  return apiFetch<RotationSuggestion[]>("/photos/rotation-suggestions");
+}
+
+/** Kick off a background probe of faceless photos at 90/180/270°. */
+export function startRotationScan(): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>("/photos/rotation-scan", { method: "POST" });
+}
+
+export interface RotateResult {
+  rotated: number;
+  recycled: number;
+  permanent: number;
+  failed: { id: number; error: string }[];
+}
+
+/** Rotate original files in place — undoable (Recycle Bin / backup) (#160). */
+export function rotatePhotos(
+  items: { photo_id: number; degrees: number }[],
+): Promise<RotateResult> {
+  return apiFetch<RotateResult>("/photos/rotate", {
+    method: "POST",
+    body: JSON.stringify({ items, confirmed: true, allow_permanent_on_network: true }),
+  });
+}
+
+export interface BackupEntry {
+  backup: string;
+  original_path: string;
+  filename: string;
+  folder: string;
+  file_size: number;
+  backed_up_at: number;
+  expires_in_days: number;
+}
+
+/** Pre-deletion backups still within their retention window (#161/#162). */
+export function fetchBackups(): Promise<BackupEntry[]> {
+  return apiFetch<BackupEntry[]>("/backups");
+}
+
+/** Restore a backup to its original location (overwrites what's there now). */
+export function restoreBackup(backup: string): Promise<{ restored: string }> {
+  return apiFetch<{ restored: string }>("/backups/restore", {
+    method: "POST",
+    body: JSON.stringify({ backup, confirmed: true }),
+  });
+}

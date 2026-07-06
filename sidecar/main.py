@@ -22,6 +22,8 @@ from api.models import router as models_router
 from api.people import router as people_router
 from api.photos import router as photos_router
 from api.queue import router as queue_router
+from api.backups import router as backups_router
+from api.rotation import router as rotation_router
 from api.scan import router as scan_router
 from api.search import router as search_router
 from api.transfer import router as transfer_router
@@ -60,6 +62,8 @@ app.include_router(scan_router)
 app.include_router(people_router)
 app.include_router(photos_router)
 app.include_router(queue_router)
+app.include_router(rotation_router)
+app.include_router(backups_router)
 app.include_router(faces_router)
 app.include_router(search_router)
 app.include_router(corrections_router)
@@ -137,6 +141,17 @@ class WsLogHandler(logging.Handler):
 
 
 _ws_log_handler = WsLogHandler()
+
+
+@app.on_event("startup")
+async def _purge_expired_backups() -> None:
+    """Drop trash-backups past their retention window (#161) — cheap, once."""
+    try:
+        from services.backup import purge_old_backups  # noqa: PLC0415
+
+        await asyncio.to_thread(purge_old_backups)
+    except Exception:  # noqa: BLE001 — housekeeping must never block startup
+        logging.getLogger(__name__).exception("backup purge failed")
 
 
 @app.on_event("startup")

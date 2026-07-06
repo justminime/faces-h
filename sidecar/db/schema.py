@@ -15,7 +15,10 @@ CREATE TABLE IF NOT EXISTS photos (
     blur_score      REAL,
     file_size       INTEGER,
     phash           INTEGER,
-    content_hash    TEXT
+    content_hash    TEXT,
+    exif_orientation INTEGER,
+    suggested_rotation INTEGER,
+    rotation_checked INTEGER NOT NULL DEFAULT 0
 )
 """
 
@@ -108,6 +111,12 @@ PHOTOS_MIGRATIONS: list[tuple[str, str | None]] = [
     ("ALTER TABLE photos ADD COLUMN file_size INTEGER", None),
     ("ALTER TABLE photos ADD COLUMN phash INTEGER", None),
     ("ALTER TABLE photos ADD COLUMN content_hash TEXT", None),
+    # Rotation suggestions (#160): EXIF orientation captured at scan time;
+    # suggested_rotation (degrees CW) from the on-demand face probe;
+    # rotation_checked marks photos the probe has already analyzed.
+    ("ALTER TABLE photos ADD COLUMN exif_orientation INTEGER", None),
+    ("ALTER TABLE photos ADD COLUMN suggested_rotation INTEGER", None),
+    ("ALTER TABLE photos ADD COLUMN rotation_checked INTEGER NOT NULL DEFAULT 0", None),
 ]
 
 INDEXES = [
