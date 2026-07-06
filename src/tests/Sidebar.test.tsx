@@ -65,3 +65,40 @@ describe("Sidebar help menu", () => {
     expect(screen.getByText("v1.2.3")).toBeInTheDocument();
   });
 });
+
+describe("Sidebar singleton clusters (#141)", () => {
+  const people = [
+    { id: 1, name: "Alice", avatarSrc: "", photoCount: 12 },
+    { id: 2, name: "Unnamed", avatarSrc: "", photoCount: 5 },
+    { id: 3, name: "Unnamed", avatarSrc: "", photoCount: 1 },
+    { id: 4, name: "Unnamed", avatarSrc: "", photoCount: 1 },
+  ];
+
+  it("collapses one-photo unnamed clusters into a counted section", () => {
+    render(<Sidebar {...base} people={people} />);
+    // Named + multi-photo unnamed stay as top-level rows.
+    expect(screen.getByRole("button", { name: /alice/i })).toBeInTheDocument();
+    // The two singletons are hidden behind the toggle showing their count.
+    const toggle = screen.getByRole("button", { name: /single-face clusters: 2/i });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    // Exactly one visible multi-photo Unnamed row (id 2) besides the summary.
+    expect(screen.getAllByText("Unnamed").length).toBeLessThan(3);
+  });
+
+  it("expanding the section reveals selectable singleton rows", () => {
+    const onPersonSelect = vi.fn();
+    render(<Sidebar {...base} people={people} onPersonSelect={onPersonSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: /single-face clusters/i }));
+    const rows = screen.getAllByText("Unnamed");
+    expect(rows.length).toBeGreaterThanOrEqual(3);
+    fireEvent.click(rows[rows.length - 1]);
+    expect(onPersonSelect).toHaveBeenCalled();
+  });
+
+  it("keeps the section open when a singleton is the selected person", () => {
+    render(<Sidebar {...base} people={people} selectedPersonId={3} />);
+    expect(
+      screen.getByRole("button", { name: /single-face clusters/i }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+});

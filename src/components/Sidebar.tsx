@@ -60,7 +60,20 @@ export function Sidebar({
   const [theme, setTheme] = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [singletonsOpen, setSingletonsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // #141: one-photo unnamed clusters (post-scan singletons) collapse into a
+  // single expandable section so they don't bury the real people list.
+  // Naming or merging one gives it a name / more photos, which promotes it
+  // out of the section naturally.
+  const isSingleton = (p: Person) =>
+    (p.name === null || p.name === "Unnamed") && p.photoCount <= 1;
+  const mainPeople = people.filter((p) => !isSingleton(p));
+  const singletons = people.filter(isSingleton);
+  // Keep the active row visible even if the section is collapsed.
+  const singletonsShown =
+    singletonsOpen || singletons.some((p) => p.id === selectedPersonId);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -220,7 +233,7 @@ export function Sidebar({
       <div className="sidebar__section-label">People</div>
 
       <ul className="sidebar__list">
-        {people.map((person) => (
+        {mainPeople.map((person) => (
           <li key={person.id}>
             <button
               type="button"
@@ -238,6 +251,42 @@ export function Sidebar({
             </button>
           </li>
         ))}
+        {singletons.length > 0 && (
+          <li>
+            <button
+              type="button"
+              className="sidebar__person sidebar__singletons-toggle"
+              onClick={() => setSingletonsOpen((o) => !o)}
+              aria-expanded={singletonsShown}
+              aria-label={`Single-face clusters: ${singletons.length}`}
+            >
+              <span className="sidebar__singletons-chevron" aria-hidden="true">
+                {singletonsShown ? "▾" : "▸"}
+              </span>
+              <span className="sidebar__name">Single-face clusters</span>
+              <span className="sidebar__count">{singletons.length}</span>
+            </button>
+          </li>
+        )}
+        {singletonsShown &&
+          singletons.map((person) => (
+            <li key={person.id}>
+              <button
+                type="button"
+                className={`sidebar__person sidebar__person--singleton${selectedPersonId === person.id ? " sidebar__person--active" : ""}`}
+                onClick={() => onPersonSelect(person.id)}
+              >
+                <Medallion
+                  src={person.avatarSrc}
+                  alt={person.name ?? "Unknown"}
+                  size={32}
+                  selected={selectedPersonId === person.id}
+                />
+                <span className="sidebar__name">{person.name ?? "Unknown"}</span>
+                <span className="sidebar__count">{person.photoCount}</span>
+              </button>
+            </li>
+          ))}
         {unnamedCount > 0 && (
           <li>
             <button type="button" className="sidebar__person" onClick={() => onPersonSelect(null)}>
