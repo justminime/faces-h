@@ -26,6 +26,8 @@ src-tauri/WixTools/
 *.db
 *.index
 *.faiss
+sidecar/cache/
+sidecar/trash-backup/
 
 # Build artifacts
 *.exe

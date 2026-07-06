@@ -13,6 +13,9 @@ interface UncertainQueueProps {
   /** Called after a face is persistently dismissed as 'not relevant' (#168);
    *  falls back to onReviewed so existing callers keep their behavior. */
   onDismissed?: (faceId: number) => void;
+  /** Called when confirm/dismiss fails — most likely a background sweep
+   *  already resolved this exact face server-side (#178). No-op if unset. */
+  onError?: (faceId: number) => void;
 }
 
 interface PickerProps {
@@ -46,9 +49,10 @@ interface CardProps {
   onReviewed: (faceId: number) => void;
   onSkipped: (faceId: number) => void;
   onDismissed: (faceId: number) => void;
+  onError: (faceId: number) => void;
 }
 
-function QueueCard({ item, onReviewed, onSkipped, onDismissed }: CardProps) {
+function QueueCard({ item, onReviewed, onSkipped, onDismissed, onError }: CardProps) {
   const people = useUIStore((s) => s.people);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -59,6 +63,8 @@ function QueueCard({ item, onReviewed, onSkipped, onDismissed }: CardProps) {
     try {
       await confirmFace(item.face_id, personId);
       onReviewed(item.face_id);
+    } catch {
+      onError(item.face_id);
     } finally {
       setBusy(false);
       setPickerOpen(false);
@@ -71,6 +77,8 @@ function QueueCard({ item, onReviewed, onSkipped, onDismissed }: CardProps) {
     try {
       await dismissFace(item.face_id);
       onDismissed(item.face_id);
+    } catch {
+      onError(item.face_id);
     } finally {
       setBusy(false);
     }
@@ -147,6 +155,7 @@ export function UncertainQueue({
   onReviewed,
   onSkipped,
   onDismissed,
+  onError,
 }: UncertainQueueProps) {
   if (items.length === 0) {
     return (
@@ -165,6 +174,7 @@ export function UncertainQueue({
           onReviewed={onReviewed}
           onSkipped={onSkipped ?? onReviewed}
           onDismissed={onDismissed ?? onReviewed}
+          onError={onError ?? (() => {})}
         />
       ))}
     </section>

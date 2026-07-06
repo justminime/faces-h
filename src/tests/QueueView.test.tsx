@@ -1,5 +1,5 @@
 import { describe, beforeEach, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { QueueView } from "../components/QueueView";
 import {
   confirmFace,
@@ -8,6 +8,8 @@ import {
   fetchUncertainQueue,
 } from "../api/client";
 import type { QueueItem } from "../api/types";
+import { useUIStore } from "../store/ui";
+import { useToastStore } from "../store/toast";
 
 vi.mock("../api/client", () => ({
   confirmFace: vi.fn(),
@@ -30,6 +32,8 @@ const makeItem = (faceId: number, overrides: Partial<QueueItem> = {}): QueueItem
 describe("QueueView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useUIStore.setState({ scanVersion: 0 });
+    useToastStore.setState({ toasts: [] });
     vi.mocked(fetchQueueCount).mockResolvedValue({ count: 2 });
     vi.mocked(confirmFace).mockResolvedValue({
       face_id: 1,
@@ -50,9 +54,13 @@ describe("QueueView", () => {
   });
 
   it("confirming a face calls confirmFace and removes its card", async () => {
-    vi.mocked(fetchUncertainQueue).mockResolvedValue([makeItem(1), makeItem(2)]);
+    vi.mocked(fetchUncertainQueue).mockResolvedValueOnce([makeItem(1), makeItem(2)]);
     render(<QueueView />);
     await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(2));
+
+    // Confirming bumps scanVersion, which now also triggers a real refetch
+    // (#178) — a real server would already exclude the just-confirmed face.
+    vi.mocked(fetchUncertainQueue).mockResolvedValue([makeItem(2)]);
 
     fireEvent.click(
       screen.getAllByRole("button", { name: /yes, this is alice/i })[0],
@@ -86,6 +94,42 @@ describe("QueueView", () => {
     );
     expect(confirmFace).not.toHaveBeenCalled();
     expect(vi.mocked(fetchUncertainQueue).mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("re-fetches the queue when scanVersion bumps, clearing faces a background sweep already resolved (#178)", async () => {
+    vi.mocked(fetchUncertainQueue).mockResolvedValueOnce([makeItem(1), makeItem(2)]);
+    render(<QueueView />);
+    await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(2));
+
+    // A #169 sweep triggered elsewhere resolved face 2 server-side; the next
+    // fetch reflects that, even though this component never touched it.
+    vi.mocked(fetchUncertainQueue).mockResolvedValueOnce([makeItem(1)]);
+    act(() => {
+      useUIStore.getState().bumpScanVersion();
+    });
+
+    await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(1));
+    expect(screen.queryByTestId("queue-card-2")).not.toBeInTheDocument();
+  });
+
+  it("shows an error toast and refreshes when acting on an already-resolved card", async () => {
+    vi.mocked(fetchUncertainQueue).mockResolvedValueOnce([makeItem(1)]);
+    render(<QueueView />);
+    await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(1));
+
+    vi.mocked(confirmFace).mockRejectedValueOnce(new Error("Face is not uncertain"));
+    vi.mocked(fetchUncertainQueue).mockResolvedValueOnce([]);
+
+    fireEvent.click(screen.getByRole("button", { name: /yes, this is alice/i }));
+
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.some((t) => /already updated/i.test(t.message))).toBe(
+        true,
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/no faces waiting for review/i)).toBeInTheDocument(),
+    );
   });
 
   it("shows the empty state when the queue is empty", async () => {
