@@ -18,6 +18,7 @@ interface SidebarProps {
   onRescan?: () => void;
   onExport?: () => void;
   onImport?: () => void;
+  onFindBlurry?: () => void;
   appVersion?: string;
 }
 
@@ -54,6 +55,7 @@ export function Sidebar({
   onRescan,
   onExport,
   onImport,
+  onFindBlurry,
   appVersion,
 }: SidebarProps) {
   const queueCount = useQueueStore((s) => s.queueCount);
@@ -134,6 +136,10 @@ export function Sidebar({
               >
                 <span className="sidebar__menu-icon">↺</span>
                 Rescan Library
+              </button>
+              <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onFindBlurry)}>
+                <span className="sidebar__menu-icon">◐</span>
+                Find Blurry Photos
               </button>
 
               <div className="sidebar__menu-divider" />

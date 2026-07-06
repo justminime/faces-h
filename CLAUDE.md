@@ -79,7 +79,7 @@ docs/           PRD · ARCHITECTURE · DESIGN · IMPLEMENTATION_PLAN
 - [ ] `npm run lint` passes
 - [ ] `cargo clippy -- -D warnings` passes
 - [ ] CI green on the PR branch
-- [ ] No photo files read, written, moved, or deleted
+- [ ] No photo files written, moved, or deleted — the single exception is the explicit, user-confirmed "Move to Recycle Bin" action (#154); nothing is ever hard-deleted
 - [ ] No hardcoded ports, paths, or credentials
 
 ---

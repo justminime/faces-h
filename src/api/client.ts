@@ -177,3 +177,35 @@ export function confirmFace(
     },
   );
 }
+
+export interface BlurryPhoto {
+  id: number;
+  path: string;
+  taken_at: number | null;
+  blur_score: number;
+}
+
+/** Photos below the sharpness cutoff, most blurred first (#154).
+ *  threshold: slider-driven cutoff; omit to use the configured default. */
+export function fetchBlurryPhotos(
+  offset = 0,
+  limit = 100,
+  threshold?: number,
+): Promise<BlurryPhoto[]> {
+  const t = threshold !== undefined ? `&threshold=${threshold}` : "";
+  return apiFetch<BlurryPhoto[]>(`/photos/blurry?offset=${offset}&limit=${limit}${t}`);
+}
+
+export interface TrashResult {
+  trashed: number;
+  failed: { id: number; error: string }[];
+}
+
+/** Move photos to the OS Recycle Bin — deletes the real files (recoverable
+ *  from the Bin). The only file-modifying action in the app (#154). */
+export function trashPhotos(photoIds: number[]): Promise<TrashResult> {
+  return apiFetch<TrashResult>("/photos/trash", {
+    method: "POST",
+    body: JSON.stringify({ photo_ids: photoIds, confirmed: true }),
+  });
+}

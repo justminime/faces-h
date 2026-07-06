@@ -428,11 +428,18 @@ async def run_scan(
                 if recognizer is not None:
                     await _extract_faces(path, int(row["id"]), recognizer, clustering, db)
                 # Pre-generate the gallery thumbnail so the first visit is a
-                # disk-cache read instead of a full-resolution decode (#150).
+                # disk-cache read instead of a full-resolution decode (#150),
+                # and score sharpness from the same decode (#154).
                 from services import image_cache  # noqa: PLC0415
-                await asyncio.to_thread(
-                    image_cache.warm_thumbnail, int(row["id"]), path, int(row["mtime"])
+                score = await asyncio.to_thread(
+                    image_cache.warm_and_score, int(row["id"]), path, int(row["mtime"])
                 )
+                if score is not None:
+                    await db.execute(
+                        "UPDATE photos SET blur_score = ? WHERE id = ?",
+                        (score, int(row["id"])),
+                    )
+                    await db.commit()
         elif result == "skip":
             _status.skipped += 1
             consecutive_errors = 0
