@@ -298,3 +298,83 @@ async def test_restore_unknown_backup_404(tmp_path: Path) -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as ac:
         r = await ac.post("/backups/restore", json={"backup": "nope/x.jpg", "confirmed": True})
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_scan_commits_per_photo_not_in_one_long_transaction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for #174: each photo's per-thumbnail decode + ML probe
+    can take real time, so the scan must commit after every row instead of
+    batching commits — otherwise it holds the write lock long enough that an
+    unrelated concurrent write (e.g. dismissing a queue face) fails with
+    "database is locked"."""
+    import asyncio
+    import time as time_mod
+
+    import ml.factory as ml_factory
+    import api.rotation as rotation_api
+
+    os.environ["FACES_H_DATA_DIR"] = str(tmp_path)
+    from db.database import get_db
+
+    n_photos = 4
+    per_photo_delay = 0.4  # simulates real decode + ML inference time
+    async with get_db() as db:
+        for i in range(1, n_photos + 1):
+            await db.execute(
+                "INSERT INTO photos (id, path, mtime) VALUES (?, ?, 1)",
+                (i, f"C:/lib/faceless_{i}.jpg"),
+            )
+        await db.execute(
+            "INSERT INTO people (id, name, created_at) VALUES (1, 'Alice', 0)"
+        )
+        await db.commit()
+
+    monkeypatch.setattr(ml_factory, "get_recognizer", lambda *a, **kw: object())
+    monkeypatch.setattr(
+        rotation_api.image_cache, "warm_and_get_thumb", lambda *a, **kw: b"fake"
+    )
+
+    def _slow_probe(thumb: bytes, recognizer: object, tmp_dir: str) -> int | None:
+        time_mod.sleep(per_photo_delay)  # runs in a worker thread via to_thread
+        return None
+
+    monkeypatch.setattr(rotation_api, "probe_rotation", _slow_probe)
+
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as ac:
+        r = await ac.post("/photos/rotation-scan")
+        assert r.status_code == 200
+
+        # Give the scan a moment to start and get into its per-photo loop.
+        await asyncio.sleep(per_photo_delay * 1.5)
+
+        # A genuine concurrent WRITE from a fresh connection — unrelated to
+        # the scan's own rows, but it still needs the single WAL writer lock.
+        start = time_mod.monotonic()
+        async with get_db() as concurrent_conn:
+            await concurrent_conn.execute(
+                "UPDATE people SET name = 'Alice (updated)' WHERE id = 1"
+            )
+            await concurrent_conn.commit()
+        elapsed = time_mod.monotonic() - start
+
+    assert elapsed < per_photo_delay, (
+        f"concurrent write took {elapsed:.2f}s — the scan is holding the "
+        "write lock across multiple photos instead of committing each one"
+    )
+
+    # Let the scan finish, then confirm it actually completed its work.
+    for _ in range(100):
+        async with get_db() as db:
+            row = await (
+                await db.execute(
+                    "SELECT COUNT(*) AS n FROM photos WHERE rotation_checked = 1"
+                )
+            ).fetchone()
+        if row is not None and int(row["n"]) == n_photos:
+            break
+        await asyncio.sleep(0.1)
+    assert row is not None and int(row["n"]) == n_photos

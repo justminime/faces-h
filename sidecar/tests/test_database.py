@@ -156,3 +156,69 @@ async def test_db_file_created_in_data_dir(tmp_path: Path) -> None:
     async with get_db():
         pass
     assert (tmp_path / "faces.db").exists()
+
+
+@pytest.mark.asyncio
+async def test_busy_timeout_configured() -> None:
+    """Every connection sets a busy_timeout so a brief writer/writer overlap
+    waits instead of immediately raising "database is locked" (#174)."""
+    async with get_db() as conn:
+        cursor = await conn.execute("PRAGMA busy_timeout")
+        row = await cursor.fetchone()
+
+    assert row is not None and int(row[0]) >= 5000
+
+
+@pytest.mark.asyncio
+async def test_concurrent_writers_wait_instead_of_failing_immediately(
+    tmp_path: Path,
+) -> None:
+    """Regression test for #174: a background job (like the rotation scan)
+    holding a brief write lock must not make a concurrent request's write
+    fail outright — with busy_timeout set, it waits for the lock to clear."""
+    os.environ["FACES_H_DATA_DIR"] = str(tmp_path)
+
+    import asyncio
+
+    from db.schema import ALL_TABLES
+
+    async with get_db() as seed:
+        for stmt in ALL_TABLES:
+            await seed.execute(stmt)
+        await seed.execute(
+            "INSERT INTO people (id, name, created_at) VALUES (1, 'Alice', 0)"
+        )
+        await seed.commit()
+
+    holder_ready = asyncio.Event()
+    HOLD_SECONDS = 0.3  # long enough that the second write is guaranteed to overlap it
+
+    async def _hold_write_lock() -> None:
+        async with get_db() as conn:
+            await conn.execute("BEGIN IMMEDIATE")
+            await conn.execute(
+                "UPDATE people SET name = 'Alice (holder)' WHERE id = 1"
+            )
+            holder_ready.set()
+            await asyncio.sleep(HOLD_SECONDS)  # lock stays held the whole time
+            await conn.commit()
+
+    async def _concurrent_write() -> None:
+        await asyncio.wait_for(holder_ready.wait(), timeout=5)
+        # The holder is still sleeping (mid-transaction) at this point —
+        # opening a fresh connection and writing here is a genuine overlap,
+        # not a race that might resolve in either order.
+        async with get_db() as conn:
+            await conn.execute("UPDATE people SET name = 'Bob' WHERE id = 1")
+            await conn.commit()
+
+    # Must not raise "database is locked" — busy_timeout lets it wait.
+    await asyncio.wait_for(
+        asyncio.gather(_hold_write_lock(), _concurrent_write()), timeout=10
+    )
+
+    async with get_db() as conn:
+        row = await (
+            await conn.execute("SELECT name FROM people WHERE id = 1")
+        ).fetchone()
+    assert row is not None and row["name"] == "Bob"

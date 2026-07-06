@@ -117,12 +117,17 @@ async def start_rotation_scan() -> dict[str, str]:
                         "UPDATE photos SET rotation_checked = 1, suggested_rotation = ? WHERE id = ?",
                         (degrees, int(r["id"])),
                     )
+                    # Commit after EVERY photo, not batched — each iteration
+                    # can take seconds (thumbnail decode + ML rotation probe),
+                    # so holding one open transaction across a batch kept the
+                    # write lock held long enough to make concurrent requests
+                    # (e.g. dismissing a queue face) fail with "database is
+                    # locked" (#174). A single-row commit is cheap.
+                    await db.commit()
                     if degrees:
                         found += 1
                     if i % 25 == 0:
-                        await db.commit()
                         logger.info("rotation scan: %d/%d probed, %d suggestion(s)", i, len(rows), found)
-                await db.commit()
                 logger.info("rotation scan complete: %d suggestion(s) from %d photo(s)", found, len(rows))
         except Exception:  # noqa: BLE001
             logger.exception("rotation scan failed")
