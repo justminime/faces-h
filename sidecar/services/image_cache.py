@@ -123,3 +123,37 @@ def _evict_if_needed(max_bytes: int | None = None) -> None:
         logger.info("image cache evicted down to %d bytes", total)
     finally:
         _evict_lock.release()
+
+
+def generate_thumbnail_bytes(photo_path: str, size: int) -> bytes:
+    """Decode, orient, downscale, and JPEG-encode one photo (CPU-bound).
+
+    Runs inside a worker thread (asyncio.to_thread) — PIL work in the event
+    loop serialized every image request behind one core (#150).
+    """
+    import io  # noqa: PLC0415
+
+    from PIL import Image, ImageOps  # noqa: PLC0415
+
+    with Image.open(photo_path) as src_img:
+        oriented = ImageOps.exif_transpose(src_img) or src_img
+        rgb = oriented.convert("RGB")
+        rgb.thumbnail((size, size))
+        buf = io.BytesIO()
+        rgb.save(buf, format="JPEG", quality=85)
+    return buf.getvalue()
+
+
+def warm_thumbnail(photo_id: int, photo_path: str, mtime: int, size: int = 256) -> None:
+    """Pre-generate a photo's thumbnail into the disk cache (best effort).
+
+    Called from the scanner right after a photo is processed so the first
+    gallery visit is a cache read instead of a full-resolution decode (#150).
+    """
+    path = cache_key("thumbs", photo_id, mtime, variant=str(size))
+    if os.path.exists(path):
+        return
+    try:
+        put(path, generate_thumbnail_bytes(photo_path, size))
+    except Exception as exc:  # noqa: BLE001 — warmup must never break a scan
+        logger.debug("thumbnail warm failed for %s: %s", photo_path, exc)

@@ -1,5 +1,6 @@
 """Face image serving endpoints."""
 
+import asyncio
 import io
 
 from fastapi import APIRouter, HTTPException
@@ -52,8 +53,9 @@ async def get_face_crop(face_id: int) -> Response:
             headers={"Cache-Control": "max-age=86400", "X-Cache": "hit"},
         )
 
-    try:
-        from PIL import ImageOps
+    def _generate_crop() -> bytes:
+        from PIL import ImageOps  # noqa: PLC0415
+
         with Image.open(row["photo_path"]) as src_img:
             img = ImageOps.exif_transpose(src_img) or src_img
             w_img, h_img = img.size
@@ -68,7 +70,11 @@ async def get_face_crop(face_id: int) -> Response:
             crop = img.convert("RGB").crop((x, y, x2, y2))
             buf = io.BytesIO()
             crop.save(buf, format="JPEG")
-        data = buf.getvalue()
+        return buf.getvalue()
+
+    try:
+        # Worker thread: PIL in the async handler starved the API loop (#150).
+        data = await asyncio.to_thread(_generate_crop)
         image_cache.put(cache_path, data)
         return Response(content=data, media_type="image/jpeg",
                         headers={"Cache-Control": "max-age=86400", "X-Cache": "miss"})
