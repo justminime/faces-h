@@ -19,6 +19,7 @@ interface SidebarProps {
   onExport?: () => void;
   onImport?: () => void;
   onFindBlurry?: () => void;
+  onFindDuplicates?: () => void;
   appVersion?: string;
 }
 
@@ -56,6 +57,7 @@ export function Sidebar({
   onExport,
   onImport,
   onFindBlurry,
+  onFindDuplicates,
   appVersion,
 }: SidebarProps) {
   const queueCount = useQueueStore((s) => s.queueCount);
@@ -140,6 +142,10 @@ export function Sidebar({
               <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onFindBlurry)}>
                 <span className="sidebar__menu-icon">◐</span>
                 Find Blurry Photos
+              </button>
+              <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onFindDuplicates)}>
+                <span className="sidebar__menu-icon">⧉</span>
+                Find Duplicates
               </button>
 
               <div className="sidebar__menu-divider" />

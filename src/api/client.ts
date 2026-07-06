@@ -209,3 +209,23 @@ export function trashPhotos(photoIds: number[]): Promise<TrashResult> {
     body: JSON.stringify({ photo_ids: photoIds, confirmed: true }),
   });
 }
+
+export interface DuplicatePhoto {
+  id: number;
+  path: string;
+  folder: string;
+  filename: string;
+  file_size: number | null;
+  taken_at: number | null;
+}
+
+export interface DuplicateGroup {
+  kind: "exact" | "similar";
+  photos: DuplicatePhoto[];
+}
+
+/** Duplicate groups — exact (byte-identical) and similar (same shot,
+ *  different size/format), biggest space-savers first (#155). */
+export function fetchDuplicates(): Promise<DuplicateGroup[]> {
+  return apiFetch<DuplicateGroup[]>("/photos/duplicates");
+}

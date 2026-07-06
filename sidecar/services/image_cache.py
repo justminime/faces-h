@@ -203,3 +203,46 @@ def warm_and_score(photo_id: int, photo_path: str, mtime: int, size: int = 256) 
         logger.debug("thumbnail warm failed for %s: %s", photo_path, exc)
         return None
     return blur_score_from_jpeg(data)
+
+
+def dhash_from_jpeg(jpeg_bytes: bytes) -> int | None:
+    """64-bit difference hash (dHash) of a thumbnail — near-duplicate key (#155).
+
+    The same shot saved at different sizes/formats produces the same hash;
+    computed from the already-generated thumbnail, so it costs no extra
+    full-resolution decode. None on failure.
+    """
+    import io  # noqa: PLC0415
+
+    import numpy as np  # noqa: PLC0415
+    from PIL import Image  # noqa: PLC0415
+
+    try:
+        with Image.open(io.BytesIO(jpeg_bytes)) as img:
+            gray = np.asarray(
+                img.convert("L").resize((9, 8), Image.Resampling.LANCZOS), dtype=np.int16
+            )
+        bits = (gray[:, 1:] > gray[:, :-1]).flatten()
+        value = 0
+        for b in bits:
+            value = (value << 1) | int(b)
+        # SQLite stores signed 64-bit ints; fold into that range.
+        if value >= 2**63:
+            value -= 2**64
+        return value
+    except Exception:  # noqa: BLE001 — analysis must never break a scan
+        return None
+
+
+def analyze_photo(photo_id: int, photo_path: str, mtime: int, size: int = 256) -> tuple[float | None, int | None]:
+    """Warm the thumbnail and return (blur_score, phash) from one decode."""
+    path = cache_key("thumbs", photo_id, mtime, variant=str(size))
+    data = get(path)
+    try:
+        if data is None:
+            data = generate_thumbnail_bytes(photo_path, size)
+            put(path, data)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("thumbnail warm failed for %s: %s", photo_path, exc)
+        return None, None
+    return blur_score_from_jpeg(data), dhash_from_jpeg(data)

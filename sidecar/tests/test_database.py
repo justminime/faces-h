@@ -71,6 +71,8 @@ async def test_all_indexes_created() -> None:
         "idx_photos_path",
         "idx_photos_taken_at",
         "idx_photos_missing",
+        "idx_photos_phash",
+        "idx_photos_size",
         "idx_scan_roots_path",
     }
 

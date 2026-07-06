@@ -16,6 +16,7 @@ import { ConnectionBanner } from "./components/ConnectionBanner";
 import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
 import { QueueView } from "./components/QueueView";
 import { BlurryView } from "./components/BlurryView";
+import { DuplicatesView } from "./components/DuplicatesView";
 import { useUIStore } from "./store/ui";
 import { useConnectionStore } from "./store/connection";
 import type { Person, Photo } from "./types";
@@ -110,7 +111,7 @@ function App() {
   const pageLoadingRef = useRef(false); // guards against concurrent page fetches
   const shuffleSeedRef = useRef(1);     // per-visit shuffle seed (#145)
 
-  const [view, setView] = useState<"gallery" | "search" | "queue" | "blurry">("gallery");
+  const [view, setView] = useState<"gallery" | "search" | "queue" | "blurry" | "duplicates">("gallery");
   const [onboardingDone, setOnboardingDone] = useState(
     () => localStorage.getItem(ONBOARDING_KEY) !== null,
   );
@@ -436,6 +437,7 @@ function App() {
         onExport={() => void handleExport()}
         onImport={() => fileInputRef.current?.click()}
         onFindBlurry={() => setView("blurry")}
+        onFindDuplicates={() => setView("duplicates")}
         appVersion={__APP_VERSION__}
       />
       <input
@@ -453,7 +455,9 @@ function App() {
       <div className="app-content">
         <ConnectionBanner />
         <div className="app-content__panels">
-          {view === "blurry" ? (
+          {view === "duplicates" ? (
+            <DuplicatesView />
+          ) : view === "blurry" ? (
             <BlurryView />
           ) : view === "queue" ? (
             <QueueView />
