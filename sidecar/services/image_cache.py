@@ -246,3 +246,18 @@ def analyze_photo(photo_id: int, photo_path: str, mtime: int, size: int = 256) -
         logger.debug("thumbnail warm failed for %s: %s", photo_path, exc)
         return None, None
     return blur_score_from_jpeg(data), dhash_from_jpeg(data)
+
+
+def warm_and_get_thumb(photo_id: int, photo_path: str, mtime: int, size: int = 256) -> bytes | None:
+    """Return the cached thumbnail bytes, generating them if needed (#160)."""
+    path = cache_key("thumbs", photo_id, mtime, variant=str(size))
+    data = get(path)
+    if data is not None:
+        return data
+    try:
+        data = generate_thumbnail_bytes(photo_path, size)
+        put(path, data)
+        return data
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("thumbnail warm failed for %s: %s", photo_path, exc)
+        return None

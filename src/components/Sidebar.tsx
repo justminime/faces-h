@@ -20,6 +20,8 @@ interface SidebarProps {
   onImport?: () => void;
   onFindBlurry?: () => void;
   onFindDuplicates?: () => void;
+  onFindRotation?: () => void;
+  onShowBackups?: () => void;
   appVersion?: string;
 }
 
@@ -58,6 +60,8 @@ export function Sidebar({
   onImport,
   onFindBlurry,
   onFindDuplicates,
+  onFindRotation,
+  onShowBackups,
   appVersion,
 }: SidebarProps) {
   const queueCount = useQueueStore((s) => s.queueCount);
@@ -146,6 +150,14 @@ export function Sidebar({
               <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onFindDuplicates)}>
                 <span className="sidebar__menu-icon">⧉</span>
                 Find Duplicates
+              </button>
+              <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onFindRotation)}>
+                <span className="sidebar__menu-icon">⟳</span>
+                Rotate Sideways Photos
+              </button>
+              <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onShowBackups)}>
+                <span className="sidebar__menu-icon">🗄</span>
+                Restore Backups…
               </button>
 
               <div className="sidebar__menu-divider" />

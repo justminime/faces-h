@@ -164,9 +164,15 @@ async def trash_photos(body: TrashRequest) -> dict[str, Any]:
                 removed = True
             except Exception as exc:  # noqa: BLE001 — try the network fallback
                 if body.allow_permanent_on_network and is_network_path(path):
-                    # No Recycle Bin exists on network shares — the user was
-                    # warned in the dialog that these are permanent (#158).
+                    # No Recycle Bin on network shares — copy into the app's
+                    # structure-mirroring backup folder first (#161, kept for
+                    # config.backup_retention_days), THEN remove. A failed
+                    # backup aborts the delete: nothing is lost without a
+                    # safety copy.
                     try:
+                        from services.backup import backup_file  # noqa: PLC0415
+
+                        await asyncio.to_thread(backup_file, path)
                         await asyncio.to_thread(os.remove, path)
                         deleted_permanently += 1
                         removed = True

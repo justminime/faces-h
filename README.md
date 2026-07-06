@@ -34,7 +34,9 @@ Active development — core features complete. See [GitHub Issues](https://githu
 - **See what it's doing** — live activity log with engine and app streams, adjustable verbosity
 - **Find blurry photos** — a live cutoff slider surfaces them worst-first so you see exactly what each level captures
 - **Find duplicates** — exact copies and the same shot saved at different sizes, each copy listed with its folder, filename, and size; "keep one per group" in one click
-- **Delete with full detail** — the confirmation shows every file's thumbnail, name, folder, and size plus the total space freed; local files go to the Windows Recycle Bin (recoverable), and network files — which have no Recycle Bin — are clearly marked before their permanent delete
+- **Delete with full detail** — the confirmation shows every file's thumbnail, name, folder, and size plus the total space freed; local files go to the Windows Recycle Bin (recoverable), and network files — which have no Recycle Bin — are clearly marked and backed up before their permanent delete
+- **Rotate sideways photos** — finds photos that are upright only in tag-aware viewers (EXIF-only) or where a rotation would let face detection find people it's missing; preview before/after, then rotate the ORIGINAL file in place — the pre-rotation version is always kept (Recycle Bin locally, a 7-day backup on network shares)
+- **Restore backups** — network-folder files that were deleted or rotated (no Recycle Bin there) stay recoverable for 7 days; restore them from one list
 - **Never touches your files otherwise** — scanning and browsing are strictly read-only; the ONLY file-modifying action is that explicit, confirmed Recycle-Bin delete (always recoverable); photos removed from disk hide themselves and revive if restored
 
 ---
@@ -101,7 +103,8 @@ Optional `config.json` in `%APPDATA%\com.faces-h.app\` (all keys optional; defau
   "min_face_px": 20,
   "min_detection_confidence": 0.5,
   "ui_log_level": "info",
-  "blur_threshold": 60
+  "blur_threshold": 60,
+  "backup_retention_days": 7
 }
 ```
 

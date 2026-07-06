@@ -191,7 +191,7 @@ and `:root[data-theme="dark"]` (explicit dark override).
 - Mid-scan disconnection: after 5 consecutive per-file OS errors on a network path, the scanner pauses, retries up to 3× with 5 s delay, then broadcasts `drive_offline` and stops cleanly without DB corruption
 - On rescan: each root is checked for reachability first; offline roots emit `drive_offline` and are skipped while online roots continue normally
 - The scanner **never writes, moves, or deletes** any file — network or local
-- The ONLY file-modifying action in the product is the explicit, user-confirmed delete (#154/#158): local files go to the Recycle Bin via send2trash (never a permanent erase); network shares have no Recycle Bin, so files there are permanently removed ONLY when the request carries `allow_permanent_on_network` — which the UI sets after the confirmation dialog has listed those files with an explicit permanent-delete warning. The DB row is marked `missing` (#105) so restoring a file + rescanning revives it with its faces intact
+- The ONLY file-modifying actions in the product are the explicit, user-confirmed **delete** (#154/#158) and **rotate** (#160): local files use send2trash (Recycle Bin, never a permanent erase); network shares have no Recycle Bin, so files there are only permanently removed/overwritten when the request carries `allow_permanent_on_network` — which the UI sets after the confirmation dialog has listed those files with an explicit permanent warning — and ONLY after a copy is safely written to `{data_dir}/trash-backup/` (#161, mirroring the original folder structure, retained `backup_retention_days`). A failed backup aborts the destructive action. The DB row is marked `missing` (#105) so restoring a file (from the Bin or from trash-backup via `POST /backups/restore`, #162) + rescanning revives it with its faces intact. Rotation additionally resets `faces_extracted`/caches so the rewritten file re-enters the normal scan pipeline
 - `scan_roots` table gains `is_network` (INTEGER) and `last_seen_at` (INTEGER) columns; applied via idempotent `ALTER TABLE` migrations
 
 Throughput target: ≥500 photos/min on mid-range CPU (i5/Ryzen 5). Network scans may be 10–100× slower; progress bar reflects real counts.
@@ -434,7 +434,8 @@ invalid values fall back to defaults with a logged warning. Defaults:
   "min_face_px": 20,
   "min_detection_confidence": 0.5,
   "ui_log_level": "info",
-  "blur_threshold": 60
+  "blur_threshold": 60,
+  "backup_retention_days": 7
 }
 ```
 
@@ -443,6 +444,7 @@ invalid values fall back to defaults with a logged warning. Defaults:
 - `min_face_px` / `min_detection_confidence` implement OD-04's tiny/low-confidence detection skip (#111)
 - `ui_log_level` (`warning`|`info`|`debug`) tunes the engine->UI activity-log stream (#143); log files always capture everything
 - `blur_threshold` is the default sharpness cutoff for the blurry-photos view (#154); the UI slider overrides it per request
+- `backup_retention_days` (#161) — how long pre-deletion backups of network files are kept in `{data_dir}/trash-backup/` before automatic purge
 
 Generated artifacts live alongside it: `cache/thumbs/` and `cache/faces/` (image disk cache, #114 — 2 GB LRU)
 and `faces.index` (the FAISS candidate index, #106); all rebuildable, safe to delete.

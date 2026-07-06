@@ -37,6 +37,9 @@ _UI_LOG_LEVELS = ("debug", "info", "warning")
 # Photos with a Laplacian-variance sharpness score (computed on the 256px
 # thumbnail) below this count as "blurry" in the review view (#154).
 DEFAULT_BLUR_THRESHOLD = 60.0
+# Days that pre-deletion backups of network files are kept in
+# {data_dir}/trash-backup before being purged (#161).
+DEFAULT_BACKUP_RETENTION_DAYS = 7
 
 
 @dataclass(frozen=True)
@@ -48,6 +51,7 @@ class Config:
     min_detection_confidence: float = DEFAULT_MIN_DETECTION_CONFIDENCE
     ui_log_level: str = DEFAULT_UI_LOG_LEVEL
     blur_threshold: float = DEFAULT_BLUR_THRESHOLD
+    backup_retention_days: int = DEFAULT_BACKUP_RETENTION_DAYS
 
 
 _cached: Config | None = None
@@ -98,6 +102,16 @@ def _validate(raw: dict[str, object]) -> Config:
         logger.warning("config.json: invalid blur_threshold %r — using default", blur)
         blur_f = DEFAULT_BLUR_THRESHOLD
 
+    retention = raw.get("backup_retention_days", DEFAULT_BACKUP_RETENTION_DAYS)
+    retention_i = (
+        int(retention)
+        if isinstance(retention, (int, float)) and int(retention) >= 1
+        else None
+    )
+    if retention_i is None:
+        logger.warning("config.json: invalid backup_retention_days %r — using default", retention)
+        retention_i = DEFAULT_BACKUP_RETENTION_DAYS
+
     ui_log = raw.get("ui_log_level", DEFAULT_UI_LOG_LEVEL)
     if not isinstance(ui_log, str) or ui_log.lower() not in _UI_LOG_LEVELS:
         logger.warning("config.json: invalid ui_log_level %r — using default", ui_log)
@@ -113,6 +127,7 @@ def _validate(raw: dict[str, object]) -> Config:
         min_detection_confidence=min_det_f,
         ui_log_level=ui_log,
         blur_threshold=blur_f,
+        backup_retention_days=retention_i,
     )
 
 

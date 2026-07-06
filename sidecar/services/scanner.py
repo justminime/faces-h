@@ -246,6 +246,8 @@ async def _process_file(path: str, db: aiosqlite.Connection) -> ProcessResult:
             return "error"
 
     taken_at = await asyncio.to_thread(_read_taken_at, path)
+    from services.rotation import read_exif_orientation  # noqa: PLC0415
+    exif_orientation = await asyncio.to_thread(read_exif_orientation, path)
 
     try:
         # A changed file invalidates any previously extracted faces, so the
@@ -253,17 +255,18 @@ async def _process_file(path: str, db: aiosqlite.Connection) -> ProcessResult:
         # once the new faces are fully committed.
         await db.execute(
             """
-            INSERT INTO photos (path, mtime, taken_at, file_size)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO photos (path, mtime, taken_at, file_size, exif_orientation)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE
                 SET mtime           = excluded.mtime,
                     taken_at        = excluded.taken_at,
                     file_size       = excluded.file_size,
+                    exif_orientation = excluded.exif_orientation,
                     faces_extracted = 0,
                     missing         = 0,
                     content_hash    = NULL
             """,
-            (path, mtime, taken_at, file_size),
+            (path, mtime, taken_at, file_size, exif_orientation),
         )
         await db.commit()
     except Exception as exc:
