@@ -289,7 +289,7 @@ CREATE TABLE faces (
     embedding_id    INTEGER,            -- row index in FAISS index
     person_id       INTEGER REFERENCES people(id),
     assign_conf     REAL,               -- cosine similarity at time of assignment
-    assign_status   TEXT NOT NULL       -- 'assigned' | 'uncertain' | 'unreviewed' | 'rejected'
+    assign_status   TEXT NOT NULL       -- 'assigned' | 'uncertain' | 'unreviewed' | 'dismissed'
 );
 
 -- Named people
@@ -483,6 +483,8 @@ class FaceRecognizer(ABC):
 4. The uncertain queue count is always visible in the sidebar (badge).
 5. No face appears in search results until it has `assign_status = 'assigned'`.
 6. Re-evaluation does not auto-promote uncertain faces — user confirmation is always required.
+
+A face can also be moved to `assign_status = 'dismissed'` (#168) — a persistent "not relevant" decision from the uncertain queue (`POST /queue/{id}/dismiss`), distinct from the client-only "Skip". Dismissed faces are excluded from the uncertain queue (rules 3/4) exactly like any status other than `'uncertain'`, and from search (rule 5) exactly like any status other than `'assigned'` — no rule needed new code to hold. They remain visible in a secondary "Not Relevant" view (`GET /queue/dismissed`) and can be brought back to `'unreviewed'` via `POST /queue/{id}/restore`, where they re-enter normal review/sweeps like any other never-reviewed face. Confirming a face in the uncertain queue (`POST /queue/{id}/confirm`) also triggers a background `sweep_for_person` for the confirmed person (#169), identical to the sweep already triggered by naming and merging — still threshold-gated per rule 1, so this does not violate rule 6.
 
 ---
 

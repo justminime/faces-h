@@ -36,20 +36,24 @@ export function QueueView() {
   }, [refresh]);
 
   const handleReviewed = useCallback(
-    (faceId: number, skipped: boolean) => {
-      if (skipped) skippedRef.current.add(faceId);
+    (faceId: number, mode: "confirmed" | "skipped" | "dismissed") => {
+      if (mode === "skipped") skippedRef.current.add(faceId);
       setItems((prev) => {
         const next = prev.filter((i) => i.face_id !== faceId);
         // Page exhausted but more may be waiting server-side — pull the next batch.
         if (next.length === 0) refresh();
         return next;
       });
-      if (!skipped) {
+      if (mode !== "skipped") {
+        // Confirmed and dismissed are both persistent server-side, so the
+        // badge count needs a refresh either way.
         fetchQueueCount()
           .then((c) => setQueueCount(c.count))
           .catch(() => {});
+      }
+      if (mode === "confirmed") {
         // Confirming changes photo counts / medallions — reuse the existing
-        // sidebar refresh channel.
+        // sidebar refresh channel. Dismissing touches neither.
         useUIStore.getState().bumpScanVersion();
       }
     },
@@ -71,8 +75,9 @@ export function QueueView() {
       ) : (
         <UncertainQueue
           items={items}
-          onReviewed={(faceId) => handleReviewed(faceId, false)}
-          onSkipped={(faceId) => handleReviewed(faceId, true)}
+          onReviewed={(faceId) => handleReviewed(faceId, "confirmed")}
+          onSkipped={(faceId) => handleReviewed(faceId, "skipped")}
+          onDismissed={(faceId) => handleReviewed(faceId, "dismissed")}
         />
       )}
     </div>

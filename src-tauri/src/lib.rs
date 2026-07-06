@@ -278,6 +278,14 @@ pub fn run() {
                             &MenuItem::with_id(app, "theme-system", "Follow System", true, None::<&str>)?,
                         ],
                     )?,
+                    &Submenu::with_items(
+                        app,
+                        "Help",
+                        true,
+                        &[
+                            &MenuItem::with_id(app, "about", "About faces-h", true, None::<&str>)?,
+                        ],
+                    )?,
                 ],
             )
         })

@@ -178,6 +178,44 @@ export function confirmFace(
   );
 }
 
+/** Persistently mark a queued face as "not relevant" (#168) — unlike the
+ *  client-only Skip, this survives reload; the face moves to the secondary
+ *  Not Relevant view and can be restored from there. */
+export function dismissFace(
+  faceId: number,
+): Promise<{ face_id: number; assign_status: string }> {
+  return apiFetch<{ face_id: number; assign_status: string }>(
+    `/queue/${faceId}/dismiss`,
+    { method: "POST" },
+  );
+}
+
+export interface DismissedItem {
+  face_id: number;
+  photo_id: number;
+  face_crop_url: string;
+}
+
+/** Faces dismissed as "not relevant" — the secondary review window (#168). */
+export function fetchDismissedQueue(
+  offset = 0,
+  limit = 50,
+): Promise<DismissedItem[]> {
+  return apiFetch<DismissedItem[]>(
+    `/queue/dismissed?offset=${offset}&limit=${limit}`,
+  );
+}
+
+/** Bring a dismissed face back into normal review/evaluation (#168). */
+export function restoreDismissedFace(
+  faceId: number,
+): Promise<{ face_id: number; assign_status: string }> {
+  return apiFetch<{ face_id: number; assign_status: string }>(
+    `/queue/${faceId}/restore`,
+    { method: "POST" },
+  );
+}
+
 export interface BlurryPhoto {
   id: number;
   path: string;

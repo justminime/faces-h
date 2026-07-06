@@ -13,7 +13,7 @@ export interface FaceInfo {
   personId: number | null;
   personName: string | null;
   faceSrc: string;
-  assignStatus?: "assigned" | "uncertain" | "unreviewed";
+  assignStatus?: "assigned" | "uncertain" | "unreviewed" | "dismissed";
 }
 
 export interface Photo {

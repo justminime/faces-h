@@ -12,7 +12,7 @@ import numpy as np
 
 from config import get_config
 
-AssignStatus = Literal["assigned", "uncertain", "unreviewed"]
+AssignStatus = Literal["assigned", "uncertain", "unreviewed", "dismissed"]
 
 
 def _serialize_centroid(v: np.ndarray) -> bytes:

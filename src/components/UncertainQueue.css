@@ -67,6 +67,11 @@
   background: transparent;
   color: var(--color-text-secondary);
 }
+.uq-card__btn--dismiss {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
 .uq-picker {
   position: absolute;
   inset: 0;
