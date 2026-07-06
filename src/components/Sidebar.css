@@ -324,3 +324,17 @@
   background-color: var(--color-surface-2);
   flex-shrink: 0;
 }
+
+/* #141: collapsed section for one-photo unnamed clusters */
+.sidebar__singletons-toggle {
+  color: var(--color-text-secondary);
+}
+.sidebar__singletons-chevron {
+  width: 32px;
+  text-align: center;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.sidebar__person--singleton {
+  padding-left: 22px;
+}
