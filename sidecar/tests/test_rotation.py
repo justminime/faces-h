@@ -26,9 +26,15 @@ def _jpeg_with_exif(path: Path, size: tuple[int, int] = (80, 40), orientation: i
 # ---------------------------------------------------------------------------
 
 
-def test_rotate_original_pixels_exif_and_recycle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """90° CW: dimensions swap, EXIF preserved with orientation reset to 1,
-    and the untouched original lands in the (mocked) Recycle Bin."""
+def test_rotate_original_pixels_exif_recycle_and_backup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """90° CW: dimensions swap, EXIF preserved with orientation reset to 1;
+    the untouched original lands in the (mocked) Recycle Bin AND an app
+    backup is made too (#164 — every rotation is backed up, local included)."""
+    os.environ["FACES_H_DATA_DIR"] = str(tmp_path / "data")
+    os.makedirs(str(tmp_path / "data"), exist_ok=True)
+
     photo = tmp_path / "sideways.jpg"
     _jpeg_with_exif(photo, size=(80, 40), orientation=6)
     original_bytes = photo.read_bytes()
@@ -41,7 +47,7 @@ def test_rotate_original_pixels_exif_and_recycle(tmp_path: Path, monkeypatch: py
         s2t, "send2trash", lambda p: os.replace(p, bin_dir / os.path.basename(p))
     )
 
-    mode = rotation.rotate_original(str(photo), 90, allow_permanent_on_network=False)
+    mode = rotation.rotate_original(str(photo), 90)
     assert mode == "recycled"
 
     with Image.open(photo) as img:
@@ -50,42 +56,48 @@ def test_rotate_original_pixels_exif_and_recycle(tmp_path: Path, monkeypatch: py
         assert exif["0th"][piexif.ImageIFD.Orientation] == 1, "orientation reset"
         assert exif["0th"][piexif.ImageIFD.Make] == b"testcam", "EXIF preserved"
 
-    backup_copy = bin_dir / "sideways.jpg"
-    assert backup_copy.read_bytes() == original_bytes, "original untouched in the Bin"
+    recycled_copy = bin_dir / "sideways.jpg"
+    assert recycled_copy.read_bytes() == original_bytes, "original untouched in the Bin"
+
+    app_backups = list(Path(backup.backup_dir()).rglob("sideways.jpg"))
+    assert len(app_backups) == 1, "an app backup must exist alongside the Recycle Bin copy"
+    assert app_backups[0].read_bytes() == original_bytes
 
 
 def test_rotate_refuses_unsupported_format(tmp_path: Path) -> None:
     raw = tmp_path / "shot.nef"
     raw.write_bytes(b"rawdata")
     with pytest.raises(ValueError, match="not safely rewritable"):
-        rotation.rotate_original(str(raw), 90, allow_permanent_on_network=False)
+        rotation.rotate_original(str(raw), 90)
     assert raw.read_bytes() == b"rawdata"
 
 
-def test_rotate_aborts_when_original_cannot_be_secured(
+def test_rotate_aborts_when_backup_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """If neither Recycle Bin nor the network fallback applies, the file on
-    disk must remain byte-identical and no temp file may linger."""
+    """If the app can't make its own safety copy, rotation must not proceed —
+    the file on disk stays byte-identical and no temp file lingers."""
     photo = tmp_path / "local.jpg"
     _jpeg_with_exif(photo)
     before = photo.read_bytes()
 
-    import send2trash as s2t
+    monkeypatch.setattr(
+        rotation, "backup_file", lambda p: (_ for _ in ()).throw(OSError("disk full"))
+    )
 
-    monkeypatch.setattr(s2t, "send2trash", lambda p: (_ for _ in ()).throw(OSError("no bin")))
-
-    with pytest.raises(OSError, match="could not secure"):
-        rotation.rotate_original(str(photo), 90, allow_permanent_on_network=False)
+    with pytest.raises(OSError, match="could not back up"):
+        rotation.rotate_original(str(photo), 90)
     assert photo.read_bytes() == before
     assert not (tmp_path / "local.jpg.rotating.tmp").exists()
 
 
-def test_rotate_network_backs_up_with_structure(
+def test_rotate_falls_back_to_permanent_delete_with_mirrored_backup(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Network path (#161): the original is copied into the mirrored backup
-    tree before the overwrite, so the rotation is undoable for 7 days."""
+    """#164: local and network folders behave identically — whenever
+    send2trash fails, for ANY reason, rotation falls back to permanently
+    removing the original because it was already backed up (mirroring the
+    source folder structure) first."""
     os.environ["FACES_H_DATA_DIR"] = str(tmp_path / "data")
     os.makedirs(str(tmp_path / "data"), exist_ok=True)
 
@@ -97,9 +109,8 @@ def test_rotate_network_backs_up_with_structure(
     import send2trash as s2t
 
     monkeypatch.setattr(s2t, "send2trash", lambda p: (_ for _ in ()).throw(OSError("no bin")))
-    monkeypatch.setattr(rotation, "is_network_path", lambda p: True)
 
-    mode = rotation.rotate_original(str(photo), 90, allow_permanent_on_network=True)
+    mode = rotation.rotate_original(str(photo), 90)
     assert mode == "permanent"
     with Image.open(photo) as img:
         assert img.size == (30, 60)

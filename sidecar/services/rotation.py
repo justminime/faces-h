@@ -21,7 +21,7 @@ import os
 import piexif
 from PIL import Image
 
-from services.scanner import is_network_path
+from services.backup import backup_file
 
 logger = logging.getLogger(__name__)
 
@@ -93,13 +93,17 @@ def _reset_orientation(exif_bytes: bytes | None) -> bytes | None:
         return None
 
 
-def rotate_original(path: str, degrees: int, allow_permanent_on_network: bool) -> str:
+def rotate_original(path: str, degrees: int) -> str:
     """Rotate the original file by `degrees` CW, keeping the old version safe.
 
-    Returns "recycled" (original in the Recycle Bin) or "permanent" (network
-    fallback). Raises ValueError for unsupported formats/degrees and OSError
-    when the original cannot be secured — in which case the file on disk is
-    untouched.
+    Local and network paths are treated identically (#164): the pre-rotation
+    original is ALWAYS copied into the app's backup folder first, then
+    send2trash is attempted. Success -> "recycled" (Windows Recycle Bin, with
+    the app backup kept as redundant extra safety); any send2trash failure
+    (locked file, permission, no Recycle Bin support, network share, ...) ->
+    "permanent" removal, which is safe because the app backup already exists.
+    Raises ValueError for unsupported formats/degrees, and OSError when the
+    backup itself fails — in which case the file on disk is untouched.
     """
     if degrees not in _CW_TRANSPOSE:
         raise ValueError(f"Unsupported rotation: {degrees}")
@@ -138,28 +142,26 @@ def rotate_original(path: str, degrees: int, allow_permanent_on_network: bool) -
             save_kwargs["icc_profile"] = icc
         rotated.save(tmp_path, **save_kwargs)  # type: ignore[arg-type]
 
-    # Secure the original BEFORE replacing it — undo lives in the Recycle Bin.
+    # Back up the original BEFORE touching it, for every path alike (#164) —
+    # this is what makes rotation undoable even when the Recycle Bin attempt
+    # below fails, and keeps Restore Backups populated for local files too.
+    try:
+        backup_file(path)
+    except OSError as exc:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise OSError(f"could not back up original before rotation: {exc}") from exc
+
     mode = "recycled"
     try:
         from send2trash import send2trash  # noqa: PLC0415
 
         send2trash(path)
-    except Exception as exc:  # noqa: BLE001 — network fallback below
-        if allow_permanent_on_network and is_network_path(path):
-            # No Recycle Bin on network shares — copy the original into the
-            # app's structure-mirroring backup folder first (#161), so the
-            # rotation stays undoable for the retention window.
-            from services.backup import backup_file  # noqa: PLC0415
-
-            backup_file(path)
-            os.remove(path)
-            mode = "permanent"
-        else:
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
-            raise OSError(f"could not secure original before rotation: {exc}") from exc
+    except Exception:  # noqa: BLE001 — already backed up, safe to remove
+        os.remove(path)
+        mode = "permanent"
 
     os.replace(tmp_path, path)
     logger.info("rotated %s by %d° CW (original %s)", path, degrees, mode)

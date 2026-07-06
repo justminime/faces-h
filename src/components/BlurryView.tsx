@@ -73,11 +73,12 @@ export function BlurryView() {
     setBusy(true);
     try {
       const result = await trashPhotos([...selected]);
-      const msg =
-        result.failed.length > 0
-          ? `Moved ${result.trashed} photo${result.trashed === 1 ? "" : "s"} to the Recycle Bin — ${result.failed.length} failed`
-          : `Moved ${result.trashed} photo${result.trashed === 1 ? "" : "s"} to the Recycle Bin`;
-      useToastStore.getState().addToast(msg);
+      const parts = [`Deleted ${result.trashed + result.deleted_permanently} photo${result.trashed + result.deleted_permanently === 1 ? "" : "s"}`];
+      if (result.deleted_permanently > 0) {
+        parts.push(`${result.deleted_permanently} backed up in-app (no Recycle Bin available)`);
+      }
+      if (result.failed.length > 0) parts.push(`${result.failed.length} failed`);
+      useToastStore.getState().addToast(parts.join(" — "));
       setSelected(new Set());
       setConfirming(false);
       load(sliderPct);

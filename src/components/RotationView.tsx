@@ -76,7 +76,9 @@ export function RotationView() {
       );
       const parts = [`Rotated ${result.rotated} photo${result.rotated === 1 ? "" : "s"}`];
       if (result.permanent > 0) {
-        parts.push(`${result.permanent} network file${result.permanent === 1 ? "" : "s"} overwritten permanently`);
+        // "permanent" = Recycle Bin unavailable for that file; it's still
+        // backed up in the app for 7 days either way (#164).
+        parts.push(`${result.permanent} backed up in-app (no Recycle Bin available)`);
       }
       if (result.failed.length > 0) parts.push(`${result.failed.length} failed`);
       useToastStore.getState().addToast(parts.join(" — "));
@@ -203,16 +205,16 @@ export function RotationView() {
               Rotate {rotatableSelected.length} photo{rotatableSelected.length === 1 ? "" : "s"}?
             </h3>
             <p>
-              Each file will be rewritten in place. The current version is kept
-              safe — locally it moves to the Recycle Bin; on network folders
-              (no Recycle Bin there) it is copied to the app&rsquo;s backup
-              folder first, kept for 7 days.
+              Each file will be rewritten in place. Every current version is
+              backed up inside the app for 7 days before that happens — local
+              files also go to the Windows Recycle Bin when possible. Restore
+              any of them from Restore Backups (··· menu) or the Recycle Bin.
             </p>
             {networkSelected.length > 0 && (
               <p className="rotation-view__network-warning" role="alert">
-                ⚠ {networkSelected.length} file{networkSelected.length === 1 ? " is" : "s are"} on
-                a network folder — the current version will be permanently
-                overwritten (backed up for 7 days, not kept forever).
+                ℹ {networkSelected.length} file{networkSelected.length === 1 ? " is" : "s are"} on
+                a network folder (marked below) — those typically skip the
+                Windows Recycle Bin, but the app backup covers them the same way.
               </p>
             )}
             <div className="rotation-view__dialog-actions">

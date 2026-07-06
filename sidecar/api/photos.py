@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from config import get_config
+from services.backup import backup_file
 from services.scanner import is_network_path
 
 from fastapi import APIRouter, HTTPException, Query
@@ -119,23 +120,22 @@ async def list_blurry_photos(
 class TrashRequest(BaseModel):
     photo_ids: list[int]
     confirmed: bool = False
-    # Network shares have no Recycle Bin on Windows. When true (set by the UI
-    # after warning the user which files are on network folders), files that
-    # cannot be recycled AND live on a network path are deleted permanently.
-    allow_permanent_on_network: bool = False
 
 
 @router.post("/trash")
 async def trash_photos(body: TrashRequest) -> dict[str, Any]:
-    """Move photos to the OS Recycle Bin — the ONLY file-modifying action in
-    the product (#154). Requires explicit confirmation; never a permanent
-    delete. Trashed photos are marked missing (#105), so restoring the file
-    from the Recycle Bin + rescanning revives it with its faces intact.
+    """Delete photos — local and network folders behave identically (#164).
+    Requires explicit confirmation. Every file is backed up in the app FIRST
+    (structure-mirrored, kept for config.backup_retention_days), then Recycle
+    Bin is attempted; any failure there falls back to permanent removal,
+    which is safe because the app backup already exists. Trashed photos are
+    marked missing (#105), so restoring — from the Recycle Bin or from
+    Restore Backups — + rescanning revives the photo with its faces intact.
     """
     if not body.confirmed:
         raise HTTPException(status_code=400, detail="confirmed must be true")
     if not body.photo_ids:
-        return {"trashed": 0, "failed": []}
+        return {"trashed": 0, "deleted_permanently": 0, "failed": []}
 
     try:
         from send2trash import send2trash  # noqa: PLC0415
@@ -157,39 +157,30 @@ async def trash_photos(body: TrashRequest) -> dict[str, Any]:
                 failed.append({"id": photo_id, "error": "not found"})
                 continue
             path = row["path"]
-            removed = False
+
+            try:
+                await asyncio.to_thread(backup_file, path)
+            except OSError as exc:
+                logger.warning("backup failed for %s, aborting delete: %s", path, exc)
+                failed.append({"id": photo_id, "error": "backup failed"})
+                continue
+
             try:
                 await asyncio.to_thread(send2trash, path)
                 trashed += 1
-                removed = True
-            except Exception as exc:  # noqa: BLE001 — try the network fallback
-                if body.allow_permanent_on_network and is_network_path(path):
-                    # No Recycle Bin on network shares — copy into the app's
-                    # structure-mirroring backup folder first (#161, kept for
-                    # config.backup_retention_days), THEN remove. A failed
-                    # backup aborts the delete: nothing is lost without a
-                    # safety copy.
-                    try:
-                        from services.backup import backup_file  # noqa: PLC0415
+            except Exception as exc:  # noqa: BLE001 — already backed up, safe to remove
+                try:
+                    await asyncio.to_thread(os.remove, path)
+                    deleted_permanently += 1
+                    logger.info(
+                        "Recycle Bin unavailable for %s (%s) — removed permanently, app backup kept",
+                        path, exc,
+                    )
+                except OSError as rm_exc:
+                    failed.append({"id": photo_id, "error": str(rm_exc.__class__.__name__)})
+                    continue
 
-                        await asyncio.to_thread(backup_file, path)
-                        await asyncio.to_thread(os.remove, path)
-                        deleted_permanently += 1
-                        removed = True
-                        logger.warning(
-                            "permanently deleted network file (no Recycle Bin): %s", path
-                        )
-                    except OSError as rm_exc:
-                        failed.append(
-                            {"id": photo_id, "error": str(rm_exc.__class__.__name__)}
-                        )
-                else:
-                    logger.warning("recycle-bin move failed for %s: %s", path, exc)
-                    failed.append({"id": photo_id, "error": str(exc.__class__.__name__)})
-            if removed:
-                await db.execute(
-                    "UPDATE photos SET missing = 1 WHERE id = ?", (photo_id,)
-                )
+            await db.execute("UPDATE photos SET missing = 1 WHERE id = ?", (photo_id,))
         await db.commit()
 
     logger.info(

@@ -76,7 +76,7 @@ describe("RotationView (#160)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /rotate 2 selected/i }));
     expect(screen.getByRole("dialog", { name: /confirm rotation/i })).toBeInTheDocument();
-    expect(screen.getByText(/permanently overwritten/i)).toBeInTheDocument();
+    expect(screen.getByText(/typically skip the/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /rotate now/i }));
     await waitFor(() =>

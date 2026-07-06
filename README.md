@@ -34,10 +34,10 @@ Active development — core features complete. See [GitHub Issues](https://githu
 - **See what it's doing** — live activity log with engine and app streams, adjustable verbosity
 - **Find blurry photos** — a live cutoff slider surfaces them worst-first so you see exactly what each level captures
 - **Find duplicates** — exact copies and the same shot saved at different sizes, each copy listed with its folder, filename, and size; "keep one per group" in one click
-- **Delete with full detail** — the confirmation shows every file's thumbnail, name, folder, and size plus the total space freed; local files go to the Windows Recycle Bin (recoverable), and network files — which have no Recycle Bin — are clearly marked and backed up before their permanent delete
-- **Rotate sideways photos** — finds photos that are upright only in tag-aware viewers (EXIF-only) or where a rotation would let face detection find people it's missing; preview before/after, then rotate the ORIGINAL file in place — the pre-rotation version is always kept (Recycle Bin locally, a 7-day backup on network shares)
-- **Restore backups** — network-folder files that were deleted or rotated (no Recycle Bin there) stay recoverable for 7 days; restore them from one list
-- **Never touches your files otherwise** — scanning and browsing are strictly read-only; the ONLY file-modifying action is that explicit, confirmed Recycle-Bin delete (always recoverable); photos removed from disk hide themselves and revive if restored
+- **Delete with full detail** — the confirmation shows every file's thumbnail, name, folder, and size plus the total space freed; every file is backed up in the app first, local and network folders alike, then goes to the Windows Recycle Bin when possible (a failed Recycle Bin attempt falls back to a safe, already-backed-up removal)
+- **Rotate sideways photos** — finds photos that are upright only in tag-aware viewers (EXIF-only) or where a rotation would let face detection find people it's missing; preview before/after, then rotate the ORIGINAL file in place — the pre-rotation version is always backed up first, the same way everywhere
+- **Restore backups** — every deleted or rotated file has a 7-day app backup, in addition to the Recycle Bin when that applies; restore any of them from one list
+- **Never touches your files otherwise** — scanning and browsing are strictly read-only; the ONLY file-modifying actions are that explicit, confirmed delete and rotate, both always backed up and recoverable; photos removed from disk hide themselves and revive if restored
 
 ---
 

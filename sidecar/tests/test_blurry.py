@@ -88,9 +88,13 @@ async def test_trash_requires_confirmation(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_trash_moves_file_and_marks_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_trash_moves_file_backs_up_and_marks_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The file leaves its folder via send2trash (mocked to a holding dir so
-    the test doesn't touch the real Recycle Bin) and the row goes missing."""
+    the test doesn't touch the real Recycle Bin), an app backup is ALSO made
+    (#164 — every delete is backed up, local or network alike), and the row
+    goes missing."""
     os.environ["FACES_H_DATA_DIR"] = str(tmp_path / "data")
     os.makedirs(str(tmp_path / "data"), exist_ok=True)
 
@@ -115,10 +119,15 @@ async def test_trash_moves_file_and_marks_missing(tmp_path: Path, monkeypatch: p
         r = await ac.post("/photos/trash", json={"photo_ids": [1], "confirmed": True})
     assert r.status_code == 200
     body = r.json()
-    assert body["trashed"] == 1 and body["failed"] == []
+    assert body["trashed"] == 1 and body["deleted_permanently"] == 0 and body["failed"] == []
 
     assert not photo.exists(), "the real file must leave its folder"
     assert (holding / "shaky.jpg").exists(), "…into the (mock) recycle bin"
+
+    from services import backup as backup_mod
+
+    hits = list(Path(backup_mod.backup_dir()).rglob("shaky.jpg"))
+    assert len(hits) == 1, "an app backup must exist even though send2trash succeeded"
 
     from db.database import get_db
 
@@ -130,45 +139,16 @@ async def test_trash_moves_file_and_marks_missing(tmp_path: Path, monkeypatch: p
 
 
 @pytest.mark.asyncio
-async def test_trash_failure_reported_per_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    os.environ["FACES_H_DATA_DIR"] = str(tmp_path)
-    await _seed(str(tmp_path), [(1, "/g/gone.jpg", 5.0)])
-
-    import send2trash as s2t
-
-    def _boom(path: str) -> None:
-        raise OSError("locked")
-
-    monkeypatch.setattr(s2t, "send2trash", _boom)
-
-    from main import app
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as ac:
-        r = await ac.post("/photos/trash", json={"photo_ids": [1], "confirmed": True})
-    body = r.json()
-    assert body["trashed"] == 0
-    assert body["failed"][0]["id"] == 1
-
-    from db.database import get_db
-
-    async with get_db() as db:
-        row = await (
-            await db.execute("SELECT missing FROM photos WHERE id = 1")
-        ).fetchone()
-    assert row is not None and row["missing"] == 0, "failed trash must not hide the photo"
-
-
-@pytest.mark.asyncio
-async def test_trash_network_file_deleted_permanently_when_allowed(
+async def test_trash_falls_back_to_permanent_delete_when_recycle_bin_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Network shares have no Recycle Bin (#158): with the explicit flag the
-    file is permanently removed and counted separately; without it, it fails
-    safely and stays visible."""
+    """#164: local and network folders behave identically — whenever
+    send2trash fails, for ANY reason, the file falls back to a permanent
+    removal because the app already backed it up first. No special flag."""
     os.environ["FACES_H_DATA_DIR"] = str(tmp_path / "data")
     os.makedirs(str(tmp_path / "data"), exist_ok=True)
 
-    photo = tmp_path / "nas" / "shot.jpg"
+    photo = tmp_path / "lib" / "shot.jpg"  # a perfectly ordinary local file
     photo.parent.mkdir()
     photo.write_bytes(_blurry_jpeg())
     await _seed(str(tmp_path / "data"), [(1, str(photo), 5.0)])
@@ -176,32 +156,24 @@ async def test_trash_network_file_deleted_permanently_when_allowed(
     import send2trash as s2t
 
     def _no_bin(path: str) -> None:
-        raise OSError("no recycle bin on this volume")
+        raise OSError("locked or unsupported")
 
     monkeypatch.setattr(s2t, "send2trash", _no_bin)
-    import api.photos as photos_api
-
-    monkeypatch.setattr(photos_api, "is_network_path", lambda p: True)
 
     from main import app
 
-    # Without the flag: fails safely, photo untouched and still visible.
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as ac:
         r = await ac.post("/photos/trash", json={"photo_ids": [1], "confirmed": True})
     body = r.json()
-    assert body["trashed"] == 0 and body["deleted_permanently"] == 0
-    assert body["failed"][0]["id"] == 1
-    assert photo.exists()
+    assert body["trashed"] == 0
+    assert body["deleted_permanently"] == 1
+    assert body["failed"] == []
+    assert not photo.exists(), "must be removed once backed up"
 
-    # With the flag (UI warned the user): permanently deleted and hidden.
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as ac:
-        r = await ac.post(
-            "/photos/trash",
-            json={"photo_ids": [1], "confirmed": True, "allow_permanent_on_network": True},
-        )
-    body = r.json()
-    assert body["deleted_permanently"] == 1 and body["failed"] == []
-    assert not photo.exists(), "network file must actually be removed"
+    from services import backup as backup_mod
+
+    hits = list(Path(backup_mod.backup_dir()).rglob("shot.jpg"))
+    assert len(hits) == 1, "permanent removal is only safe because of this backup"
 
     from db.database import get_db
 
@@ -210,3 +182,36 @@ async def test_trash_network_file_deleted_permanently_when_allowed(
             await db.execute("SELECT missing FROM photos WHERE id = 1")
         ).fetchone()
     assert row is not None and row["missing"] == 1
+
+
+@pytest.mark.asyncio
+async def test_trash_aborts_when_backup_itself_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If the app can't make its own safety copy, the delete must not proceed
+    at all — the photo stays on disk and visible."""
+    os.environ["FACES_H_DATA_DIR"] = str(tmp_path)
+    await _seed(str(tmp_path), [(1, "/g/gone.jpg", 5.0)])
+
+    import api.photos as photos_api
+
+    def _boom(path: str) -> str:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(photos_api, "backup_file", _boom)
+
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as ac:
+        r = await ac.post("/photos/trash", json={"photo_ids": [1], "confirmed": True})
+    body = r.json()
+    assert body["trashed"] == 0 and body["deleted_permanently"] == 0
+    assert body["failed"][0]["id"] == 1
+
+    from db.database import get_db
+
+    async with get_db() as db:
+        row = await (
+            await db.execute("SELECT missing FROM photos WHERE id = 1")
+        ).fetchone()
+    assert row is not None and row["missing"] == 0, "failed backup must not hide the photo"

@@ -141,14 +141,14 @@ class RotateItem(BaseModel):
 class RotateRequest(BaseModel):
     items: list[RotateItem]
     confirmed: bool = False
-    allow_permanent_on_network: bool = False
 
 
 @router.post("/rotate")
 async def rotate_photos(body: RotateRequest) -> dict[str, Any]:
-    """Rotate original files (#160) — undoable: the pre-rotation original goes
-    to the Recycle Bin (or, on network shares with the explicit flag, is
-    overwritten permanently after the UI's warning)."""
+    """Rotate original files (#160) — undoable everywhere alike (#164): the
+    pre-rotation original is always backed up in the app first, then either
+    recycled (Windows Recycle Bin) or, if that fails, permanently removed —
+    safe either way because the app backup already exists."""
     if not body.confirmed:
         raise HTTPException(status_code=400, detail="confirmed must be true")
 
@@ -168,9 +168,7 @@ async def rotate_photos(body: RotateRequest) -> dict[str, Any]:
                 failed.append({"id": item.photo_id, "error": "not found"})
                 continue
             try:
-                mode = await asyncio.to_thread(
-                    rotate_original, row["path"], item.degrees, body.allow_permanent_on_network
-                )
+                mode = await asyncio.to_thread(rotate_original, row["path"], item.degrees)
             except (ValueError, OSError) as exc:
                 failed.append({"id": item.photo_id, "error": str(exc)})
                 continue
