@@ -43,9 +43,13 @@ export function fetchPersonPhotos(
   offset = 0,
   limit = 50,
   order: "date" | "random" = "date",
+  seed = 0,
 ): Promise<ApiPhoto[]> {
+  // seed (#145): keeps the shuffled order stable across pages of one visit,
+  // so "load more" never repeats photos and eventually covers all of them.
+  const seedParam = order === "random" ? `&seed=${seed}` : "";
   return apiFetch<ApiPhoto[]>(
-    `/people/${personId}/photos?offset=${offset}&limit=${limit}&order=${order}`,
+    `/people/${personId}/photos?offset=${offset}&limit=${limit}&order=${order}${seedParam}`,
   );
 }
 
