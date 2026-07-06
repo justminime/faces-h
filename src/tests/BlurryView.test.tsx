@@ -10,15 +10,15 @@ vi.mock("../api/client", () => ({
 }));
 
 const photos = [
-  { id: 1, path: "/g/a.jpg", taken_at: null, blur_score: 5 },
-  { id: 2, path: "/g/b.jpg", taken_at: null, blur_score: 40 },
+  { id: 1, path: "C:/g/a.jpg", taken_at: null, blur_score: 5, file_size: 2_097_152, is_network: false },
+  { id: 2, path: "C:/g/b.jpg", taken_at: null, blur_score: 40, file_size: 1_048_576, is_network: false },
 ];
 
 describe("BlurryView (#154)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(fetchBlurryPhotos).mockResolvedValue(photos);
-    vi.mocked(trashPhotos).mockResolvedValue({ trashed: 1, failed: [] });
+    vi.mocked(trashPhotos).mockResolvedValue({ trashed: 1, deleted_permanently: 0, failed: [] });
   });
 
   it("lists blurry photos with their scores", async () => {
@@ -40,8 +40,15 @@ describe("BlurryView (#154)", () => {
     expect(deleteBtn).toBeEnabled();
     fireEvent.click(deleteBtn);
 
-    expect(screen.getByRole("dialog", { name: /confirm delete/i })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /move to recycle bin/i }));
+    // #158: the confirmation lists the exact file with name, folder, and size.
+    const dialog = screen.getByRole("dialog", { name: /confirm delete/i });
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText("a.jpg")).toBeInTheDocument();
+    expect(screen.getByText("C:\\g")).toBeInTheDocument();
+    expect(screen.getAllByText("2.0 MB").length).toBeGreaterThanOrEqual(1);
+    // Thumbnail of the actual photo is visible in the manifest (user request).
+    expect(screen.getByAltText("a.jpg")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /move 1 file to recycle bin/i }));
     await waitFor(() => expect(trashPhotos).toHaveBeenCalledWith([1]));
   });
 

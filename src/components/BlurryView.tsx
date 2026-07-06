@@ -5,6 +5,7 @@ import {
   photoThumbUrl,
   type BlurryPhoto,
 } from "../api/client";
+import { TrashConfirmDialog } from "./TrashConfirmDialog";
 import { useToastStore } from "../store/toast";
 import { useUIStore } from "../store/ui";
 import "./BlurryView.css";
@@ -165,33 +166,24 @@ export function BlurryView() {
       )}
 
       {confirming && (
-        <div className="blurry-view__overlay" role="dialog" aria-label="Confirm delete">
-          <div className="blurry-view__dialog">
-            <h3>Delete {selected.size} photo{selected.size === 1 ? "" : "s"}?</h3>
-            <p>
-              The files will be moved to the Windows Recycle Bin — removed from
-              your library folders, recoverable from the Bin until you empty it.
-            </p>
-            <div className="blurry-view__dialog-actions">
-              <button
-                type="button"
-                className="blurry-view__btn blurry-view__btn--ghost"
-                onClick={() => setConfirming(false)}
-                disabled={busy}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="blurry-view__btn blurry-view__btn--danger"
-                onClick={() => void confirmTrash()}
-                disabled={busy}
-              >
-                {busy ? "Moving…" : "Move to Recycle Bin"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <TrashConfirmDialog
+          items={photos
+            .filter((p) => selected.has(p.id))
+            .map((p) => {
+              const parts = p.path.split(/[/\\]/);
+              return {
+                id: p.id,
+                filename: parts[parts.length - 1] ?? p.path,
+                folder: parts.slice(0, -1).join("\\"),
+                fileSize: p.file_size,
+                thumbSrc: photoThumbUrl(p.id, 64),
+                isNetwork: p.is_network,
+              };
+            })}
+          busy={busy}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => void confirmTrash()}
+        />
       )}
     </div>
   );

@@ -32,7 +32,9 @@ Active development — core features complete. See [GitHub Issues](https://githu
 - **Correct mistakes** — mark a face wrong and the whole cluster re-evaluates automatically
 - **Carry recognition across libraries** — export/import named identities as a small file (no photos inside)
 - **See what it's doing** — live activity log with engine and app streams, adjustable verbosity
-- **Find blurry photos** — a live cutoff slider surfaces them worst-first; delete the ones you don't want straight to the Windows Recycle Bin
+- **Find blurry photos** — a live cutoff slider surfaces them worst-first so you see exactly what each level captures
+- **Find duplicates** — exact copies and the same shot saved at different sizes, each copy listed with its folder, filename, and size; "keep one per group" in one click
+- **Delete with full detail** — the confirmation shows every file's thumbnail, name, folder, and size plus the total space freed; local files go to the Windows Recycle Bin (recoverable), and network files — which have no Recycle Bin — are clearly marked before their permanent delete
 - **Never touches your files otherwise** — scanning and browsing are strictly read-only; the ONLY file-modifying action is that explicit, confirmed Recycle-Bin delete (always recoverable); photos removed from disk hide themselves and revive if restored
 
 ---
@@ -98,7 +100,8 @@ Optional `config.json` in `%APPDATA%\com.faces-h.app\` (all keys optional; defau
   "uncertain_threshold": 0.50,
   "min_face_px": 20,
   "min_detection_confidence": 0.5,
-  "ui_log_level": "info"
+  "ui_log_level": "info",
+  "blur_threshold": 60
 }
 ```
 

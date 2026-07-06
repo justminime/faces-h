@@ -231,6 +231,12 @@ export function Sidebar({
       <button type="button" className="sidebar__nav-btn" onClick={onSearchClick} aria-label="Search">
         Search
       </button>
+      <button type="button" className="sidebar__nav-btn" onClick={onFindBlurry} aria-label="Blurry photos">
+        Blurry photos
+      </button>
+      <button type="button" className="sidebar__nav-btn" onClick={onFindDuplicates} aria-label="Duplicates">
+        Duplicates
+      </button>
       <button
         type="button"
         className="sidebar__queue-btn"
