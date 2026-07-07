@@ -406,6 +406,12 @@ async def run_scan(
 
     paths = await asyncio.to_thread(_collect_files, root_path)
     _status.total += len(paths)
+    logger.info(
+        "scanning %s%s — %d file(s) to check",
+        root_path,
+        " (network path)" if network else "",
+        len(paths),
+    )
 
     data_dir = os.environ.get("FACES_H_DATA_DIR", ".")
     recognizer = None
@@ -556,6 +562,14 @@ async def run_scan(
         _status.running = False
     if _status.skipped_faces:
         logger.info("scan skipped %d too-small/low-confidence face detection(s)", _status.skipped_faces)
+    if _status.error_count:
+        # error_count accumulates across the whole scan session (all roots on
+        # a multi-root rescan share one ScanStatus, #113), so this is a
+        # running total, not just this root's errors.
+        logger.warning(
+            "scan has %d file error(s) so far — see warnings above for details",
+            _status.error_count,
+        )
     await broadcast({
         "type": "scan_complete",
         "scanned": _status.scanned,

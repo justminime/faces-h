@@ -79,7 +79,7 @@ async def health() -> dict:  # type: ignore[type-arg]
 class WsLogHandler(logging.Handler):
     """Buffer engine log records for the UI activity log (#126).
 
-    WARNING+ from every logger, plus INFO from the scanner/ML/clustering
+    WARNING+ from every logger, plus INFO from the scanner/ML/clustering/API
     loggers users actually care about. uvicorn.access (per-request noise) and
     the websockets library logger (forwarding a failed WS send's own error
     would feed back into the WS) are excluded — but NOT uvicorn.error (#175):
@@ -88,9 +88,15 @@ class WsLogHandler(logging.Handler):
     Rate-limited so a log storm can't flood the socket; drops are counted and
     reported. The log files remain the complete record — this is a filtered
     live view.
+
+    `_INFO_PREFIXES` used to allowlist only the oddly specific "api.models"
+    submodule, silently dropping genuinely useful progress INFO logs from
+    every other `api.*` router (`api.scan`'s per-root scan start/finish,
+    `api.rotation`'s rotation-scan progress, `api.backups`'s restore
+    confirmations, etc. — #187). Broadened to the whole "api." package.
     """
 
-    _INFO_PREFIXES = ("services.", "ml.", "api.models", "__main__", "main")
+    _INFO_PREFIXES = ("services.", "ml.", "api.", "__main__", "main")
     _EXCLUDED = ("uvicorn.access", "websockets")
     _MAX_PER_SECOND = 20
 
