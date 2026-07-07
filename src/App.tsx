@@ -13,6 +13,8 @@ import { NamingModal } from "./components/NamingModal";
 import { ToastContainer } from "./components/Toast";
 import { ActivityLog } from "./components/ActivityLog";
 import { ConnectionBanner } from "./components/ConnectionBanner";
+import { UpdateBanner } from "./components/UpdateBanner";
+import { useUpdaterStore } from "./store/updater";
 import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
 import { QueueView } from "./components/QueueView";
 import { BlurryView } from "./components/BlurryView";
@@ -299,6 +301,9 @@ function App() {
         case "theme-dark":   setTheme("dark");              break;
         case "theme-system": setTheme("system");            break;
         case "about":         setAboutOpen(true);           break;
+        case "check-for-updates":
+          void useUpdaterStore.getState().checkForUpdates(true);
+          break;
       }
     })
       .then((fn) => { unlisten = fn; })
@@ -306,6 +311,17 @@ function App() {
     return () => unlisten?.();
   // setTheme is a stable hook setter — intentionally omitted from deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Check for an app update shortly after startup (#180) ─────────────────
+  // Silent unless one is actually found — manual checks (Help menu) always
+  // report a result. A few seconds' delay keeps this off the critical path
+  // of the initial photo/people load.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void useUpdaterStore.getState().checkForUpdates(false);
+    }, 5000);
+    return () => clearTimeout(t);
   }, []);
 
   // ── Sidecar lifecycle events → connection banner (#118) ──────────────────
@@ -472,6 +488,7 @@ function App() {
         }}
       />
       <div className="app-content">
+        <UpdateBanner />
         <ConnectionBanner />
         <div className="app-content__panels">
           {view === "dismissed" ? (

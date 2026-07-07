@@ -80,6 +80,10 @@ jobs:
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs the installer and produces the .sig + updater .zip that
+          # bundle.createUpdaterArtifacts (tauri.conf.json) asks for (#180).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: npm run tauri
 
@@ -91,6 +95,33 @@ jobs:
       #   3. signpath/github-action-submit-signing-request (pinned SHA)
       #   4. Publish signed/*.exe instead of nsis/*.exe
       # Secrets required: SIGNPATH_API_TOKEN, SIGNPATH_ORGANIZATION_ID
+
+      - name: Generate updater manifest (latest.json)
+        shell: pwsh
+        run: |
+          $version = "$env:RELEASE_TAG" -replace '^v', ''
+          $bundleDir = "src-tauri/target/release/bundle/nsis"
+          $sigFile = Get-ChildItem -Path $bundleDir -Filter "*.sig" | Select-Object -First 1
+          if (-not $sigFile) {
+            Write-Error "No .sig file in $bundleDir — updater artifacts were not generated. Check TAURI_SIGNING_PRIVATE_KEY is set and bundle.createUpdaterArtifacts is true."
+            exit 1
+          }
+          $signature = (Get-Content $sigFile.FullName -Raw).Trim()
+          $zipName = $sigFile.Name -replace '\.sig$', ''
+          $pubDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $manifest = [ordered]@{
+            version   = $version
+            notes     = "See https://github.com/justminime/faces-h/releases/tag/$env:RELEASE_TAG for release notes."
+            pub_date  = $pubDate
+            platforms = [ordered]@{
+              "windows-x86_64" = [ordered]@{
+                signature = $signature
+                url       = "https://github.com/justminime/faces-h/releases/download/$env:RELEASE_TAG/$zipName"
+              }
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path "latest.json" -Encoding utf8
+          Write-Host "Generated latest.json for $zipName"
 
       - name: Publish installer to GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
@@ -112,7 +143,14 @@ jobs:
             ```
             python scripts/smoke_test.py
             ```
+
+            ## Updating
+            Existing installs get an in-app update notification (Help > Check for Updates…) — no need to manually download and run a new installer.
           draft: false
           prerelease: false
-          files: src-tauri/target/release/bundle/nsis/*.exe
+          files: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.zip
+            src-tauri/target/release/bundle/nsis/*.sig
+            latest.json
           generate_release_notes: true

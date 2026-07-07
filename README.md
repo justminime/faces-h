@@ -38,6 +38,7 @@ Active development — core features complete. See [GitHub Issues](https://githu
 - **Delete with full detail** — the confirmation shows every file's thumbnail, name, folder, and size plus the total space freed; every file is backed up in the app first, local and network folders alike, then goes to the Windows Recycle Bin when possible (a failed Recycle Bin attempt falls back to a safe, already-backed-up removal)
 - **Rotate sideways photos** — finds photos that are upright only in tag-aware viewers (EXIF-only) or where a rotation would let face detection find people it's missing; preview before/after, then rotate the ORIGINAL file in place — the pre-rotation version is always backed up first, the same way everywhere
 - **Restore backups** — every deleted or rotated file has a 7-day app backup, in addition to the Recycle Bin when that applies; restore any of them from one list
+- **Update notifications** — the app checks for new versions automatically (silent unless one is found) and via Help > Check for Updates…; installing runs quietly in the background and skips the old "uninstall previous version?" prompt entirely
 - **Never touches your files otherwise** — scanning and browsing are strictly read-only; the ONLY file-modifying actions are that explicit, confirmed delete and rotate, both always backed up and recoverable; photos removed from disk hide themselves and revive if restored
 
 ---

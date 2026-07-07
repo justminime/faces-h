@@ -23,6 +23,7 @@
     "longDescription": "faces-h organizes your personal photo library by face recognition, entirely on your device. No cloud, no account, no uploads — every photo stays on your drive.",
     "resources": [],
     "externalBin": ["../sidecar/dist/faces-sidecar"],
+    "createUpdaterArtifacts": true,
     "windows": {
       "nsis": {
         "installMode": "perMachine",
@@ -30,6 +31,17 @@
         "installerHooks": "./nsis/hooks.nsi",
         "installerIcon": "icons/icon.ico",
         "uninstallerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/justminime/faces-h/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVDMTc2QzJCOTE1MTI5NjMKUldSaktWR1JLMndYWEhuMU9Kb09YYzR4SnRlTzhwNmRmdklCNEhhL0tDVW1UeHU2K0tzQnUyenIK",
+      "windows": {
+        "installMode": "passive"
       }
     }
   },

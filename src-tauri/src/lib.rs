@@ -283,6 +283,8 @@ pub fn run() {
                         "Help",
                         true,
                         &[
+                            &MenuItem::with_id(app, "check-for-updates", "Check for Updates…", true, None::<&str>)?,
+                            &PredefinedMenuItem::separator(app)?,
                             &MenuItem::with_id(app, "about", "About faces-h", true, None::<&str>)?,
                         ],
                     )?,
@@ -310,6 +312,8 @@ pub fn run() {
         )
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             get_sidecar_url,
             get_sidecar_token,
