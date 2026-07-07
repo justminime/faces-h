@@ -167,11 +167,24 @@ class ReEvaluationService:
         Never touches faces in named clusters (too risky without user confirmation).
         """
         centroid_row = await (
-            await db.execute("SELECT centroid FROM people WHERE id=?", (person_id,))
+            await db.execute("SELECT centroid, name FROM people WHERE id=?", (person_id,))
         ).fetchone()
         if centroid_row is None or centroid_row["centroid"] is None:
             return
         centroid = _deserialize(centroid_row["centroid"])
+        person_name = centroid_row["name"] if centroid_row["name"] else None
+
+        # Emit sweep_started as the very first visible signal that a sweep is
+        # underway (#184). This is broadcast-only — it does not change what
+        # gets promoted or when (Rules 1/6 untouched); it just gives the
+        # frontend something to show between "user named/confirmed a face"
+        # and the eventual sweep_complete, which previously could be several
+        # seconds of silence on a large library.
+        started_result = broadcast_fn(
+            {"type": "sweep_started", "person_id": person_id, "person_name": person_name}
+        )
+        if inspect.isawaitable(started_result):
+            await started_result
 
         moved = 0
 

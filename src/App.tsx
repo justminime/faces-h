@@ -13,6 +13,7 @@ import { NamingModal } from "./components/NamingModal";
 import { ToastContainer } from "./components/Toast";
 import { ActivityLog } from "./components/ActivityLog";
 import { ConnectionBanner } from "./components/ConnectionBanner";
+import { SweepBanner } from "./components/SweepBanner";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { useUpdaterStore } from "./store/updater";
 import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
@@ -510,6 +511,7 @@ function App() {
       <div className="app-content">
         <UpdateBanner />
         <ConnectionBanner />
+        <SweepBanner />
         <div className="app-content__panels">
           {view === "dismissed" ? (
             <DismissedView />
