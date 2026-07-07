@@ -184,6 +184,30 @@ async def list_roots() -> list[dict[str, Any]]:
         ]
 
 
+@router.delete("/scan/roots/{root_id}")
+async def delete_root(root_id: int) -> dict[str, Any]:
+    """Stop scanning a configured root going forward (#186).
+
+    This ONLY removes the `scan_roots` row — no `photos`, `faces`, or
+    `people` row is ever touched here. Photos already indexed from this
+    folder (and any people/faces derived from them) are left entirely
+    alone, in keeping with the app's "never silently delete user data"
+    invariant. A follow-up "also remove photos from this folder" action
+    would need its own explicit, separately-confirmed flow (like the
+    #154/#158 delete-with-manifest-and-backup one) — it is intentionally
+    out of scope here.
+    """
+    async with get_db() as db:
+        cur = await db.execute("SELECT id FROM scan_roots WHERE id = ?", (root_id,))
+        row = await cur.fetchone()
+        if row is None:
+            return {"status": "not_found", "id": root_id}
+        await db.execute("DELETE FROM scan_roots WHERE id = ?", (root_id,))
+        await db.commit()
+        logger.info("scan root removed: id=%s", root_id)
+        return {"status": "removed", "id": root_id}
+
+
 @router.get("/scan/status")
 async def scan_status() -> dict[str, Any]:
     s = get_status()

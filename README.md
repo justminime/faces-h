@@ -24,7 +24,7 @@ Active development — core features complete. See [GitHub Issues](https://githu
 
 ## What It Does
 
-- **Scan** folders of any size (tested to 5TB / ~1M photos) in the background — local drives, network shares, and NAS included
+- **Scan** folders of any size (tested to 5TB / ~1M photos) in the background — local drives, network shares, and NAS included; add as many folders as you like and manage them anytime from Manage Scan Folders… (see and remove any configured folder — removing one only stops future scanning of it, already-indexed photos and people are never touched)
 - **Detect and cluster** faces automatically — each cluster represents one likely person; FAISS-backed matching stays fast as the library grows
 - **Name people** by clicking a cluster; all their photos are labeled instantly (duplicate names offer a merge)
 - **Review uncertain faces** — anything below the confidence threshold waits in a queue for your confirmation; the app never silently guesses. Not a real face worth naming? Mark it "Not relevant" — it moves to a secondary Not Relevant view instead of the main queue, and can be restored for review anytime
