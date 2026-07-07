@@ -436,7 +436,8 @@ invalid values fall back to defaults with a logged warning. Defaults:
   "min_detection_confidence": 0.5,
   "ui_log_level": "info",
   "blur_threshold": 60,
-  "backup_retention_days": 7
+  "backup_retention_days": 7,
+  "named_person_preference_margin": 0.04
 }
 ```
 
@@ -446,6 +447,7 @@ invalid values fall back to defaults with a logged warning. Defaults:
 - `ui_log_level` (`warning`|`info`|`debug`) tunes the engine->UI activity-log stream (#143); log files always capture everything
 - `blur_threshold` is the default sharpness cutoff for the blurry-photos view (#154); the UI slider overrides it per request
 - `backup_retention_days` (#161) — how long pre-deletion backups of network files are kept in `{data_dir}/trash-backup/` before automatic purge
+- `named_person_preference_margin` (#183) — when clustering picks among candidate people scoring at or above `uncertain_threshold`, a NAMED person is preferred over a better-scoring UNNAMED placeholder cluster unless the unnamed cluster's cosine similarity beats it by more than this margin (validated: `0 <= margin <= 1`). An anonymous cluster suggestion isn't actionable to someone reviewing the uncertain queue, so close/comparable scores resolve toward the name; a genuinely better unnamed match (gap wider than the margin) still wins. This only affects *which* person is selected — the `assign_conf` stored on the face is always the real, unweighted cosine similarity to whichever centroid was actually chosen (Rule 2)
 
 Generated artifacts live alongside it: `cache/thumbs/` and `cache/faces/` (image disk cache, #114 — 2 GB LRU)
 and `faces.index` (the FAISS candidate index, #106); all rebuildable, safe to delete.

@@ -35,9 +35,11 @@ class ClusteringService:
         self,
         auto_assign_threshold: float | None = None,
         uncertain_threshold: float | None = None,
+        named_person_preference_margin: float | None = None,
     ) -> None:
         self._auto_assign_threshold = auto_assign_threshold
         self._uncertain_threshold = uncertain_threshold
+        self._named_person_preference_margin = named_person_preference_margin
 
     @property
     def auto_assign_threshold(self) -> float:
@@ -51,6 +53,12 @@ class ClusteringService:
             return self._uncertain_threshold
         return get_config().uncertain_threshold
 
+    @property
+    def named_person_preference_margin(self) -> float:
+        if self._named_person_preference_margin is not None:
+            return self._named_person_preference_margin
+        return get_config().named_person_preference_margin
+
     def _status(self, conf: float) -> AssignStatus:
         """Rule 1 + Rule 3: derive assignment status from cosine similarity."""
         if conf >= self.auto_assign_threshold:
@@ -59,23 +67,66 @@ class ClusteringService:
             return "uncertain"
         return "unreviewed"
 
+    def _select_with_named_preference(
+        self,
+        candidates: list[tuple[int, str, float]],
+    ) -> tuple[int | None, float]:
+        """Pick a person among *candidates* (#183), preferring a NAMED person
+        over a better-scoring UNNAMED placeholder cluster when their scores
+        are close.
+
+        *candidates* is a list of (person_id, name, cosine_similarity). Among
+        those scoring at or above ``uncertain_threshold`` (the same floor
+        that gates Rule 3), the best-scoring named person is selected unless
+        the best-scoring unnamed cluster beats it by MORE than
+        ``named_person_preference_margin`` — an anonymous cluster suggestion
+        isn't actionable to a reviewer even when its raw score edges out a
+        named match, so only a genuinely better unnamed match (a gap wider
+        than the margin) wins outright.
+
+        Rule 2 is preserved by construction: the returned confidence is
+        always exactly one candidate's own raw cosine similarity — never the
+        margin, never an adjusted value — so whichever person is selected,
+        the stored assign_conf is the true similarity to THAT person's
+        centroid.
+        """
+        if not candidates:
+            return None, -1.0
+
+        raw_best_id, _, raw_best_conf = max(candidates, key=lambda c: c[2])
+
+        eligible = [c for c in candidates if c[2] >= self.uncertain_threshold]
+        named = [c for c in eligible if c[1].strip() != ""]
+        if not named:
+            return raw_best_id, raw_best_conf
+
+        best_named_id, _, best_named_conf = max(named, key=lambda c: c[2])
+        unnamed = [c for c in eligible if c[1].strip() == ""]
+        if unnamed:
+            best_unnamed_id, _, best_unnamed_conf = max(unnamed, key=lambda c: c[2])
+            if best_unnamed_conf - best_named_conf > self.named_person_preference_margin:
+                return best_unnamed_id, best_unnamed_conf
+
+        return best_named_id, best_named_conf
+
     async def _best_person(
         self,
         embedding: np.ndarray,
         db: aiosqlite.Connection,
     ) -> tuple[int | None, float]:
-        """Find the best-matching person for an embedding (#106).
+        """Find the best-matching person for an embedding (#106), preferring
+        NAMED persons over comparable UNNAMED clusters (#183).
 
         Fast path: the FAISS face index shortlists the top-k most similar
         known faces; their (live, from the DB) owners are re-checked exactly
         against current centroids. If that shortlist can't produce an
         auto-assign-level match, fall back to the exhaustive centroid scan —
         decisions at or below the threshold (uncertain vs. new cluster) stay
-        exactly as accurate as before the index existed.
+        exactly as accurate as before the index existed. The named-person
+        preference (see _select_with_named_preference) is applied
+        identically on both paths so the same candidate set always resolves
+        to the same choice regardless of which path produced it.
         """
-        best_person_id: int | None = None
-        best_conf: float = -1.0
-
         candidate_people: set[int] = set()
         try:
             from services.face_index import get_face_index  # noqa: PLC0415
@@ -97,30 +148,30 @@ class ClusteringService:
 
         if candidate_people:
             marks = ",".join("?" * len(candidate_people))
+            shortlist: list[tuple[int, str, float]] = []
             async with db.execute(
-                f"SELECT id, centroid FROM people"
+                f"SELECT id, name, centroid FROM people"
                 f" WHERE id IN ({marks}) AND centroid IS NOT NULL",
                 list(candidate_people),
             ) as cur:
                 async for row in cur:
                     sim = float(np.dot(embedding, _deserialize_centroid(row["centroid"])))
-                    if sim > best_conf:
-                        best_conf = sim
-                        best_person_id = int(row["id"])
-            if best_conf >= self.auto_assign_threshold:
-                return best_person_id, best_conf
+                    shortlist.append((int(row["id"]), str(row["name"]), sim))
+            if shortlist:
+                sel_id, sel_conf = self._select_with_named_preference(shortlist)
+                if sel_conf >= self.auto_assign_threshold:
+                    return sel_id, sel_conf
 
         # Exhaustive fallback: empty/cold index, or no shortlisted person
         # reached the auto-assign gate.
+        full_candidates: list[tuple[int, str, float]] = []
         async with db.execute(
-            "SELECT id, centroid FROM people WHERE centroid IS NOT NULL"
+            "SELECT id, name, centroid FROM people WHERE centroid IS NOT NULL"
         ) as cur:
             async for row in cur:
                 sim = float(np.dot(embedding, _deserialize_centroid(row["centroid"])))
-                if sim > best_conf:
-                    best_conf = sim
-                    best_person_id = int(row["id"])
-        return best_person_id, best_conf
+                full_candidates.append((int(row["id"]), str(row["name"]), sim))
+        return self._select_with_named_preference(full_candidates)
 
     def _index_face(self, face_id: int, embedding: np.ndarray) -> None:
         """Add the face to the FAISS index (best effort — DB is the truth)."""

@@ -7,6 +7,7 @@ from pathlib import Path
 from config import (
     DEFAULT_AUTO_ASSIGN_THRESHOLD,
     DEFAULT_FACE_MODEL,
+    DEFAULT_NAMED_PERSON_PREFERENCE_MARGIN,
     DEFAULT_UNCERTAIN_THRESHOLD,
     get_config,
     reset_config_cache,
@@ -109,3 +110,35 @@ def test_detection_filter_invalid_values_fall_back(tmp_path: Path) -> None:
     cfg = get_config()
     assert cfg.min_face_px == 20
     assert cfg.min_detection_confidence == 0.5
+
+
+def test_named_person_preference_margin_default_and_override(tmp_path: Path) -> None:
+    """#183: margin defaults to 0.04 and is overridable via config.json."""
+    _set_data_dir(tmp_path)
+    cfg = get_config()
+    assert cfg.named_person_preference_margin == DEFAULT_NAMED_PERSON_PREFERENCE_MARGIN
+
+    _write_config(tmp_path, {"named_person_preference_margin": 0.1})
+    _set_data_dir(tmp_path)
+    cfg = get_config()
+    assert cfg.named_person_preference_margin == 0.1
+
+
+def test_named_person_preference_margin_invalid_falls_back(tmp_path: Path) -> None:
+    """Out-of-range or non-numeric margins fall back to the default rather
+    than taking the engine down (#183, matching the style of the other
+    validated fields)."""
+    _write_config(tmp_path, {"named_person_preference_margin": 1.5})
+    _set_data_dir(tmp_path)
+    cfg = get_config()
+    assert cfg.named_person_preference_margin == DEFAULT_NAMED_PERSON_PREFERENCE_MARGIN
+
+    _write_config(tmp_path, {"named_person_preference_margin": "big"})
+    _set_data_dir(tmp_path)
+    cfg = get_config()
+    assert cfg.named_person_preference_margin == DEFAULT_NAMED_PERSON_PREFERENCE_MARGIN
+
+    _write_config(tmp_path, {"named_person_preference_margin": -0.01})
+    _set_data_dir(tmp_path)
+    cfg = get_config()
+    assert cfg.named_person_preference_margin == DEFAULT_NAMED_PERSON_PREFERENCE_MARGIN

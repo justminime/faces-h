@@ -36,6 +36,40 @@ def _vec_at_sim(centroid: np.ndarray, target_sim: float, perp_seed: int = 99) ->
     return v / np.linalg.norm(v)
 
 
+def _orthonormal_pair(dim: int = 512) -> tuple[np.ndarray, np.ndarray]:
+    """Two orthonormal unit vectors, used to build embeddings/centroids with
+    exact, independently-controlled cosine similarities (#183 tests)."""
+    u1 = _unit_vec(dim, seed=201)
+    u2 = _unit_vec(dim, seed=202)
+    u2 = u2 - np.dot(u2, u1) * u1
+    u2 = u2 / np.linalg.norm(u2)
+    return u1.astype(np.float32), u2.astype(np.float32)
+
+
+def _named_unnamed_scenario(
+    named_sim: float, unnamed_sim: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Build (named_centroid, unnamed_centroid, embedding) — all unit vectors
+    confined to a 2D subspace of the embedding space — such that
+    dot(embedding, named_centroid) == named_sim and
+    dot(embedding, unnamed_centroid) == unnamed_sim exactly (#183 tests).
+
+    This lets tests exercise assign_face/_best_person with two independent,
+    precisely-controlled similarities instead of approximating them.
+    """
+    u1, u2 = _orthonormal_pair()
+    beta = float(np.arccos(np.clip(named_sim, -1.0, 1.0)))
+    beta_minus_alpha = float(np.arccos(np.clip(unnamed_sim, -1.0, 1.0)))
+    alpha = beta - beta_minus_alpha
+
+    named_centroid = u1 / np.linalg.norm(u1)
+    unnamed_centroid = (np.cos(alpha) * u1 + np.sin(alpha) * u2).astype(np.float32)
+    unnamed_centroid = unnamed_centroid / np.linalg.norm(unnamed_centroid)
+    embedding = (np.cos(beta) * u1 + np.sin(beta) * u2).astype(np.float32)
+    embedding = embedding / np.linalg.norm(embedding)
+    return named_centroid, unnamed_centroid, embedding
+
+
 async def _open_db(path: Path) -> aiosqlite.Connection:
     conn = await aiosqlite.connect(str(path / "faces.db"))
     conn.row_factory = aiosqlite.Row
@@ -588,3 +622,158 @@ async def test_low_similarity_seeds_new_person_not_existing(tmp_path: Path) -> N
     assert row is not None
     assert row["person_id"] != existing_id
     await conn.close()
+
+
+# ---------------------------------------------------------------------------
+# #183 — named-person preference over comparable unnamed clusters
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_named_person_preferred_when_close_to_unnamed_cluster(
+    tmp_path: Path,
+) -> None:
+    """Named and unnamed clusters both land in the uncertain band with close
+    scores (gap smaller than the margin) — the NAMED person must be the one
+    suggested, not the anonymous cluster, even though its raw score is
+    slightly higher (the review queue's "Looks like X" suggestion, #183)."""
+    margin = 0.04
+    svc = ClusteringService(
+        auto_assign_threshold=0.90,
+        uncertain_threshold=0.50,
+        named_person_preference_margin=margin,
+    )
+    conn = await _open_db(tmp_path)
+
+    named_sim = 0.70
+    unnamed_sim = named_sim + margin - 0.01  # inside the margin -> named wins
+    named_centroid, unnamed_centroid, embedding = _named_unnamed_scenario(
+        named_sim, unnamed_sim
+    )
+
+    named_id = await _insert_person(conn, "Ziv Heilweil", named_centroid)
+    unnamed_id = await _insert_person(conn, "", unnamed_centroid)
+
+    photo_id = await _insert_photo(conn)
+    face_id = await _insert_face(conn, photo_id)
+
+    status = await svc.assign_face(face_id, embedding, conn)
+    assert status == "uncertain"
+
+    row = await (
+        await conn.execute(
+            "SELECT suggested_person_id, assign_conf FROM faces WHERE id = ?",
+            (face_id,),
+        )
+    ).fetchone()
+    assert row is not None
+    assert row["suggested_person_id"] == named_id
+    assert row["suggested_person_id"] != unnamed_id
+    # Rule 2: stored conf is the TRUE similarity to the SELECTED centroid —
+    # never the margin, never fabricated.
+    assert row["assign_conf"] == pytest.approx(
+        float(np.dot(embedding, named_centroid)), abs=1e-4
+    )
+    await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_unnamed_cluster_wins_when_far_better_than_named(
+    tmp_path: Path,
+) -> None:
+    """When the unnamed cluster's score beats the named person's by MORE than
+    the margin, the unnamed cluster still wins — a mediocre named match must
+    not beat a clearly better real match (#183)."""
+    margin = 0.04
+    svc = ClusteringService(
+        auto_assign_threshold=0.90,
+        uncertain_threshold=0.50,
+        named_person_preference_margin=margin,
+    )
+    conn = await _open_db(tmp_path)
+
+    named_sim = 0.70
+    unnamed_sim = named_sim + margin + 0.01  # beyond the margin -> unnamed wins
+    named_centroid, unnamed_centroid, embedding = _named_unnamed_scenario(
+        named_sim, unnamed_sim
+    )
+
+    named_id = await _insert_person(conn, "Ziv Heilweil", named_centroid)
+    unnamed_id = await _insert_person(conn, "", unnamed_centroid)
+
+    photo_id = await _insert_photo(conn)
+    face_id = await _insert_face(conn, photo_id)
+
+    status = await svc.assign_face(face_id, embedding, conn)
+    assert status == "uncertain"
+
+    row = await (
+        await conn.execute(
+            "SELECT suggested_person_id, assign_conf FROM faces WHERE id = ?",
+            (face_id,),
+        )
+    ).fetchone()
+    assert row is not None
+    assert row["suggested_person_id"] == unnamed_id
+    assert row["suggested_person_id"] != named_id
+    assert row["assign_conf"] == pytest.approx(
+        float(np.dot(embedding, unnamed_centroid)), abs=1e-4
+    )
+    await conn.close()
+
+
+def test_select_with_named_preference_exact_margin_boundary() -> None:
+    """Direct test of the selection helper's margin behavior (#183): named at
+    0.70, unnamed at 0.70 + margin + epsilon -> unnamed wins; unnamed at
+    0.70 + margin - epsilon -> named wins. Epsilon (0.01) is kept well clear
+    of the exact tie point so the assertions aren't sensitive to float
+    rounding of the margin addition itself — the selection rule (a strict
+    ">" comparison, so a tie favors the name) is documented on
+    _select_with_named_preference."""
+    margin = 0.04
+    svc = ClusteringService(named_person_preference_margin=margin, uncertain_threshold=0.50)
+
+    named_sim = 0.70
+    epsilon = 0.01
+
+    # Beyond the margin: unnamed wins.
+    candidates_beyond = [
+        (1, "Ziv Heilweil", named_sim),
+        (2, "", named_sim + margin + epsilon),
+    ]
+    sel_id, sel_conf = svc._select_with_named_preference(candidates_beyond)
+    assert sel_id == 2
+    assert sel_conf == pytest.approx(named_sim + margin + epsilon)
+
+    # Within the margin: named wins.
+    candidates_within = [
+        (1, "Ziv Heilweil", named_sim),
+        (2, "", named_sim + margin - epsilon),
+    ]
+    sel_id, sel_conf = svc._select_with_named_preference(candidates_within)
+    assert sel_id == 1
+    assert sel_conf == pytest.approx(named_sim)
+
+
+def test_select_with_named_preference_ignores_candidates_below_uncertain() -> None:
+    """A named person scoring below uncertain_threshold must not be pulled in
+    just because it's named — it isn't an eligible candidate at all, so a
+    lower-but-eligible unnamed cluster wins outright (#183)."""
+    svc = ClusteringService(uncertain_threshold=0.50, named_person_preference_margin=0.04)
+
+    candidates = [
+        (1, "Low Score Person", 0.20),  # named but below uncertain_threshold
+        (2, "", 0.65),  # unnamed, eligible
+    ]
+    sel_id, sel_conf = svc._select_with_named_preference(candidates)
+    assert sel_id == 2
+    assert sel_conf == pytest.approx(0.65)
+
+
+def test_select_with_named_preference_no_candidates() -> None:
+    """Empty candidate list -> no person selected (mirrors the pre-#183
+    'no clusters yet' baseline)."""
+    svc = ClusteringService()
+    sel_id, sel_conf = svc._select_with_named_preference([])
+    assert sel_id is None
+    assert sel_conf == -1.0
