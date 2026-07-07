@@ -175,11 +175,43 @@ async def test_scan_progress_events_emitted_every_10_files(tmp_path: Path) -> No
         f"Expected ≥3 progress events for 35 files at every-10, got {len(progress_events)}"
     )
     for e in progress_events:
-        assert set(e) >= {"type", "scanned", "total", "eta_seconds"}
+        assert set(e) >= {"type", "scanned", "processed", "total", "eta_seconds"}
 
     complete = [e for e in events if e.get("type") == "scan_complete"]
     assert len(complete) == 1
     assert complete[0]["total"] == 35
+
+
+async def test_rescan_progress_reflects_skipped_files_not_just_newly_scanned(
+    tmp_path: Path,
+) -> None:
+    """Regression test for #182: a rescan of an unchanged library is almost
+    entirely 'skip' results (same mtime). The progress broadcast's 'scanned'
+    count only reflects new/changed files, so it stayed frozen near 0 for the
+    whole rescan even though the walk was actively working — 'processed'
+    (scanned + skipped) is what a progress bar must key on instead."""
+    jpeg = _jpeg_bytes()
+    for i in range(20):
+        (tmp_path / f"photo_{i:04d}.jpg").write_bytes(jpeg)
+
+    db = await _open_db(str(tmp_path / "test.db"))
+    try:
+        await run_scan(str(tmp_path), _noop_broadcast, db)  # first pass: all "ok"
+
+        events: list[dict[str, Any]] = []
+
+        async def capture(msg: dict[str, Any]) -> None:
+            events.append(msg)
+
+        await run_scan(str(tmp_path), capture, db)  # rescan: unchanged -> all "skip"
+    finally:
+        await db.close()
+
+    progress_events = [e for e in events if e.get("type") == "scan_progress"]
+    assert progress_events, "expected at least one progress event on the rescan"
+    last = progress_events[-1]
+    assert last["scanned"] == 0, "no files changed, so scanned (new/changed only) stays 0"
+    assert last["processed"] == 20, "processed must reflect the skipped files actually walked"
 
 
 @pytest.mark.slow
