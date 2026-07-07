@@ -54,16 +54,29 @@ export function handleMessage(event: MessageEvent): void {
   const log = useLogStore.getState();
 
   if (p.type === "scan_progress") {
-    const scanned = p.scanned as number | undefined;
+    // "processed" = scanned + skipped (files walked so far, new or
+    // unchanged); falls back to "scanned" for older payloads. A rescan of an
+    // already-indexed library is nearly all skips, so keying the bar on
+    // "scanned" alone left it stuck near 0% for the whole run (#182).
+    const processed = (p.processed as number | undefined) ?? (p.scanned as number | undefined);
     const total = p.total as number | undefined;
     const currentFile = p.current_file as string | undefined;
-    if (typeof scanned === "number" && typeof total === "number" && total > 0) {
-      useUIStore.getState().setScanProgress(scanned / total);
-      const pct = Math.round((scanned / total) * 100);
-      log.upsertLast(`Scanning… ${scanned.toLocaleString()} / ${total.toLocaleString()} (${pct}%)`, "progress");
-      if (currentFile) {
-        log.push(`Processing: ${currentFile}`, "debug");
-      }
+    if (typeof processed === "number" && typeof total === "number" && total > 0) {
+      useUIStore.getState().setScanProgress(processed / total);
+      const pct = Math.round((processed / total) * 100);
+      // The filename used to be a separate debug-level push after this
+      // line — but upsertLast only coalesces into the array's last entry,
+      // and that separate push became the new last entry every tick, so
+      // the NEXT tick's upsertLast never matched "progress" and appended a
+      // fresh line instead of updating in place (#182) — dozens of
+      // stuck-looking entries instead of one live-updating one. Folding the
+      // filename into the same line fixes the coalescing and surfaces
+      // useful detail that was previously hidden behind debug verbosity.
+      const suffix = currentFile ? ` — ${currentFile}` : "";
+      log.upsertLast(
+        `Scanning… ${processed.toLocaleString()} / ${total.toLocaleString()} (${pct}%)${suffix}`,
+        "progress",
+      );
     }
     bumpScanVersionThrottled();
   } else if (p.type === "model_download_progress") {

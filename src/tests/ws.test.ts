@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { handleMessage, resetScanBumpThrottle } from "../api/ws";
 import { useUIStore } from "../store/ui";
 import { useToastStore } from "../store/toast";
+import { useLogStore } from "../store/log";
 
 function msg(obj: unknown): MessageEvent {
   return { data: JSON.stringify(obj) } as MessageEvent;
@@ -12,6 +13,7 @@ const scanVersion = () => useUIStore.getState().scanVersion;
 beforeEach(() => {
   useUIStore.setState({ scanProgress: null, scanVersion: 0, modelDownloadProgress: null });
   useToastStore.setState({ toasts: [] });
+  useLogStore.setState({ entries: [] });
   resetScanBumpThrottle();
 });
 
@@ -24,6 +26,40 @@ describe("ws handleMessage", () => {
   it("scan_progress bumps scanVersion so the gallery refreshes live", () => {
     handleMessage(msg({ type: "scan_progress", scanned: 10, total: 100 }));
     expect(scanVersion()).toBe(1);
+  });
+
+  it("scan_progress prefers 'processed' over 'scanned' for the fraction (#182)", () => {
+    // A rescan of an unchanged library is almost all skips: 'scanned' (new
+    // files only) can stay 0 for the whole run while 'processed' (scanned +
+    // skipped) correctly reflects the files actually walked.
+    handleMessage(msg({ type: "scan_progress", scanned: 0, processed: 50, total: 200 }));
+    expect(useUIStore.getState().scanProgress).toBe(0.25);
+  });
+
+  it("scan_progress falls back to 'scanned' when 'processed' is absent", () => {
+    handleMessage(msg({ type: "scan_progress", scanned: 50, total: 200 }));
+    expect(useUIStore.getState().scanProgress).toBe(0.25);
+  });
+
+  it("repeated scan_progress ticks with current_file update one line in place, not one per tick (#182)", () => {
+    // The filename is folded into the same progress line rather than a
+    // separate push — a separate push became the log's "last" entry every
+    // tick, which broke upsertLast's kind-matching on the NEXT tick and
+    // produced a stuck-looking new line per tick instead of one live one.
+    for (let i = 1; i <= 5; i++) {
+      handleMessage(
+        msg({
+          type: "scan_progress",
+          processed: i * 10,
+          total: 100,
+          current_file: `photo_${i}.jpg`,
+        }),
+      );
+    }
+    const progressEntries = useLogStore.getState().entries.filter((e) => e.kind === "progress");
+    expect(progressEntries).toHaveLength(1);
+    expect(progressEntries[0].message).toContain("50 / 100");
+    expect(progressEntries[0].message).toContain("photo_5.jpg");
   });
 
   it("scan_complete clears progress, bumps version, and toasts", () => {

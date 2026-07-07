@@ -499,6 +499,14 @@ async def run_scan(
                 {
                     "type": "scan_progress",
                     "scanned": _status.scanned,
+                    # Files walked so far, new or unchanged (#182) — a rescan of
+                    # an already-indexed library is dominated by near-instant
+                    # skips, so a progress bar keyed on "scanned" alone stayed
+                    # stuck near 0% for the whole run even though the walk was
+                    # actively working through the file list. eta_seconds()
+                    # already summed both for this exact reason; the broadcast
+                    # just never matched it.
+                    "processed": _status.scanned + _status.skipped,
                     "total": _status.total,
                     "eta_seconds": _status.eta_seconds(),
                     "current_file": os.path.basename(path),

@@ -319,7 +319,12 @@ async def test_scan_commits_per_photo_not_in_one_long_transaction(
     from db.database import get_db
 
     n_photos = 4
-    per_photo_delay = 0.4  # simulates real decode + ML inference time
+    # Simulates real decode + ML inference time. Generous on purpose: the
+    # assertion below only needs a large gap between "commits every photo"
+    # (should clear in well under this even under heavy machine load) and
+    # "commits every 25" (would need n_photos * per_photo_delay ≈ 8s here) —
+    # it's not measuring an exact duration.
+    per_photo_delay = 2.0
     async with get_db() as db:
         for i in range(1, n_photos + 1):
             await db.execute(
