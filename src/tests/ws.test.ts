@@ -3,6 +3,7 @@ import { handleMessage, resetScanBumpThrottle } from "../api/ws";
 import { useUIStore } from "../store/ui";
 import { useToastStore } from "../store/toast";
 import { useLogStore } from "../store/log";
+import { useSweepStore } from "../store/sweep";
 
 function msg(obj: unknown): MessageEvent {
   return { data: JSON.stringify(obj) } as MessageEvent;
@@ -14,6 +15,7 @@ beforeEach(() => {
   useUIStore.setState({ scanProgress: null, scanVersion: 0, modelDownloadProgress: null });
   useToastStore.setState({ toasts: [] });
   useLogStore.setState({ entries: [] });
+  useSweepStore.getState().reset();
   resetScanBumpThrottle();
 });
 
@@ -132,6 +134,31 @@ describe("scan_progress refetch throttle (#110)", () => {
     vi.advanceTimersByTime(100);
     handleMessage(msg({ type: "sweep_complete", moved: 3 }));
     expect(scanVersion()).toBe(2);
+  });
+});
+
+describe("sweep visibility (#184)", () => {
+  it("sweep_started sets the sweep store with the person's id and name", () => {
+    handleMessage(msg({ type: "sweep_started", person_id: 5, person_name: "Alice" }));
+    expect(useSweepStore.getState().sweeping).toEqual({ personId: 5, personName: "Alice" });
+  });
+
+  it("sweep_started with no person_name yet still shows a sweep, name null", () => {
+    handleMessage(msg({ type: "sweep_started", person_id: 6 }));
+    expect(useSweepStore.getState().sweeping).toEqual({ personId: 6, personName: null });
+  });
+
+  it("sweep_complete clears the sweep store for the matching person", () => {
+    useSweepStore.getState().start(5, "Alice");
+    handleMessage(msg({ type: "sweep_complete", person_id: 5, moved: 0 }));
+    expect(useSweepStore.getState().sweeping).toBeNull();
+  });
+
+  it("sweep_complete for a stale sweep does not clear a newer one still in progress", () => {
+    useSweepStore.getState().start(5, "Alice");
+    useSweepStore.getState().start(6, "Bob");
+    handleMessage(msg({ type: "sweep_complete", person_id: 5, moved: 0 }));
+    expect(useSweepStore.getState().sweeping).toEqual({ personId: 6, personName: "Bob" });
   });
 });
 

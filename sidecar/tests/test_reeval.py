@@ -213,6 +213,78 @@ async def test_reeval_complete_event_emitted_with_correct_shape(tmp_path: Path) 
     await conn.close()
 
 
+# ---------------------------------------------------------------------------
+# sweep_started visibility (#184)
+# ---------------------------------------------------------------------------
+
+
+async def test_sweep_started_broadcast_before_sweep_complete(tmp_path: Path) -> None:
+    """sweep_for_person emits sweep_started (with person_id/person_name) before
+    sweep_complete — pure visibility, no change to promotion/threshold logic
+    (Rules 1 and 6 are untouched by this event)."""
+    conn = await _open_db(tmp_path)
+    svc = ReEvaluationService()
+    events: list[dict[str, Any]] = []
+
+    centroid = _unit_vec(seed=1)
+    alice_id = await _insert_person(conn, "Alice", centroid)
+
+    await svc.sweep_for_person(
+        person_id=alice_id,
+        db=conn,
+        broadcast_fn=lambda msg: events.append(msg),
+    )
+
+    assert len(events) == 2
+    assert events[0]["type"] == "sweep_started"
+    assert events[0]["person_id"] == alice_id
+    assert events[0]["person_name"] == "Alice"
+    assert events[1]["type"] == "sweep_complete"
+    assert events[1]["person_id"] == alice_id
+    await conn.close()
+
+
+async def test_sweep_started_person_name_none_when_unnamed(tmp_path: Path) -> None:
+    """A person with no name yet (e.g. mid-merge) still gets sweep_started —
+    person_name is simply None, which the frontend falls back to a cached
+    name (or a generic label) for."""
+    conn = await _open_db(tmp_path)
+    svc = ReEvaluationService()
+    events: list[dict[str, Any]] = []
+
+    centroid = _unit_vec(seed=2)
+    unnamed_id = await _insert_person(conn, "", centroid)
+
+    await svc.sweep_for_person(
+        person_id=unnamed_id,
+        db=conn,
+        broadcast_fn=lambda msg: events.append(msg),
+    )
+
+    assert events[0]["type"] == "sweep_started"
+    assert events[0]["person_name"] is None
+    await conn.close()
+
+
+async def test_sweep_no_op_without_centroid_emits_nothing(tmp_path: Path) -> None:
+    """A person with no centroid yet can't be swept — no events at all, since
+    there is no meaningful sweep in progress to show a banner for."""
+    conn = await _open_db(tmp_path)
+    svc = ReEvaluationService()
+    events: list[dict[str, Any]] = []
+
+    no_centroid_id = await _insert_person(conn, "Ghost", centroid=None)
+
+    await svc.sweep_for_person(
+        person_id=no_centroid_id,
+        db=conn,
+        broadcast_fn=lambda msg: events.append(msg),
+    )
+
+    assert events == []
+    await conn.close()
+
+
 async def test_api_returns_200_immediately(tmp_path: Path) -> None:
     """POST /photos/{photo_id}/faces/{face_id}/correct returns 200 synchronously."""
     os.environ["FACES_H_DATA_DIR"] = str(tmp_path)

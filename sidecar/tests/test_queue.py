@@ -369,3 +369,57 @@ async def test_confirm_triggers_sweep_for_more_matches(
     assert row is not None
     assert row["assign_status"] == "assigned"
     assert row["person_id"] == 1
+
+
+async def test_confirm_sweep_broadcasts_sweep_started_before_complete(
+    tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sweep triggered by confirming a face broadcasts sweep_started
+    (with the swept person's id/name) before sweep_complete (#184) — this is
+    the only visible signal the frontend gets that the background sweep
+    kicked off, since /queue/{id}/confirm itself already returned. Purely a
+    visibility addition: does not change what sweep_for_person promotes."""
+    import asyncio
+
+    import api.queue as queue_api
+
+    data_dir = str(tmp_path)
+    await _init_db(data_dir)
+    await _seed_uncertain_face(data_dir)
+
+    events: list[dict[str, Any]] = []
+
+    async def _capture_broadcast(message: dict[str, Any]) -> None:
+        events.append(message)
+
+    monkeypatch.setattr(queue_api, "broadcast_ws", _capture_broadcast)
+
+    swept = asyncio.Event()
+    original_sweep = queue_api._reeval.sweep_for_person
+
+    async def _sweep_and_signal(
+        person_id: int,
+        db: aiosqlite.Connection,
+        broadcast_fn: Any,
+    ) -> None:
+        try:
+            await original_sweep(person_id, db, broadcast_fn)
+        finally:
+            swept.set()
+
+    monkeypatch.setattr(queue_api._reeval, "sweep_for_person", _sweep_and_signal)
+
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.post("/queue/1/confirm", json={"person_id": 1})
+        assert r.status_code == 200
+
+    await asyncio.wait_for(swept.wait(), timeout=5)
+    await asyncio.sleep(0.05)
+
+    assert len(events) >= 2
+    assert events[0]["type"] == "sweep_started"
+    assert events[0]["person_id"] == 1
+    assert events[0]["person_name"] == "Alice"
+    assert any(e["type"] == "sweep_complete" and e["person_id"] == 1 for e in events)

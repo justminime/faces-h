@@ -2,6 +2,7 @@ import { useUIStore } from "../store/ui";
 import { useToastStore } from "../store/toast";
 import { useLogStore } from "../store/log";
 import { useConnectionStore } from "../store/connection";
+import { useSweepStore } from "../store/sweep";
 
 const RECONNECT_MS = 3_000;
 
@@ -110,8 +111,22 @@ export function handleMessage(event: MessageEvent): void {
     const msg = `Network folder "${label}" is offline — showing existing data`;
     useToastStore.getState().addToast(msg);
     log.push(msg, "warn");
+  } else if (p.type === "sweep_started") {
+    // Fired the moment a background sweep kicks off after naming/confirming/
+    // merging a person (#184) — gives immediate visible feedback via the
+    // sweep banner instead of leaving the user staring at nothing until the
+    // (possibly several-seconds-later) sweep_complete toast.
+    const personId = p.person_id as number;
+    const personName = (p.person_name as string | null) ?? null;
+    if (typeof personId === "number") {
+      useSweepStore.getState().start(personId, personName);
+    }
   } else if (p.type === "sweep_complete") {
     const moved = p.moved as number;
+    const personId = p.person_id as number | undefined;
+    if (typeof personId === "number") {
+      useSweepStore.getState().finish(personId);
+    }
     if (moved > 0) {
       const msg = `Found ${moved} more photo${moved !== 1 ? "s" : ""} — refreshing`;
       useToastStore.getState().addToast(msg);
