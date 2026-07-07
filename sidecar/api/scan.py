@@ -137,15 +137,17 @@ async def rescan_all() -> dict[str, str]:
             if not roots:
                 await _manager.broadcast({"type": "scan_complete"})
                 return
-            for root in roots:
+            for idx, root in enumerate(roots, 1):
                 # Check reachability before starting — offline network drives get a
                 # warning broadcast but don't block the rest of the rescan.
                 if not check_reachable(root):
-                    logger.warning("rescan: root unreachable, skipping: %s", root)
+                    logger.warning(
+                        "rescan (%d/%d): root unreachable, skipping: %s", idx, len(roots), root
+                    )
                     await _manager.broadcast({"type": "drive_offline", "path": root})
                     continue
                 async with get_db() as db:
-                    logger.info("scan starting: root=%s", root)
+                    logger.info("scan starting (%d/%d): root=%s", idx, len(roots), root)
                     await run_scan(root, _manager.broadcast, db, preset=True)
                     async with get_db() as db2:
                         await db2.execute(
@@ -153,7 +155,7 @@ async def rescan_all() -> dict[str, str]:
                             (int(time.time()), root),
                         )
                         await db2.commit()
-                    logger.info("scan finished: root=%s", root)
+                    logger.info("scan finished (%d/%d): root=%s", idx, len(roots), root)
         finally:
             end_scan()
 

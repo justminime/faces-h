@@ -29,6 +29,23 @@ def test_forwards_info_only_from_interesting_loggers() -> None:
     assert [e["message"] for e in h.queue] == ["scan starting"]
 
 
+def test_forwards_info_from_any_api_submodule() -> None:
+    """#187: the allowlist used to only match the literal "api.models" prefix,
+    silently dropping INFO logs from api.scan, api.rotation, api.backups, etc.
+    even though those routers log genuinely useful progress info. Broadened
+    to the whole "api." package."""
+    h = WsLogHandler()
+    h.emit(_record("api.scan", logging.INFO, "scan starting (1/2): root=X"))
+    h.emit(_record("api.rotation", logging.INFO, "rotation scan: probing 10 faceless photo(s)"))
+    h.emit(_record("api.models", logging.INFO, "models/preload: buffalo_l download complete"))
+    h.emit(_record("db.database", logging.INFO, "connection opened"))  # still not surfaced
+    assert [e["message"] for e in h.queue] == [
+        "scan starting (1/2): root=X",
+        "rotation scan: probing 10 faceless photo(s)",
+        "models/preload: buffalo_l download complete",
+    ]
+
+
 def test_excludes_access_log_and_websockets_but_not_uvicorn_error() -> None:
     """Per-request access-log noise and the websockets library (forwarding a
     failed WS send's own error would feed back into itself) stay file-only —
