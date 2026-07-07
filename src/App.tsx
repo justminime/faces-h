@@ -217,15 +217,7 @@ function App() {
   }, [scanVersion]);
 
   // ── Incremental photo loading ─────────────────────────────────────────────
-  useEffect(() => {
-    if (selectedPersonId === null) {
-      setPhotos([]);
-      setHasMorePhotos(false);
-      setIsLoadingPhotos(false);
-      photoOffsetRef.current = 0;
-      pageLoadingRef.current = false;
-      return;
-    }
+  const loadPersonPhotos = useCallback((personId: number) => {
     const gen = ++personGenRef.current;
     setPhotos([]);
     setHasMorePhotos(false);
@@ -237,7 +229,7 @@ function App() {
     // repeats across pages, and a different mix next time they're selected.
     shuffleSeedRef.current = Math.floor(Math.random() * 2_147_483_646) + 1;
 
-    fetchPersonPhotos(selectedPersonId, 0, PAGE_SIZE, "random", shuffleSeedRef.current)
+    fetchPersonPhotos(personId, 0, PAGE_SIZE, "random", shuffleSeedRef.current)
       .then((apiPhotos) => {
         if (personGenRef.current !== gen) return;
         const mapped = apiPhotos.map(mapPhoto);
@@ -254,7 +246,35 @@ function App() {
           pageLoadingRef.current = false;
         }
       });
-  }, [selectedPersonId]);
+  }, []);
+
+  useEffect(() => {
+    if (selectedPersonId === null) {
+      setPhotos([]);
+      setHasMorePhotos(false);
+      setIsLoadingPhotos(false);
+      photoOffsetRef.current = 0;
+      pageLoadingRef.current = false;
+      return;
+    }
+    loadPersonPhotos(selectedPersonId);
+  }, [selectedPersonId, loadPersonPhotos]);
+
+  // A background sweep (#169) — triggered by naming/confirming a face
+  // elsewhere — can promote faces out of ANY unnamed cluster (or move faces
+  // between named people) without this view knowing. The currently open
+  // person's photo grid would otherwise keep showing photos that were just
+  // reassigned elsewhere until the user manually reselects. scanVersion is
+  // the same signal the sidebar/queue already use to refresh after a sweep
+  // (#178/#185) — mirror QueueView's mountedVersion pattern so the initial
+  // mount doesn't trigger a redundant refetch.
+  const photosMountedVersionRef = useRef(scanVersion);
+  useEffect(() => {
+    if (scanVersion === photosMountedVersionRef.current) return;
+    photosMountedVersionRef.current = scanVersion;
+    if (selectedPersonId === null) return;
+    loadPersonPhotos(selectedPersonId);
+  }, [scanVersion, selectedPersonId, loadPersonPhotos]);
 
   const loadMorePhotos = useCallback(() => {
     if (!selectedPersonId || pageLoadingRef.current || !hasMorePhotos) return;
