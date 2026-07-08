@@ -27,12 +27,12 @@ Active development — core features complete. See [GitHub Issues](https://githu
 - **Scan** folders of any size (tested to 5TB / ~1M photos) in the background — local drives, network shares, and NAS included; add as many folders as you like and manage them anytime from Manage Scan Folders… (see and remove any configured folder — removing one only stops future scanning of it, already-indexed photos and people are never touched)
 - **Detect and cluster** faces automatically — each cluster represents one likely person; FAISS-backed matching stays fast as the library grows
 - **Name people** by clicking a cluster; all their photos are labeled instantly (duplicate names offer a merge)
-- **Review uncertain faces** — anything below the confidence threshold waits in a queue for your confirmation; the app never silently guesses. Not a real face worth naming? Mark it "Not relevant" — it moves to a secondary Not Relevant view instead of the main queue, and can be restored for review anytime
-- **Confirming a match re-checks for more** — once you confirm an uncertain face as a person, the app immediately sweeps the library for other faces that now match, so one confirmation can resolve several at once
+- **Review uncertain faces** — anything below the confidence threshold waits in a queue for your confirmation; the app never silently guesses, and prefers suggesting a person you've already named over an anonymous cluster when scores are close, since that's the suggestion you can actually act on. Not a real face worth naming? Mark it "Not relevant" — it moves to a secondary Not Relevant view instead of the main queue, and can be restored for review anytime
+- **Confirming a match re-checks for more** — once you name or confirm a face, a "Looking for more matches…" indicator shows the app actively sweeping the library for other faces that now match, resolving several at once instead of leaving you wondering whether anything happened
 - **Search** by one or more people together, with date ranges and an "exactly these people" mode
 - **Correct mistakes** — mark a face wrong and the whole cluster re-evaluates automatically
 - **Carry recognition across libraries** — export/import named identities as a small file (no photos inside)
-- **See what it's doing** — live activity log with engine and app streams, adjustable verbosity
+- **See what it's doing** — live activity log with engine and app streams, adjustable verbosity; scan progress reflects every file actually checked (not just newly changed ones), so a rescan of an already-indexed library shows real progress instead of sitting at 0%
 - **Find blurry photos** — a live cutoff slider surfaces them worst-first so you see exactly what each level captures
 - **Find duplicates** — exact copies and the same shot saved at different sizes, each copy listed with its folder, filename, and size; "keep one per group" in one click
 - **Delete with full detail** — the confirmation shows every file's thumbnail, name, folder, and size plus the total space freed; every file is backed up in the app first, local and network folders alike, then goes to the Windows Recycle Bin when possible (a failed Recycle Bin attempt falls back to a safe, already-backed-up removal)
@@ -106,7 +106,8 @@ Optional `config.json` in `%APPDATA%\com.faces-h.app\` (all keys optional; defau
   "min_detection_confidence": 0.5,
   "ui_log_level": "info",
   "blur_threshold": 60,
-  "backup_retention_days": 7
+  "backup_retention_days": 7,
+  "named_person_preference_margin": 0.04
 }
 ```
 
