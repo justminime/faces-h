@@ -314,6 +314,31 @@ export function rotatePhotos(
   });
 }
 
+export interface ScanRoot {
+  id: number;
+  path: string;
+  added_at: number;
+  is_network: boolean;
+  last_seen_at: number | null;
+  reachable: boolean;
+}
+
+/** All configured scan-root folders (#186), each with a live reachability
+ *  check so offline network shares are visible at a glance. */
+export function fetchScanRoots(): Promise<ScanRoot[]> {
+  return apiFetch<ScanRoot[]>("/scan/roots");
+}
+
+/** Stop scanning a root going forward. Only removes the `scan_roots` row —
+ *  photos/faces/people already indexed from that folder are left alone. */
+export function deleteScanRoot(
+  id: number,
+): Promise<{ status: string; id: number }> {
+  return apiFetch<{ status: string; id: number }>(`/scan/roots/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export interface BackupEntry {
   backup: string;
   original_path: string;

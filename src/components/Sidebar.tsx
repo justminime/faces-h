@@ -23,6 +23,7 @@ interface SidebarProps {
   onFindRotation?: () => void;
   onShowBackups?: () => void;
   onShowDismissed?: () => void;
+  onShowScanRoots?: () => void;
   onShowAbout?: () => void;
   appVersion?: string;
 }
@@ -64,6 +65,7 @@ export function Sidebar({
   onFindRotation,
   onShowBackups,
   onShowDismissed,
+  onShowScanRoots,
   onShowAbout,
   appVersion,
 }: SidebarProps) {
@@ -165,6 +167,10 @@ export function Sidebar({
               <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onShowDismissed)}>
                 <span className="sidebar__menu-icon">🚫</span>
                 Not Relevant Faces…
+              </button>
+              <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onShowScanRoots)}>
+                <span className="sidebar__menu-icon">🗂</span>
+                Manage Scan Folders…
               </button>
 
               <div className="sidebar__menu-divider" />

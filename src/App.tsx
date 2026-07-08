@@ -23,6 +23,7 @@ import { DuplicatesView } from "./components/DuplicatesView";
 import { RotationView } from "./components/RotationView";
 import { BackupsView } from "./components/BackupsView";
 import { DismissedView } from "./components/DismissedView";
+import { ScanRootsView } from "./components/ScanRootsView";
 import { AboutModal } from "./components/AboutModal";
 import { useUIStore } from "./store/ui";
 import { useConnectionStore } from "./store/connection";
@@ -127,6 +128,7 @@ function App() {
     | "rotation"
     | "backups"
     | "dismissed"
+    | "scanRoots"
   >("gallery");
   const [onboardingDone, setOnboardingDone] = useState(
     () => localStorage.getItem(ONBOARDING_KEY) !== null,
@@ -493,6 +495,7 @@ function App() {
         onFindRotation={() => setView("rotation")}
         onShowBackups={() => setView("backups")}
         onShowDismissed={() => setView("dismissed")}
+        onShowScanRoots={() => setView("scanRoots")}
         onShowAbout={() => setAboutOpen(true)}
         appVersion={__APP_VERSION__}
       />
@@ -513,7 +516,9 @@ function App() {
         <ConnectionBanner />
         <SweepBanner />
         <div className="app-content__panels">
-          {view === "dismissed" ? (
+          {view === "scanRoots" ? (
+            <ScanRootsView onAddFolder={() => void handleAddFolder()} />
+          ) : view === "dismissed" ? (
             <DismissedView />
           ) : view === "backups" ? (
             <BackupsView />
