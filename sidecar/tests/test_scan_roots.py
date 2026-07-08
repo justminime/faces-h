@@ -177,10 +177,11 @@ def test_delete_root_removes_only_scan_roots_row(
     async def _counts() -> tuple[int, int, int]:
         conn = await aiosqlite.connect(db_path)
         try:
-            photos = (await (await conn.execute("SELECT count(*) FROM photos")).fetchone())[0]
-            faces = (await (await conn.execute("SELECT count(*) FROM faces")).fetchone())[0]
-            people = (await (await conn.execute("SELECT count(*) FROM people")).fetchone())[0]
-            return photos, faces, people
+            photos_row = await (await conn.execute("SELECT count(*) FROM photos")).fetchone()
+            faces_row = await (await conn.execute("SELECT count(*) FROM faces")).fetchone()
+            people_row = await (await conn.execute("SELECT count(*) FROM people")).fetchone()
+            assert photos_row is not None and faces_row is not None and people_row is not None
+            return photos_row[0], faces_row[0], people_row[0]
         finally:
             await conn.close()
 
