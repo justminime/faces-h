@@ -24,6 +24,17 @@ _CONFIG_FILENAME = "config.json"
 DEFAULT_FACE_MODEL = "insightface_buffalo_l"
 DEFAULT_AUTO_ASSIGN_THRESHOLD = 0.68
 DEFAULT_UNCERTAIN_THRESHOLD = 0.50
+# #183: among candidate people scoring >= uncertain_threshold, a NAMED person
+# is preferred over a better-scoring UNNAMED placeholder cluster unless the
+# unnamed cluster's cosine similarity beats it by MORE than this margin. An
+# anonymous cluster suggestion isn't actionable to a reviewer even when its
+# raw score edges out a named match, so close/comparable scores should
+# resolve toward the name. Kept small and explicit so a genuinely better
+# unnamed match (a real, larger gap) still wins outright. This only steers
+# *which* person is selected — the stored assign_conf is always the true,
+# unweighted cosine similarity to whichever centroid ends up selected
+# (Rule 2 — never fabricated or adjusted by this margin).
+DEFAULT_NAMED_PERSON_PREFERENCE_MARGIN = 0.04
 # OD-04: detections smaller than this (shorter bbox side, source pixels) or
 # below the detector-confidence floor are skipped and counted (#111).
 DEFAULT_MIN_FACE_PX = 20
@@ -52,6 +63,7 @@ class Config:
     ui_log_level: str = DEFAULT_UI_LOG_LEVEL
     blur_threshold: float = DEFAULT_BLUR_THRESHOLD
     backup_retention_days: int = DEFAULT_BACKUP_RETENTION_DAYS
+    named_person_preference_margin: float = DEFAULT_NAMED_PERSON_PREFERENCE_MARGIN
 
 
 _cached: Config | None = None
@@ -119,6 +131,18 @@ def _validate(raw: dict[str, object]) -> Config:
     else:
         ui_log = ui_log.lower()
 
+    margin = raw.get("named_person_preference_margin", DEFAULT_NAMED_PERSON_PREFERENCE_MARGIN)
+    margin_f = (
+        float(margin)
+        if isinstance(margin, (int, float)) and 0.0 <= float(margin) <= 1.0
+        else None
+    )
+    if margin_f is None:
+        logger.warning(
+            "config.json: invalid named_person_preference_margin %r — using default", margin
+        )
+        margin_f = DEFAULT_NAMED_PERSON_PREFERENCE_MARGIN
+
     return Config(
         face_model=face_model,
         auto_assign_threshold=auto_f,
@@ -128,6 +152,7 @@ def _validate(raw: dict[str, object]) -> Config:
         ui_log_level=ui_log,
         blur_threshold=blur_f,
         backup_retention_days=retention_i,
+        named_person_preference_margin=margin_f,
     )
 
 
