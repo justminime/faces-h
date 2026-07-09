@@ -5,12 +5,14 @@ import {
   fetchRotationSuggestions,
   startRotationScan,
   rotatePhotos,
+  dismissRotationSuggestion,
 } from "../api/client";
 
 vi.mock("../api/client", () => ({
   fetchRotationSuggestions: vi.fn(),
   startRotationScan: vi.fn(),
   rotatePhotos: vi.fn(),
+  dismissRotationSuggestion: vi.fn(),
   photoThumbUrl: (id: number) => `http://t/photos/${id}/thumbnail`,
 }));
 
@@ -50,6 +52,10 @@ describe("RotationView (#160)", () => {
       permanent: 1,
       failed: [],
     });
+    vi.mocked(dismissRotationSuggestion).mockResolvedValue({
+      id: 1,
+      rotation_dismissed: true,
+    });
   });
 
   it("lists suggestions with before/after previews, pre-selected", async () => {
@@ -85,6 +91,18 @@ describe("RotationView (#160)", () => {
         { photo_id: 2, degrees: 180 },
       ]),
     );
+  });
+
+  it("discarding a suggestion removes it permanently instead of just unchecking", async () => {
+    render(<RotationView />);
+    await waitFor(() => screen.getByText("sideways.jpg"));
+
+    const discardButtons = screen.getAllByRole("button", { name: /not needed/i });
+    fireEvent.click(discardButtons[0]);
+
+    await waitFor(() => expect(dismissRotationSuggestion).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(screen.queryByText("sideways.jpg")).not.toBeInTheDocument());
+    expect(screen.getByText("net.jpg")).toBeInTheDocument();
   });
 
   it("shows the empty state when there are no suggestions", async () => {
