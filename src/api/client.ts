@@ -314,6 +314,15 @@ export function rotatePhotos(
   });
 }
 
+/** Discard a rotation suggestion that isn't needed (#195) — persistent,
+ *  unlike unchecking a card: it stops reappearing on reload or rescan. */
+export function dismissRotationSuggestion(photoId: number): Promise<{ id: number; rotation_dismissed: boolean }> {
+  return apiFetch<{ id: number; rotation_dismissed: boolean }>(
+    `/photos/${photoId}/rotation-dismiss`,
+    { method: "POST" },
+  );
+}
+
 export interface ScanRoot {
   id: number;
   path: string;

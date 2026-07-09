@@ -53,6 +53,7 @@ async def rotation_suggestions() -> list[dict[str, Any]]:
             SELECT id, path, file_size, suggested_rotation, exif_orientation
               FROM photos
              WHERE missing = 0
+               AND rotation_dismissed = 0
                AND (suggested_rotation IS NOT NULL
                     OR (exif_orientation IS NOT NULL AND exif_orientation IN (3, 6, 8)))
              ORDER BY suggested_rotation IS NULL, path
@@ -66,6 +67,25 @@ async def rotation_suggestions() -> list[dict[str, Any]]:
                     if degrees:
                         out.append(_entry(r, degrees, "exif"))
     return out
+
+
+@router.post("/{photo_id}/rotation-dismiss")
+async def dismiss_rotation_suggestion(photo_id: int) -> dict[str, Any]:
+    """Discard a rotation suggestion the user doesn't want (#195) — persistent,
+    unlike unchecking a card, so it stops reappearing on reload or rescan."""
+    async with get_db() as db:
+        row = await (
+            await db.execute("SELECT id FROM photos WHERE id = ?", (photo_id,))
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Photo not found")
+
+        await db.execute(
+            "UPDATE photos SET rotation_dismissed = 1 WHERE id = ?", (photo_id,)
+        )
+        await db.commit()
+
+    return {"id": photo_id, "rotation_dismissed": True}
 
 
 @router.post("/rotation-scan")
