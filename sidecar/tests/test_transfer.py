@@ -197,23 +197,23 @@ async def _export_tags(params: dict[str, str] | None = None) -> dict:
 
 async def test_export_tags_has_only_assigned_faces_of_named_people(tmp_path: Path) -> None:
     await _init(str(tmp_path))
-    await _add_root("D:\photos")
+    await _add_root(r"D:\photos")
     await _add_person(1, "Daniel", _unit(1))
     await _add_person(2, "", _unit(2))                       # unnamed cluster
     await _add_person(3, "Ayelet", _unit(3))
-    await _add_photo(10, "D:\photos\family-photos\a.jpg")
+    await _add_photo(10, r"D:\photos\family-photos\a.jpg")
     await _add_face(10, 1, "assigned")
     await _add_face(10, 1, "assigned")                        # same person twice → once
     await _add_face(10, 2, "assigned")                        # unnamed → left out
     await _add_face(10, 3, "uncertain")                       # not sure → left out
-    await _add_photo(11, "D:\photos\b.jpg")
+    await _add_photo(11, r"D:\photos\b.jpg")
     await _add_face(11, 3, "dismissed")                       # dismissed → whole photo left out
     await _add_face(11, None, "unreviewed")
 
     body = await _export_tags()
 
     assert body["version"] == 1
-    assert body["root"] == "D:\photos"
+    assert body["root"] == r"D:\photos"
     assert body["photos"] == [{"file": "family-photos/a.jpg", "people": ["Daniel"]}]
 
 
