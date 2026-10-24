@@ -115,7 +115,7 @@ async def preload_models() -> dict[str, str]:
     def _download() -> None:
         global _preload_running
         try:
-            from ml.insightface_recognizer import InsightFaceRecognizer  # noqa: PLC0415
+            from ml.insightface_recognizer import InsightFaceRecognizer
             InsightFaceRecognizer(data_dir)
             logger.info("models/preload: buffalo_l download complete")
         except Exception:
@@ -127,7 +127,7 @@ async def preload_models() -> dict[str, str]:
 
     # Monitor directory growth and emit WebSocket progress events until done.
     async def _monitor() -> None:
-        from api.scan import broadcast_ws  # noqa: PLC0415 — lazy to avoid circular import
+        from api.scan import broadcast_ws
         last_pct = -1
         while _preload_running:
             progress = _download_fraction(data_dir)

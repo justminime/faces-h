@@ -47,9 +47,8 @@ async def rotation_suggestions() -> list[dict[str, Any]]:
     """Photos that look sideways: face-probe results plus EXIF-only-rotated
     files (upright in tag-aware viewers only). Probed suggestions first."""
     out: list[dict[str, Any]] = []
-    async with get_db() as db:
-        async with db.execute(
-            """
+    async with get_db() as db, db.execute(
+        """
             SELECT id, path, file_size, suggested_rotation, exif_orientation
               FROM photos
              WHERE missing = 0
@@ -57,14 +56,14 @@ async def rotation_suggestions() -> list[dict[str, Any]]:
                     OR (exif_orientation IS NOT NULL AND exif_orientation IN (3, 6, 8)))
              ORDER BY suggested_rotation IS NULL, path
             """
-        ) as cur:
-            async for r in cur:
-                if r["suggested_rotation"] is not None:
-                    out.append(_entry(r, int(r["suggested_rotation"]), "faces"))
-                else:
-                    degrees = EXIF_ORIENTATION_TO_DEGREES.get(int(r["exif_orientation"]))
-                    if degrees:
-                        out.append(_entry(r, degrees, "exif"))
+    ) as cur:
+        async for r in cur:
+            if r["suggested_rotation"] is not None:
+                out.append(_entry(r, int(r["suggested_rotation"]), "faces"))
+            else:
+                degrees = EXIF_ORIENTATION_TO_DEGREES.get(int(r["exif_orientation"]))
+                if degrees:
+                    out.append(_entry(r, degrees, "exif"))
     return out
 
 
@@ -87,8 +86,8 @@ async def start_rotation_scan() -> dict[str, str]:
         try:
             data_dir = os.environ.get("FACES_H_DATA_DIR", ".")
             tmp_dir = os.path.join(data_dir, "cache", "tmp")
-            from config import get_config  # noqa: PLC0415
-            from ml.factory import get_recognizer  # noqa: PLC0415
+            from config import get_config
+            from ml.factory import get_recognizer
 
             recognizer = await asyncio.to_thread(get_recognizer, get_config(), data_dir)
 
@@ -129,7 +128,7 @@ async def start_rotation_scan() -> dict[str, str]:
                     if i % 25 == 0:
                         logger.info("rotation scan: %d/%d probed, %d suggestion(s)", i, len(rows), found)
                 logger.info("rotation scan complete: %d suggestion(s) from %d photo(s)", found, len(rows))
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("rotation scan failed")
         finally:
             _scan_running = False

@@ -9,8 +9,8 @@ overhead and hid real migration failures.
 
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 import aiosqlite
 
@@ -43,7 +43,7 @@ async def _apply_schema(conn: aiosqlite.Connection) -> None:
     for alter_stmt, followup_stmt in ALL_MIGRATIONS:
         try:
             await conn.execute(alter_stmt)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — re-raised unless a duplicate column
             if not _is_duplicate_column_error(exc):
                 logger.error("migration failed: %s — %s", alter_stmt, exc)
             continue
@@ -72,7 +72,7 @@ async def get_db() -> AsyncIterator[aiosqlite.Connection]:
         # writer opened while a long-running background job (a scan) holds
         # the write lock gets "database is locked" immediately instead of
         # waiting a moment for it to clear (#174).
-        pass  # TEMP-DISABLED-FOR-VERIFICATION
+        # TEMP-DISABLED-FOR-VERIFICATION
         if path not in _initialized_paths:
             await _apply_schema(conn)
             _initialized_paths.add(path)

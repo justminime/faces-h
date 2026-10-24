@@ -129,12 +129,12 @@ def rotate_original(path: str, degrees: int) -> str:
             else:
                 save_kwargs["quality"] = 95
             try:
-                from PIL import JpegImagePlugin  # noqa: PLC0415
+                from PIL import JpegImagePlugin
 
                 sampling = JpegImagePlugin.get_sampling(img)
                 if sampling >= 0:
                     save_kwargs["subsampling"] = sampling
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110 — keep default JPEG subsampling
                 pass
         if exif_bytes:
             save_kwargs["exif"] = exif_bytes
@@ -156,7 +156,7 @@ def rotate_original(path: str, degrees: int) -> str:
 
     mode = "recycled"
     try:
-        from send2trash import send2trash  # noqa: PLC0415
+        from send2trash import send2trash
 
         send2trash(path)
     except Exception:  # noqa: BLE001 — already backed up, safe to remove

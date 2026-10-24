@@ -20,7 +20,6 @@ from PIL import Image
 from db.schema import ALL_TABLES, INDEXES
 from services.scanner import reset_status, run_scan
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

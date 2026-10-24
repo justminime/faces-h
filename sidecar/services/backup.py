@@ -63,7 +63,7 @@ def backup_file(path: str) -> str:
 
 
 def _retention_days() -> int:
-    from config import get_config  # noqa: PLC0415
+    from config import get_config
 
     return get_config().backup_retention_days
 
@@ -117,7 +117,7 @@ def _manifest_path() -> str:
 
 
 def _load_manifest() -> dict[str, str]:
-    import json  # noqa: PLC0415
+    import json
 
     try:
         with open(_manifest_path(), encoding="utf-8") as f:
@@ -128,7 +128,7 @@ def _load_manifest() -> dict[str, str]:
 
 
 def _save_manifest(manifest: dict[str, str]) -> None:
-    import json  # noqa: PLC0415
+    import json
 
     try:
         with open(_manifest_path(), "w", encoding="utf-8") as f:

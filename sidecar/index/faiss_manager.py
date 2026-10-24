@@ -122,7 +122,7 @@ class FAISSManager:
                 ]
                 self._ids = [i for i, _ in kept]
                 self._vecs = [v for _, v in kept]
-        except Exception:  # noqa: BLE001 — advisory index; DB recheck covers staleness
+        except Exception:  # noqa: BLE001, S110 — advisory index; DB recheck covers staleness
             pass
 
     def save(self) -> None:
@@ -158,7 +158,7 @@ class FAISSManager:
                 # Training cache incomplete (index was loaded from disk, #142)
                 # — promoting would build a broken next tier. Callers rebuild
                 # from the DB via FaceIndex.ensure_ready instead.
-                import logging  # noqa: PLC0415
+                import logging
                 logging.getLogger(__name__).warning(
                     "promotion skipped: training cache incomplete (%d of %d)",
                     len(self._vecs), int(self._index.ntotal),  # type: ignore[attr-defined]
@@ -179,7 +179,7 @@ class FAISSManager:
                 new_index = self._build_ivf_pq(vecs, ids)
                 new_tier = "ivf_pq"
         except Exception as exc:  # noqa: BLE001 — index is advisory
-            import logging  # noqa: PLC0415
+            import logging
             logging.getLogger(__name__).warning(
                 "tier promotion failed, keeping %s: %s", current_tier, exc
             )

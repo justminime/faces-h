@@ -129,7 +129,7 @@ class ClusteringService:
         """
         candidate_people: set[int] = set()
         try:
-            from services.face_index import get_face_index  # noqa: PLC0415
+            from services.face_index import get_face_index
 
             index = get_face_index()
             candidate_faces = (
@@ -176,10 +176,10 @@ class ClusteringService:
     def _index_face(self, face_id: int, embedding: np.ndarray) -> None:
         """Add the face to the FAISS index (best effort — DB is the truth)."""
         try:
-            from services.face_index import get_face_index  # noqa: PLC0415
+            from services.face_index import get_face_index
 
             get_face_index().add(face_id, embedding)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110 — advisory index; DB recheck covers staleness
             pass
 
     async def assign_face(

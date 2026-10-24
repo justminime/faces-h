@@ -276,7 +276,7 @@ def test_shortlist_stays_fast_as_index_grows(tmp_path: Path) -> None:
 def test_promote_skipped_without_training_cache(tmp_path: Path) -> None:
     """#142: a loaded index has no vector cache — promote() must be a safe
     no-op instead of building a broken next tier."""
-    from index.faiss_manager import FAISSManager, _FLAT_LIMIT
+    from index.faiss_manager import _FLAT_LIMIT, FAISSManager
 
     mgr = FAISSManager(str(tmp_path))
     for i in range(3):
