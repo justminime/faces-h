@@ -368,6 +368,17 @@ class ClusteringService:
             "UPDATE faces SET person_id = ? WHERE person_id = ?",
             (target_id, source_id),
         )
+        # The survivor keeps its family-list link (#198), or takes the source's.
+        await db.execute(
+            "UPDATE people SET list_member_id = COALESCE(list_member_id,"
+            " (SELECT list_member_id FROM people WHERE id = ?)) WHERE id = ?",
+            (source_id, target_id),
+        )
+        await db.execute(
+            "UPDATE people SET name = COALESCE((SELECT m.name FROM family_members m"
+            " WHERE m.id = people.list_member_id), name) WHERE id = ?",
+            (target_id,),
+        )
         # Re-point uncertain suggestions at the surviving person — the FK on
         # suggested_person_id would otherwise abort the DELETE below.
         await db.execute(

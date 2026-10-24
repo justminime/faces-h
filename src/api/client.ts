@@ -152,7 +152,8 @@ export interface PhotoTagsExport {
   version: number;
   exported_at: string;
   root: string | null;
-  photos: { file: string; people: string[] }[];
+  /** A person linked to the family list (#198) carries that app's member id. */
+  photos: { file: string; people: (string | { name: string; member_id: number })[] }[];
 }
 
 /** Photo ↔ person tags (assigned faces of named people only) for another app to import. */
@@ -381,4 +382,92 @@ export function restoreBackup(backup: string): Promise<{ restored: string }> {
     method: "POST",
     body: JSON.stringify({ backup, confirmed: true }),
   });
+}
+
+// ── Family list (#198) ───────────────────────────────────────────────────────
+
+export interface FamilyMember {
+  id: number;
+  name: string;
+  heb_name: string | null;
+  birth_year: number | null;
+  death_year: number | null;
+  /** The cluster linked to this member, if any. */
+  person_id: number | null;
+}
+
+/** A member ranked for naming a face or cluster: closest centroid first. */
+export interface MemberCandidate extends FamilyMember {
+  /** Cosine similarity to the member's cluster; null when it has no faces yet. */
+  similarity: number | null;
+  /** This member is the cluster being named. */
+  current: boolean;
+}
+
+export interface FamilyImportSummary {
+  members: number;
+  linked: number;
+  renamed: number;
+  unlinked: number;
+}
+
+export interface ReviewProgress {
+  people: {
+    member_id: number;
+    name: string;
+    heb_name: string | null;
+    person_id: number;
+    assigned: number;
+    uncertain: number;
+  }[];
+  remaining: number;
+  members_without_faces: number;
+  done: boolean;
+}
+
+export function fetchFamily(): Promise<{ loaded: boolean; members: FamilyMember[] }> {
+  return apiFetch<{ loaded: boolean; members: FamilyMember[] }>("/family");
+}
+
+/** Replace the family list with one downloaded from the family portal. */
+export function importFamily(list: unknown): Promise<FamilyImportSummary> {
+  return apiFetch<FamilyImportSummary>("/family/import", {
+    method: "POST",
+    body: JSON.stringify(list),
+  });
+}
+
+/** Members ranked for one face or one cluster. */
+export function fetchCandidates(
+  target: { faceId: number } | { personId: number },
+): Promise<MemberCandidate[]> {
+  const q = "faceId" in target ? `face_id=${target.faceId}` : `person_id=${target.personId}`;
+  return apiFetch<MemberCandidate[]>(`/family/candidates?${q}`);
+}
+
+/** The cluster for a member, created empty if the member has none yet. */
+export async function personForMember(memberId: number): Promise<number> {
+  const r = await apiFetch<{ person_id: number }>(`/family/${memberId}/person`, { method: "POST" });
+  return r.person_id;
+}
+
+/** Name a cluster by linking it to a member. Fails with 409 if another
+ *  cluster already is that member — callers merge instead. */
+export function linkPersonToMember(
+  personId: number,
+  memberId: number,
+): Promise<{ id: number; name: string; member_id: number }> {
+  return apiFetch<{ id: number; name: string; member_id: number }>(`/people/${personId}/member`, {
+    method: "POST",
+    body: JSON.stringify({ member_id: memberId }),
+  });
+}
+
+/** Guided review: uncertain faces of listed people, biggest clusters and least-sure faces first. */
+export function fetchReviewQueue(offset = 0, limit = 50): Promise<QueueItem[]> {
+  return apiFetch<QueueItem[]>(`/review/queue?offset=${offset}&limit=${limit}`);
+}
+
+export function fetchReviewProgress(): Promise<ReviewProgress> {
+  return apiFetch<ReviewProgress>("/review/progress");
 }

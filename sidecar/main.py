@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 from api.backups import router as backups_router
 from api.corrections import router as corrections_router
 from api.faces import router as faces_router
+from api.family import router as family_router
 from api.models import router as models_router
 from api.people import router as people_router
 from api.photos import router as photos_router
@@ -69,6 +70,7 @@ app.include_router(search_router)
 app.include_router(corrections_router)
 app.include_router(models_router)
 app.include_router(transfer_router)
+app.include_router(family_router)
 
 
 @app.get("/health")

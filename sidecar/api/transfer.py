@@ -87,13 +87,14 @@ async def export_tags(root: str | None = None) -> dict[str, Any]:
     on a *named* person; never uncertain, unreviewed, dismissed or unnamed. One
     entry per photo, people de-duplicated; photos gone from disk are left out.
     Paths are relative to the scan root, and no photos, embeddings or face boxes
-    are included. `root` limits the export to one scan root.
+    are included. `root` limits the export to one scan root. A person linked to
+    the family list (#198) is `{"name", "member_id"}`; otherwise a plain name.
     """
     async with get_db() as db:
         roots = [r["path"] for r in await (await db.execute("SELECT path FROM scan_roots")).fetchall()]
         rows = await (
             await db.execute(
-                "SELECT p.path AS path, pe.name AS name FROM faces f "
+                "SELECT p.path AS path, pe.name AS name, pe.list_member_id AS member_id FROM faces f "
                 "JOIN photos p ON p.id = f.photo_id "
                 "JOIN people pe ON pe.id = f.person_id "
                 "WHERE f.assign_status = 'assigned' AND p.missing = 0 "
@@ -102,15 +103,17 @@ async def export_tags(root: str | None = None) -> dict[str, Any]:
             )
         ).fetchall()
 
-    photos: dict[str, list[str]] = {}
+    photos: dict[str, list[Any]] = {}
     for row in rows:
         photo_root, rel = _relative(row["path"], roots)
         if root is not None and (photo_root is None or photo_root.rstrip("/\\") != root.rstrip("/\\")):
             continue
         people = photos.setdefault(rel, [])
         name = row["name"].strip()
-        if name not in people:
-            people.append(name)
+        # Linked to the family list (#198): carry the other app's member id.
+        entry: Any = {"name": name, "member_id": int(row["member_id"])} if row["member_id"] is not None else name
+        if entry not in people:
+            people.append(entry)
 
     return {
         "version": _EXPORT_VERSION,
@@ -141,11 +144,33 @@ async def import_library(bundle: ImportBundle) -> dict[str, Any]:
             (int(r["id"]), r["name"], _normalise(np.frombuffer(r["centroid"], dtype=np.float32).copy()))
             for r in rows
         ]
+        # With a family list loaded (#198), only names on the list are applied,
+        # and each is linked to its member.
+        members: dict[str, int] | None = None
+        if (await (await db.execute("SELECT 1 FROM family_members LIMIT 1")).fetchone()) is not None:
+            counts: dict[str, list[int]] = {}
+            for m in await (await db.execute("SELECT id, name FROM family_members")).fetchall():
+                counts.setdefault(m["name"].strip().casefold(), []).append(int(m["id"]))
+            members = {k: v[0] for k, v in counts.items() if len(v) == 1}
+        linked = {
+            int(r["list_member_id"])
+            for r in await (
+                await db.execute("SELECT list_member_id FROM people WHERE list_member_id IS NOT NULL")
+            ).fetchall()
+        }
         # Track names claimed during this import so two imported people don't both
         # land on the same cluster.
         claimed: set[int] = set()
 
         for person in bundle.people:
+            member_id = members.get(person.name.strip().casefold()) if members is not None else None
+            if members is not None and member_id is None:
+                unmatched.append(person.name)
+                continue
+            if member_id is not None and member_id in linked:
+                # Already a group in this library — that's a merge for the user.
+                conflicts.append(person.name)
+                continue
             try:
                 raw = np.frombuffer(base64.b64decode(person.centroid_b64), dtype=np.float32).copy()
             except Exception:  # noqa: BLE001 — a malformed centroid is reported, not fatal
@@ -184,8 +209,11 @@ async def import_library(bundle: ImportBundle) -> dict[str, Any]:
                 continue
 
             await db.execute(
-                "UPDATE people SET name = ? WHERE id = ?", (person.name, best_id)
+                "UPDATE people SET name = ?, list_member_id = ? WHERE id = ?",
+                (person.name, member_id, best_id),
             )
+            if member_id is not None:
+                linked.add(member_id)
             claimed.add(best_id)
             applied += 1
 

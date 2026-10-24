@@ -28,3 +28,28 @@
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   align-items: start;
 }
+
+/* Guided review progress (#198) */
+.queue-view__progress {
+  width: 100%;
+  max-width: 520px;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+.queue-view__progress th,
+.queue-view__progress td {
+  text-align: start;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+.queue-view__progress th {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+.queue-view__hint {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0 0 16px;
+}

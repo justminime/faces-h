@@ -19,6 +19,10 @@ interface SidebarProps {
   onExport?: () => void;
   onExportTags?: () => void;
   onImport?: () => void;
+  /** Family list (#198): import it, and the guided review it enables. */
+  onImportFamily?: () => void;
+  onGuidedReview?: () => void;
+  familyLoaded?: boolean;
   onFindBlurry?: () => void;
   onFindDuplicates?: () => void;
   onFindRotation?: () => void;
@@ -62,6 +66,9 @@ export function Sidebar({
   onExport,
   onExportTags,
   onImport,
+  onImportFamily,
+  onGuidedReview,
+  familyLoaded = false,
   onFindBlurry,
   onFindDuplicates,
   onFindRotation,
@@ -191,6 +198,16 @@ export function Sidebar({
                 <span className="sidebar__menu-icon">↓</span>
                 Import Named People
               </button>
+              <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onImportFamily)}>
+                <span className="sidebar__menu-icon">👪</span>
+                {familyLoaded ? "Update Family List…" : "Import Family List…"}
+              </button>
+              {familyLoaded && (
+                <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onGuidedReview)}>
+                  <span className="sidebar__menu-icon">✔</span>
+                  Guided Review
+                </button>
+              )}
 
               <div className="sidebar__menu-divider" />
 

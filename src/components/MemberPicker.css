@@ -1,0 +1,21 @@
+.member-picker {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family);
+  font-size: 14px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+.member-picker:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-tint);
+}
+.member-picker__loading {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary, var(--color-text));
+}
