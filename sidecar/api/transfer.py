@@ -14,7 +14,7 @@ holds the same photos (e.g. a family portal) to tag them. Still no image data.
 
 import base64
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -115,7 +115,7 @@ async def export_tags(root: str | None = None) -> dict[str, Any]:
 
     return {
         "version": _EXPORT_VERSION,
-        "exported_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "exported_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "root": root if root is not None else (roots[0] if len(roots) == 1 else None),
         "photos": [{"file": f, "people": p} for f, p in photos.items()],
     }
