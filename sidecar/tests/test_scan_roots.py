@@ -12,7 +12,6 @@ from fastapi.testclient import TestClient
 
 from db.schema import ALL_TABLES, INDEXES
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

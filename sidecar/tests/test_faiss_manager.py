@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from index.faiss_manager import FAISSManager, _FLAT_LIMIT
+from index.faiss_manager import _FLAT_LIMIT, FAISSManager
 
 
 def _rand_unit(dim: int = 512, seed: int | None = None) -> np.ndarray:
@@ -135,7 +135,7 @@ async def test_old_index_serves_during_promote(tmp_path: Path) -> None:
     def do_search() -> None:
         try:
             search_results.extend(mgr.search(vecs[0], k=5))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — collected and asserted on below
             errors.append(exc)
 
     searcher = threading.Thread(target=do_search)

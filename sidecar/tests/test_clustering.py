@@ -15,7 +15,6 @@ from services.clustering import (
     _serialize_centroid,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -514,7 +513,7 @@ async def test_people_photos_endpoint_includes_all_faces_in_detail(
     which *photos* appear — paging is restricted to assigned — but the faces array
     for the detail panel includes uncertain and unreviewed faces too so the user
     can see every person present in the frame."""
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
 
     os.environ["FACES_H_DATA_DIR"] = str(tmp_path)
 

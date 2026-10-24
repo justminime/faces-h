@@ -15,8 +15,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from ml.base import FaceRecognizer, FaceResult
 from config import Config
+from ml.base import FaceRecognizer, FaceResult
 from ml.factory import get_recognizer
 from ml.insightface_recognizer import InsightFaceRecognizer
 
@@ -101,7 +101,7 @@ def test_real_face_fixture_returns_results(tmp_path: Path) -> None:
     assert r.embedding.shape == (512,)
     assert float(np.linalg.norm(r.embedding)) == pytest.approx(1.0, abs=1e-4)
     assert 0.0 <= r.detection_confidence <= 1.0
-    x, y, w, h = r.bbox
+    x, y, _w, _h = r.bbox
     assert 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0
 
 

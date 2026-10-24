@@ -97,7 +97,7 @@ async def test_rescan_accumulates_totals_across_roots(tmp_path: Path) -> None:
 async def test_schema_applied_once_per_path(tmp_path: Path) -> None:
     """get_db runs DDL/migrations only for the first connection per DB path."""
     os.environ["FACES_H_DATA_DIR"] = str(tmp_path)
-    import db.database as database
+    from db import database
 
     database._initialized_paths.discard(database._db_path())
     async with database.get_db() as conn:

@@ -6,12 +6,12 @@ import logging
 import logging.handlers
 import os
 import sys
-
+from pathlib import Path
 
 # Add sidecar root to path so we can import main directly
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from main import _setup_logging  # noqa: E402
+from main import _setup_logging
 
 
 def test_log_file_created(tmp_path: object) -> None:
@@ -73,7 +73,7 @@ def test_log_writes_appear_in_file(tmp_path: object) -> None:
             h.flush()
 
         log_path = os.path.join(data_dir, "logs", "sidecar.log")
-        content = open(log_path, encoding="utf-8").read()
+        content = Path(log_path).read_text(encoding="utf-8")
         assert "hello from test" in content, (
             "Log message not found in sidecar.log"
         )

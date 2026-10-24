@@ -37,9 +37,8 @@ async def list_uncertain(
     limit: int = 50, offset: int = 0
 ) -> list[dict[str, Any]]:
     """Paginated list of uncertain faces with their suggested person."""
-    async with get_db() as db:
-        async with db.execute(
-            """
+    async with get_db() as db, db.execute(
+        """
             SELECT f.id        AS face_id,
                    f.photo_id,
                    f.assign_conf,
@@ -52,9 +51,9 @@ async def list_uncertain(
              ORDER BY f.id ASC
              LIMIT ? OFFSET ?
             """,
-            (limit, offset),
-        ) as cur:
-            rows = await cur.fetchall()
+        (limit, offset),
+    ) as cur:
+        rows = await cur.fetchall()
 
     return [
         {
@@ -190,9 +189,8 @@ async def dismiss_face(face_id: int) -> dict[str, Any]:
 async def list_dismissed(limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
     """Paginated list of faces dismissed as 'not relevant' (#168) — the
     secondary review window, separate from the main To-review queue."""
-    async with get_db() as db:
-        async with db.execute(
-            """
+    async with get_db() as db, db.execute(
+        """
             SELECT f.id AS face_id, f.photo_id
               FROM faces f
               JOIN photos ph ON ph.id = f.photo_id AND ph.missing = 0
@@ -200,9 +198,9 @@ async def list_dismissed(limit: int = 50, offset: int = 0) -> list[dict[str, Any
              ORDER BY f.id DESC
              LIMIT ? OFFSET ?
             """,
-            (limit, offset),
-        ) as cur:
-            rows = await cur.fetchall()
+        (limit, offset),
+    ) as cur:
+        rows = await cur.fetchall()
 
     return [
         {
