@@ -39,6 +39,7 @@ import {
   photoThumbUrl,
   faceCropUrl,
   exportLibrary,
+  exportTags,
   importLibrary,
 } from "./api/client";
 import { initWs } from "./api/ws";
@@ -454,6 +455,26 @@ function App() {
     }
   }
 
+  // Photo ↔ person tags for another app to import (#197): assigned faces of named people only.
+  async function handleExportTags() {
+    try {
+      const tags = await exportTags();
+      const blob = new Blob([JSON.stringify(tags, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "faces-h-tags.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      const n = tags.photos.length;
+      useToastStore.getState().addToast(`Exported tags for ${n} ${n === 1 ? "photo" : "photos"}`);
+    } catch {
+      useToastStore.getState().addToast("Export failed");
+    }
+  }
+
   async function handleImportFile(file: File) {
     try {
       const bundle = JSON.parse(await file.text());
@@ -489,6 +510,7 @@ function App() {
         onAddFolder={() => void handleAddFolder()}
         onRescan={() => void handleRescan()}
         onExport={() => void handleExport()}
+        onExportTags={() => void handleExportTags()}
         onImport={() => fileInputRef.current?.click()}
         onFindBlurry={() => setView("blurry")}
         onFindDuplicates={() => setView("duplicates")}

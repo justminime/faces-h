@@ -4,6 +4,7 @@ import {
   photoThumbUrl,
   faceCropUrl,
   exportLibrary,
+  exportTags,
   importLibrary,
 } from "../api/client";
 
@@ -70,5 +71,33 @@ describe("library import/export (#80)", () => {
     expect(url).toBe("http://127.0.0.1:51423/import");
     expect(opts.method).toBe("POST");
     expect(summary.applied).toBe(2);
+  });
+});
+
+describe("photo tags export", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("exportTags GETs /export/tags against the sidecar", async () => {
+    initClient("http://127.0.0.1:51423");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          version: 1,
+          exported_at: "2026-10-24T08:00:00Z",
+          root: "D:\\photos",
+          photos: [{ file: "a.jpg", people: ["Daniel"] }],
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tags = await exportTags();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:51423/export/tags",
+      expect.anything(),
+    );
+    expect(tags.photos[0].people).toEqual(["Daniel"]);
   });
 });

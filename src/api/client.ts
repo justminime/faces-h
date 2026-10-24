@@ -148,6 +148,18 @@ export function exportLibrary(): Promise<LibraryBundle> {
   return apiFetch<LibraryBundle>("/export");
 }
 
+export interface PhotoTagsExport {
+  version: number;
+  exported_at: string;
+  root: string | null;
+  photos: { file: string; people: string[] }[];
+}
+
+/** Photo ↔ person tags (assigned faces of named people only) for another app to import. */
+export function exportTags(): Promise<PhotoTagsExport> {
+  return apiFetch<PhotoTagsExport>("/export/tags");
+}
+
 /** Apply an exported bundle's names to matching clusters in this library. */
 export function importLibrary(bundle: unknown): Promise<ImportSummary> {
   return apiFetch<ImportSummary>("/import", {

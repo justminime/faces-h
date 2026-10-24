@@ -32,6 +32,7 @@ Active development — core features complete. See [GitHub Issues](https://githu
 - **Search** by one or more people together, with date ranges and an "exactly these people" mode
 - **Correct mistakes** — mark a face wrong and the whole cluster re-evaluates automatically
 - **Carry recognition across libraries** — export/import named identities as a small file (no photos inside)
+- **Export photo tags** — ··· → Export Photo Tags writes `faces-h-tags.json`: each photo (path relative to its scan folder) with the named people faces-h is sure about — confirmed or above the confidence threshold, never uncertain or dismissed faces. For another app that holds the same photos, e.g. a family website, to tag them. No photos or face data inside
 - **See what it's doing** — live activity log with engine and app streams, adjustable verbosity; scan progress reflects every file actually checked (not just newly changed ones), so a rescan of an already-indexed library shows real progress instead of sitting at 0%
 - **Find blurry photos** — a live cutoff slider surfaces them worst-first so you see exactly what each level captures
 - **Find duplicates** — exact copies and the same shot saved at different sizes, each copy listed with its folder, filename, and size; "keep one per group" in one click
