@@ -6,7 +6,7 @@ from typing import Any
 import aiosqlite
 import numpy as np
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from db.schema import ALL_TABLES, INDEXES
 

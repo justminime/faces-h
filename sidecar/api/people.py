@@ -29,9 +29,8 @@ class MergeRequest(BaseModel):
 @router.get("")
 async def list_people() -> list[dict[str, Any]]:
     """List all named people with photo count and medallion face ID."""
-    async with get_db() as db:
-        async with db.execute(
-            """
+    async with get_db() as db, db.execute(
+        """
             SELECT p.id,
                    p.name,
                    COUNT(DISTINCT ph.id) AS photo_count,
@@ -44,8 +43,8 @@ async def list_people() -> list[dict[str, Any]]:
              GROUP BY p.id, p.name
              ORDER BY photo_count DESC, p.name
             """
-        ) as cur:
-            return [dict(row) for row in await cur.fetchall()]
+    ) as cur:
+        return [dict(row) for row in await cur.fetchall()]
 
 
 @router.get("/{person_id}/photos")

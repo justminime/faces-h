@@ -152,3 +152,106 @@ async def test_export_import_round_trip(tmp_path: Path) -> None:
             row = await (await db.execute("SELECT name FROM people WHERE id = 1")).fetchone()
     assert row is not None
     assert row["name"] == "Alice"
+
+
+# ── /export/tags (#197) ──────────────────────────────────────────────────────
+
+
+async def _add_root(path: str) -> None:
+    from db.database import get_db
+
+    async with get_db() as db:
+        await db.execute("INSERT INTO scan_roots (path, added_at) VALUES (?, 0)", (path,))
+        await db.commit()
+
+
+async def _add_photo(pid: int, path: str, missing: int = 0) -> None:
+    from db.database import get_db
+
+    async with get_db() as db:
+        await db.execute(
+            "INSERT INTO photos (id, path, mtime, missing) VALUES (?, ?, 0, ?)", (pid, path, missing)
+        )
+        await db.commit()
+
+
+async def _add_face(photo_id: int, person_id: int | None, status: str) -> None:
+    from db.database import get_db
+
+    async with get_db() as db:
+        await db.execute(
+            "INSERT INTO faces (photo_id, detection_conf, person_id, assign_status) VALUES (?, 0.99, ?, ?)",
+            (photo_id, person_id, status),
+        )
+        await db.commit()
+
+
+async def _export_tags(params: dict[str, str] | None = None) -> dict:
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.get("/export/tags", params=params or {})
+    assert r.status_code == 200
+    return r.json()
+
+
+async def test_export_tags_has_only_assigned_faces_of_named_people(tmp_path: Path) -> None:
+    await _init(str(tmp_path))
+    await _add_root(r"D:\photos")
+    await _add_person(1, "Daniel", _unit(1))
+    await _add_person(2, "", _unit(2))                       # unnamed cluster
+    await _add_person(3, "Ayelet", _unit(3))
+    await _add_photo(10, r"D:\photos\family-photos\a.jpg")
+    await _add_face(10, 1, "assigned")
+    await _add_face(10, 1, "assigned")                        # same person twice → once
+    await _add_face(10, 2, "assigned")                        # unnamed → left out
+    await _add_face(10, 3, "uncertain")                       # not sure → left out
+    await _add_photo(11, r"D:\photos\b.jpg")
+    await _add_face(11, 3, "dismissed")                       # dismissed → whole photo left out
+    await _add_face(11, None, "unreviewed")
+
+    body = await _export_tags()
+
+    assert body["version"] == 1
+    assert body["root"] == r"D:\photos"
+    assert body["photos"] == [{"file": "family-photos/a.jpg", "people": ["Daniel"]}]
+
+
+async def test_export_tags_skips_missing_photos_and_has_no_face_data(tmp_path: Path) -> None:
+    await _init(str(tmp_path))
+    await _add_root("/library")
+    await _add_person(1, "Daniel", _unit(1))
+    await _add_photo(10, "/library/gone.jpg", missing=1)
+    await _add_face(10, 1, "assigned")
+    await _add_photo(11, "/library/here.jpg")
+    await _add_face(11, 1, "assigned")
+
+    body = await _export_tags()
+
+    assert body["photos"] == [{"file": "here.jpg", "people": ["Daniel"]}]
+    assert set(body) == {"version", "exported_at", "root", "photos"}
+
+
+async def test_export_tags_can_be_limited_to_one_scan_root(tmp_path: Path) -> None:
+    await _init(str(tmp_path))
+    await _add_root("/a")
+    await _add_root("/b")
+    await _add_person(1, "Daniel", _unit(1))
+    await _add_photo(10, "/a/x.jpg")
+    await _add_face(10, 1, "assigned")
+    await _add_photo(11, "/b/y.jpg")
+    await _add_face(11, 1, "assigned")
+
+    everything = await _export_tags()
+    only_b = await _export_tags({"root": "/b"})
+
+    assert everything["root"] is None
+    assert sorted(p["file"] for p in everything["photos"]) == ["x.jpg", "y.jpg"]
+    assert only_b["root"] == "/b"
+    assert only_b["photos"] == [{"file": "y.jpg", "people": ["Daniel"]}]
+
+
+async def test_export_tags_on_an_empty_library(tmp_path: Path) -> None:
+    await _init(str(tmp_path))
+
+    assert (await _export_tags())["photos"] == []

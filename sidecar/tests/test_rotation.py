@@ -345,8 +345,8 @@ async def test_scan_commits_per_photo_not_in_one_long_transaction(
     import asyncio
     import time as time_mod
 
-    import ml.factory as ml_factory
     import api.rotation as rotation_api
+    import ml.factory as ml_factory
 
     os.environ["FACES_H_DATA_DIR"] = str(tmp_path)
     from db.database import get_db

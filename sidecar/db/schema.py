@@ -96,8 +96,8 @@ SCAN_ROOTS_MIGRATIONS: list[tuple[str, str | None]] = [
 PHOTOS_MIGRATIONS: list[tuple[str, str | None]] = [
     (
         "ALTER TABLE photos ADD COLUMN faces_extracted INTEGER NOT NULL DEFAULT 0",
-        "UPDATE photos SET faces_extracted = 1 "
-        "WHERE EXISTS (SELECT 1 FROM faces WHERE photo_id = photos.id)",
+        ("UPDATE photos SET faces_extracted = 1 "
+        "WHERE EXISTS (SELECT 1 FROM faces WHERE photo_id = photos.id)"),
     ),
     # missing (#105): set when a scan of a reachable root no longer finds the
     # file on disk; cleared automatically if it reappears at the same path.

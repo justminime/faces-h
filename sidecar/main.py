@@ -16,13 +16,13 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from api.backups import router as backups_router
 from api.corrections import router as corrections_router
 from api.faces import router as faces_router
 from api.models import router as models_router
 from api.people import router as people_router
 from api.photos import router as photos_router
 from api.queue import router as queue_router
-from api.backups import router as backups_router
 from api.rotation import router as rotation_router
 from api.scan import router as scan_router
 from api.search import router as search_router
@@ -115,7 +115,7 @@ class WsLogHandler(logging.Handler):
             # (default) → warnings+ everywhere plus INFO from the interesting
             # loggers; "debug" → also DEBUG from those loggers. Read lazily so
             # a config edit takes effect on restart without touching code.
-            from config import get_config  # noqa: PLC0415
+            from config import get_config
 
             ui_level = get_config().ui_log_level
             if record.levelno < logging.WARNING:
@@ -145,7 +145,7 @@ class WsLogHandler(logging.Handler):
                     "logger": record.name,
                 }
             )
-        except Exception:  # noqa: BLE001 — a logging handler must never raise
+        except Exception:  # noqa: BLE001, S110 — a logging handler must never raise
             pass
 
 
@@ -156,10 +156,10 @@ _ws_log_handler = WsLogHandler()
 async def _purge_expired_backups() -> None:
     """Drop trash-backups past their retention window (#161) — cheap, once."""
     try:
-        from services.backup import purge_old_backups  # noqa: PLC0415
+        from services.backup import purge_old_backups
 
         await asyncio.to_thread(purge_old_backups)
-    except Exception:  # noqa: BLE001 — housekeeping must never block startup
+    except Exception:
         logging.getLogger(__name__).exception("backup purge failed")
 
 
@@ -168,7 +168,7 @@ async def _start_log_pump() -> None:
     """Drain buffered log records to WebSocket clients twice a second."""
 
     async def _pump() -> None:
-        from api.scan import broadcast_ws  # noqa: PLC0415 — avoid circular import
+        from api.scan import broadcast_ws
 
         while True:
             try:
@@ -185,7 +185,7 @@ async def _start_log_pump() -> None:
                             "logger": "main",
                         }
                     )
-            except Exception:  # noqa: BLE001 — the pump must survive anything
+            except Exception:  # noqa: BLE001, S110 — the pump must survive anything
                 pass
             await asyncio.sleep(0.5)
 
@@ -234,12 +234,12 @@ def _parent_alive(parent_pid: int) -> bool:
     so a broken probe can never take down a healthy sidecar.
     """
     try:
-        import psutil  # noqa: PLC0415 — optional dependency, probed lazily
+        import psutil
     except ImportError:
         return True
     try:
         return bool(psutil.pid_exists(parent_pid))
-    except Exception:
+    except Exception:  # noqa: BLE001 — can't tell, so assume the parent is alive
         return True
 
 
