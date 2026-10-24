@@ -18,6 +18,7 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { useUpdaterStore } from "./store/updater";
 import { Onboarding, ONBOARDING_KEY } from "./components/Onboarding";
 import { QueueView } from "./components/QueueView";
+import { useFamilyStore } from "./store/family";
 import { BlurryView } from "./components/BlurryView";
 import { DuplicatesView } from "./components/DuplicatesView";
 import { RotationView } from "./components/RotationView";
@@ -41,6 +42,7 @@ import {
   exportLibrary,
   exportTags,
   importLibrary,
+  importFamily,
 } from "./api/client";
 import { initWs } from "./api/ws";
 import { withRetry } from "./api/retry";
@@ -124,6 +126,7 @@ function App() {
     | "gallery"
     | "search"
     | "queue"
+    | "review"
     | "blurry"
     | "duplicates"
     | "rotation"
@@ -141,6 +144,11 @@ function App() {
   const [namingPersonId, setNamingPersonId] = useState<number | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const familyInputRef = useRef<HTMLInputElement>(null);
+  const familyLoaded = useFamilyStore((s) => s.loaded);
+  useEffect(() => {
+    void useFamilyStore.getState().refresh();
+  }, []);
 
   const nameByPersonId = useMemo(() => {
     const m = new Map<number, string>();
@@ -491,6 +499,20 @@ function App() {
     }
   }
 
+  // Family list from the portal (#198): names then come only from this list.
+  async function handleImportFamilyFile(file: File) {
+    try {
+      const list = JSON.parse(await file.text());
+      const s = await importFamily(list);
+      await useFamilyStore.getState().refresh();
+      refreshPeople();
+      const linked = s.linked ? `, ${s.linked} matched to existing names` : "";
+      useToastStore.getState().addToast(`Family list loaded: ${s.members} people${linked}`);
+    } catch {
+      useToastStore.getState().addToast("Import failed — not a family list from the portal");
+    }
+  }
+
   function handleCorrectionRequest(faceId: number) {
     if (!selectedPhoto) return;
     setCorrectionTarget({ faceId, photoId: selectedPhoto.id });
@@ -512,6 +534,9 @@ function App() {
         onExport={() => void handleExport()}
         onExportTags={() => void handleExportTags()}
         onImport={() => fileInputRef.current?.click()}
+        onImportFamily={() => familyInputRef.current?.click()}
+        onGuidedReview={() => setView("review")}
+        familyLoaded={familyLoaded}
         onFindBlurry={() => setView("blurry")}
         onFindDuplicates={() => setView("duplicates")}
         onFindRotation={() => setView("rotation")}
@@ -530,6 +555,18 @@ function App() {
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) void handleImportFile(f);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={familyInputRef}
+        type="file"
+        accept="application/json"
+        style={{ display: "none" }}
+        aria-hidden="true"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleImportFamilyFile(f);
           e.target.value = "";
         }}
       />
@@ -552,6 +589,8 @@ function App() {
             <BlurryView />
           ) : view === "queue" ? (
             <QueueView />
+          ) : view === "review" ? (
+            <QueueView key="review" guided />
           ) : view === "search" ? (
             <SearchView people={people} />
           ) : (

@@ -53,7 +53,7 @@ async def test_all_tables_created() -> None:
         )
         tables = {row[0] for row in await cursor.fetchall()}
 
-    assert tables == {"corrections", "faces", "people", "photos", "scan_state", "scan_roots"}
+    assert tables == {"corrections", "faces", "people", "photos", "scan_state", "scan_roots", "family_members"}
 
 
 @pytest.mark.asyncio
@@ -74,6 +74,7 @@ async def test_all_indexes_created() -> None:
         "idx_photos_phash",
         "idx_photos_size",
         "idx_scan_roots_path",
+        "idx_people_member",
     }
 
 

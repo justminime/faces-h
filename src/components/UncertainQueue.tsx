@@ -1,7 +1,15 @@
 import { useState } from "react";
 import type { QueueItem } from "../api/types";
-import { confirmFace, dismissFace, faceCropUrl } from "../api/client";
+import {
+  confirmFace,
+  dismissFace,
+  faceCropUrl,
+  personForMember,
+  type MemberCandidate,
+} from "../api/client";
 import { useUIStore } from "../store/ui";
+import { useFamilyStore } from "../store/family";
+import { MemberPicker } from "./MemberPicker";
 import "./UncertainQueue.css";
 
 interface UncertainQueueProps {
@@ -44,6 +52,36 @@ function PersonPicker({ people, onPick, onClose }: PickerProps) {
   );
 }
 
+/** "No, someone else" with a family list loaded (#198): members only,
+ *  ranked for this face. */
+function FamilyPicker({
+  faceId,
+  onPick,
+  onClose,
+}: {
+  faceId: number;
+  onPick: (member: MemberCandidate) => void;
+  onClose: () => void;
+}) {
+  const [member, setMember] = useState<MemberCandidate | null>(null);
+  return (
+    <div className="uq-picker" role="dialog" aria-label="Choose a person">
+      <p className="uq-picker__prompt">Who is this?</p>
+      <MemberPicker target={{ faceId }} value={member} onChange={setMember} autoFocus />
+      <button
+        className="uq-picker__item"
+        disabled={member === null}
+        onClick={() => member && onPick(member)}
+      >
+        Confirm
+      </button>
+      <button className="uq-picker__cancel" onClick={onClose}>
+        Cancel
+      </button>
+    </div>
+  );
+}
+
 interface CardProps {
   item: QueueItem;
   onReviewed: (faceId: number) => void;
@@ -54,6 +92,7 @@ interface CardProps {
 
 function QueueCard({ item, onReviewed, onSkipped, onDismissed, onError }: CardProps) {
   const people = useUIStore((s) => s.people);
+  const familyLoaded = useFamilyStore((s) => s.loaded);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -68,6 +107,15 @@ function QueueCard({ item, onReviewed, onSkipped, onDismissed, onError }: CardPr
     } finally {
       setBusy(false);
       setPickerOpen(false);
+    }
+  }
+
+  async function handlePickMember(m: MemberCandidate) {
+    if (busy) return;
+    try {
+      await handleConfirm(m.person_id ?? (await personForMember(m.id)));
+    } catch {
+      onError(item.face_id);
     }
   }
 
@@ -139,7 +187,14 @@ function QueueCard({ item, onReviewed, onSkipped, onDismissed, onError }: CardPr
         </button>
       </div>
 
-      {pickerOpen && (
+      {pickerOpen && familyLoaded && (
+        <FamilyPicker
+          faceId={item.face_id}
+          onPick={(m) => void handlePickMember(m)}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+      {pickerOpen && !familyLoaded && (
         <PersonPicker
           people={people}
           onPick={(id) => void handleConfirm(id)}

@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from api.family import family_list_loaded
 from api.scan import broadcast_ws
 from db.database import get_db
 from services.clustering import ClusteringService
@@ -153,6 +154,10 @@ async def set_name(person_id: int, body: NameRequest) -> dict[str, Any]:
         ).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="Person not found")
+        # #198: with a family list loaded, names come only from the list
+        # (POST /people/{id}/member) so exports never carry an unknown name.
+        if await family_list_loaded(db):
+            raise HTTPException(status_code=409, detail="Pick a name from the family list")
         await db.execute("UPDATE people SET name = ? WHERE id = ?", (body.name, person_id))
         await db.commit()
 

@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { renamePerson, mergePeople } from "../api/client";
+import { renamePerson, mergePeople, linkPersonToMember, type MemberCandidate } from "../api/client";
 import { useToastStore } from "../store/toast";
+import { useFamilyStore } from "../store/family";
+import { MemberPicker } from "./MemberPicker";
 import "./NamingModal.css";
 
 interface ExistingPerson {
@@ -24,14 +26,22 @@ export function NamingModal({
   onSkip,
 }: NamingModalProps) {
   const [name, setName] = useState("");
+  const [member, setMember] = useState<MemberCandidate | null>(null);
   const [saving, setSaving] = useState(false);
+  // #198: with a family list loaded, names come only from the list.
+  const familyLoaded = useFamilyStore((s) => s.loaded);
 
-  const trimmed = name.trim();
+  const trimmed = familyLoaded ? (member?.name ?? "") : name.trim();
 
-  // Case-insensitive match against existing named people (excluding self)
-  const mergeTarget = existingPeople.find(
-    (p) => p.id !== personId && p.name.toLowerCase() === trimmed.toLowerCase(),
-  ) ?? null;
+  // Free text: case-insensitive match against existing named people (excluding
+  // self). Family list: the member is already another cluster.
+  const mergeTarget = familyLoaded
+    ? member && member.person_id != null && member.person_id !== personId
+      ? { id: member.person_id, name: member.name }
+      : null
+    : existingPeople.find(
+        (p) => p.id !== personId && p.name.toLowerCase() === trimmed.toLowerCase(),
+      ) ?? null;
 
   const handleSave = async () => {
     if (!trimmed) return;
@@ -39,6 +49,8 @@ export function NamingModal({
     try {
       if (mergeTarget) {
         await mergePeople(personId, mergeTarget.id);
+      } else if (familyLoaded && member) {
+        await linkPersonToMember(personId, member.id);
       } else {
         await renamePerson(personId, trimmed);
       }
@@ -65,6 +77,10 @@ export function NamingModal({
           />
         ))}
       </div>
+      {familyLoaded ? (
+        <MemberPicker target={{ personId }} value={member} onChange={setMember} autoFocus />
+      ) : (
+      <>
       <input
         type="text"
         list="naming-suggestions"
@@ -81,6 +97,8 @@ export function NamingModal({
           <option key={p.id} value={p.name} />
         ))}
       </datalist>
+      </>
+      )}
 
       {mergeTarget && (
         <p className="naming-modal__merge-hint">

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchUncertainQueue, fetchQueueCount } from "../api/client";
+import {
+  fetchUncertainQueue,
+  fetchQueueCount,
+  fetchReviewQueue,
+  fetchReviewProgress,
+  type ReviewProgress,
+} from "../api/client";
 import type { QueueItem } from "../api/types";
 import { UncertainQueue } from "./UncertainQueue";
 import { useQueueStore } from "../store/queue";
@@ -12,9 +18,16 @@ const QUEUE_PAGE = 100;
 /** Full review flow for uncertain faces (#108): fetches the queue, renders
  *  UncertainQueue cards, and keeps the sidebar badge in sync as items are
  *  confirmed or skipped. */
-export function QueueView() {
+interface QueueViewProps {
+  /** Guided review (#198): only faces suggested as family-list people —
+   *  biggest groups and least-sure faces first — with per-person progress. */
+  guided?: boolean;
+}
+
+export function QueueView({ guided = false }: QueueViewProps = {}) {
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState<ReviewProgress | null>(null);
   const setQueueCount = useQueueStore((s) => s.setQueueCount);
   const queueCount = useQueueStore((s) => s.queueCount);
   // Faces skipped this session stay uncertain server-side; remember them so a
@@ -23,14 +36,22 @@ export function QueueView() {
 
   const refresh = useCallback(() => {
     setLoading(true);
-    Promise.all([fetchUncertainQueue(0, QUEUE_PAGE), fetchQueueCount()])
+    if (guided) {
+      fetchReviewProgress()
+        .then(setProgress)
+        .catch(() => {});
+    }
+    Promise.all([
+      guided ? fetchReviewQueue(0, QUEUE_PAGE) : fetchUncertainQueue(0, QUEUE_PAGE),
+      fetchQueueCount(),
+    ])
       .then(([queue, count]) => {
         setItems(queue.filter((q) => !skippedRef.current.has(q.face_id)));
         setQueueCount(count.count);
       })
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [setQueueCount]);
+  }, [guided, setQueueCount]);
 
   useEffect(() => {
     refresh();
@@ -65,13 +86,18 @@ export function QueueView() {
           .then((c) => setQueueCount(c.count))
           .catch(() => {});
       }
+      if (guided) {
+        fetchReviewProgress()
+          .then(setProgress)
+          .catch(() => {});
+      }
       if (mode === "confirmed") {
         // Confirming changes photo counts / medallions — reuse the existing
         // sidebar refresh channel. Dismissing touches neither.
         useUIStore.getState().bumpScanVersion();
       }
     },
-    [refresh, setQueueCount],
+    [guided, refresh, setQueueCount],
   );
 
   // A card's action failed — most likely another sweep/refresh already
@@ -87,13 +113,51 @@ export function QueueView() {
   return (
     <div className="queue-view">
       <header className="queue-view__header">
-        <h2 className="queue-view__title">Review uncertain faces</h2>
+        <h2 className="queue-view__title">
+          {guided ? "Guided review" : "Review uncertain faces"}
+        </h2>
         <p className="queue-view__subtitle">
-          {queueCount > 0
-            ? `${queueCount} face${queueCount === 1 ? "" : "s"} waiting for your confirmation`
-            : "All caught up"}
+          {guided
+            ? progress === null
+              ? "Loading progress…"
+              : progress.done
+                ? "Done — faces-h is confident about everyone on your family list"
+                : `${progress.remaining} face${progress.remaining === 1 ? "" : "s"} left to confirm — each answer sharpens the match for the rest`
+            : queueCount > 0
+              ? `${queueCount} face${queueCount === 1 ? "" : "s"} waiting for your confirmation`
+              : "All caught up"}
         </p>
       </header>
+      {guided && progress !== null && progress.people.length > 0 && (
+        <table className="queue-view__progress" aria-label="Progress per person">
+          <thead>
+            <tr>
+              <th>Person</th>
+              <th>Confirmed</th>
+              <th>To check</th>
+            </tr>
+          </thead>
+          <tbody>
+            {progress.people.map((p) => (
+              <tr key={p.person_id}>
+                <td dir="auto">
+                  {p.name}
+                  {p.heb_name ? ` · ${p.heb_name}` : ""}
+                </td>
+                <td>{p.assigned}</td>
+                <td>{p.uncertain === 0 ? "✓" : p.uncertain}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {guided && progress !== null && progress.members_without_faces > 0 && (
+        <p className="queue-view__hint">
+          {progress.members_without_faces} family member
+          {progress.members_without_faces === 1 ? " has" : "s have"} no faces yet — name a
+          group in the sidebar to add them.
+        </p>
+      )}
       {loading && items.length === 0 ? (
         <p className="queue-view__loading">Loading review queue…</p>
       ) : (

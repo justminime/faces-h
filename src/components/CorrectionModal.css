@@ -94,3 +94,18 @@
 .correction-modal__cancel:hover {
   background: var(--color-surface-2);
 }
+.correction-modal__save {
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: #fff;
+  font-family: var(--font-family);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.correction-modal__save:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

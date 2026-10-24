@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS people (
     id          INTEGER PRIMARY KEY,
     name        TEXT    NOT NULL,
     created_at  INTEGER NOT NULL,
-    centroid    BLOB
+    centroid    BLOB,
+    list_member_id INTEGER
 )
 """
 
@@ -73,6 +74,21 @@ CREATE TABLE IF NOT EXISTS scan_roots (
     added_at     INTEGER NOT NULL,
     is_network   INTEGER NOT NULL DEFAULT 0,
     last_seen_at INTEGER
+)
+"""
+
+# Family list (#198): the people another app (e.g. the family portal) knows,
+# imported from its JSON. id is that app's member id, kept as-is so tag
+# exports can hand it back. When a list is loaded, people are named only by
+# linking them to a member (people.list_member_id).
+FAMILY_MEMBERS = """
+CREATE TABLE IF NOT EXISTS family_members (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT    NOT NULL,
+    heb_name    TEXT,
+    birth_year  INTEGER,
+    death_year  INTEGER,
+    imported_at INTEGER NOT NULL
 )
 """
 
@@ -123,6 +139,11 @@ PHOTOS_MIGRATIONS: list[tuple[str, str | None]] = [
     ("ALTER TABLE photos ADD COLUMN rotation_dismissed INTEGER NOT NULL DEFAULT 0", None),
 ]
 
+# list_member_id (#198): the family_members row this person is; NULL = not linked.
+PEOPLE_MIGRATIONS: list[tuple[str, str | None]] = [
+    ("ALTER TABLE people ADD COLUMN list_member_id INTEGER", None),
+]
+
 INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_faces_photo     ON faces(photo_id)",
     "CREATE INDEX IF NOT EXISTS idx_faces_person    ON faces(person_id)",
@@ -133,7 +154,10 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_photos_phash    ON photos(phash)",
     "CREATE INDEX IF NOT EXISTS idx_photos_size     ON photos(file_size)",
     "CREATE INDEX IF NOT EXISTS idx_scan_roots_path ON scan_roots(path)",
+    "CREATE INDEX IF NOT EXISTS idx_people_member   ON people(list_member_id)",
 ]
 
-ALL_TABLES = [PHOTOS, FACES, PEOPLE, CORRECTIONS, SCAN_STATE, SCAN_ROOTS]
-ALL_MIGRATIONS: list[tuple[str, str | None]] = SCAN_ROOTS_MIGRATIONS + PHOTOS_MIGRATIONS
+ALL_TABLES = [PHOTOS, FACES, PEOPLE, CORRECTIONS, SCAN_STATE, SCAN_ROOTS, FAMILY_MEMBERS]
+ALL_MIGRATIONS: list[tuple[str, str | None]] = (
+    SCAN_ROOTS_MIGRATIONS + PHOTOS_MIGRATIONS + PEOPLE_MIGRATIONS
+)
