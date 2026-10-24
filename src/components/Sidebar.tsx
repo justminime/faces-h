@@ -17,6 +17,7 @@ interface SidebarProps {
   onAddFolder?: () => void;
   onRescan?: () => void;
   onExport?: () => void;
+  onExportTags?: () => void;
   onImport?: () => void;
   onFindBlurry?: () => void;
   onFindDuplicates?: () => void;
@@ -59,6 +60,7 @@ export function Sidebar({
   onAddFolder,
   onRescan,
   onExport,
+  onExportTags,
   onImport,
   onFindBlurry,
   onFindDuplicates,
@@ -180,6 +182,10 @@ export function Sidebar({
               <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onExport)}>
                 <span className="sidebar__menu-icon">↑</span>
                 Export Named People
+              </button>
+              <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onExportTags)}>
+                <span className="sidebar__menu-icon">🏷</span>
+                Export Photo Tags
               </button>
               <button type="button" className="sidebar__menu-item" role="menuitem" onClick={action(onImport)}>
                 <span className="sidebar__menu-icon">↓</span>
