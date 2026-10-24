@@ -198,6 +198,39 @@ async def test_suggestions_endpoint_exif_and_probe(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_dismiss_endpoint_hides_suggestion_permanently(tmp_path: Path) -> None:
+    """#195: discarding a suggestion must persist across reloads/rescans —
+    unlike unchecking a card, which only affects the next rotate batch."""
+    os.environ["FACES_H_DATA_DIR"] = str(tmp_path)
+    from db.database import get_db
+
+    async with get_db() as db:
+        await db.execute(
+            "INSERT INTO photos (id, path, mtime, exif_orientation) VALUES (1, 'C:/g/tagged.jpg', 1, 6)"
+        )
+        await db.execute(
+            "INSERT INTO photos (id, path, mtime, suggested_rotation, rotation_checked)"
+            " VALUES (2, 'C:/g/probed.jpg', 1, 270, 1)"
+        )
+        await db.commit()
+
+    from main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as ac:
+        r = await ac.post("/photos/999/rotation-dismiss")
+        assert r.status_code == 404
+
+        r = await ac.post("/photos/1/rotation-dismiss")
+        assert r.status_code == 200
+        assert r.json() == {"id": 1, "rotation_dismissed": True}
+
+        r = await ac.get("/photos/rotation-suggestions")
+        body = r.json()
+
+    assert {p["id"] for p in body} == {2}, "dismissed suggestion no longer listed"
+
+
+@pytest.mark.asyncio
 async def test_rotate_endpoint_updates_row(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     os.environ["FACES_H_DATA_DIR"] = str(tmp_path / "data")
     os.makedirs(str(tmp_path / "data"), exist_ok=True)

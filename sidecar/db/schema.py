@@ -117,6 +117,10 @@ PHOTOS_MIGRATIONS: list[tuple[str, str | None]] = [
     ("ALTER TABLE photos ADD COLUMN exif_orientation INTEGER", None),
     ("ALTER TABLE photos ADD COLUMN suggested_rotation INTEGER", None),
     ("ALTER TABLE photos ADD COLUMN rotation_checked INTEGER NOT NULL DEFAULT 0", None),
+    # rotation_dismissed (#195): a suggestion the user decided isn't needed.
+    # Persistent and independent of the checkbox selection state — unlike
+    # unchecking a card, dismissal survives reloads and future rescans.
+    ("ALTER TABLE photos ADD COLUMN rotation_dismissed INTEGER NOT NULL DEFAULT 0", None),
 ]
 
 INDEXES = [

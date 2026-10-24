@@ -3,6 +3,7 @@ import {
   fetchRotationSuggestions,
   startRotationScan,
   rotatePhotos,
+  dismissRotationSuggestion,
   photoThumbUrl,
   type RotationSuggestion,
 } from "../api/client";
@@ -26,6 +27,7 @@ export function RotationView() {
   const [scanning, setScanning] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [dismissingId, setDismissingId] = useState<number | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -64,6 +66,24 @@ export function RotationView() {
       else next.add(id);
       return next;
     });
+  }
+
+  async function discard(id: number) {
+    if (dismissingId !== null) return;
+    setDismissingId(id);
+    try {
+      await dismissRotationSuggestion(id);
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    } catch {
+      useToastStore.getState().addToast("Could not discard the suggestion");
+    } finally {
+      setDismissingId(null);
+    }
   }
 
   async function confirmRotate() {
@@ -184,15 +204,25 @@ export function RotationView() {
                   )}
                 </span>
               </div>
-              <label className="rotation-view__checkbox">
-                <input
-                  type="checkbox"
-                  checked={selected.has(item.id)}
-                  disabled={!item.rotatable}
-                  onChange={() => toggle(item.id)}
-                />
-                Apply this rotation
-              </label>
+              <div className="rotation-view__card-actions">
+                <label className="rotation-view__checkbox">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(item.id)}
+                    disabled={!item.rotatable}
+                    onChange={() => toggle(item.id)}
+                  />
+                  Apply this rotation
+                </label>
+                <button
+                  type="button"
+                  className="rotation-view__btn rotation-view__btn--ghost rotation-view__discard"
+                  onClick={() => void discard(item.id)}
+                  disabled={dismissingId === item.id}
+                >
+                  {dismissingId === item.id ? "Discarding…" : "Not needed"}
+                </button>
+              </div>
             </div>
           ))}
         </div>
