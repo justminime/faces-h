@@ -16,7 +16,6 @@ from ml.base import FaceResult
 from services.clustering import ClusteringService
 from services.scanner import _extract_faces, get_status, reset_status, run_scan
 
-
 # ---------------------------------------------------------------------------
 # Fixtures and helpers
 # ---------------------------------------------------------------------------

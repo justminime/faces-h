@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+from pathlib import Path
 from typing import Any
 
 import aiosqlite
@@ -19,7 +20,6 @@ from PIL import Image
 from db.schema import ALL_TABLES, INDEXES
 from main import app
 from services.scanner import reset_status, run_scan
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -35,7 +35,7 @@ def _jpeg_bytes(color: tuple[int, int, int] = (100, 150, 200)) -> bytes:
 def _file_fingerprint(path: str) -> dict[str, Any]:
     """Capture mtime, size, and SHA-256 of a file."""
     stat = os.stat(path)
-    digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
+    digest = hashlib.sha256(Path(path).read_bytes()).hexdigest()
     return {"mtime": stat.st_mtime, "size": stat.st_size, "sha256": digest}
 
 

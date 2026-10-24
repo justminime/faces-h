@@ -42,7 +42,7 @@ class _ConnectionManager:
         for ws in list(self._connections):
             try:
                 await ws.send_text(json.dumps(message))
-            except Exception:
+            except Exception:  # noqa: BLE001 — any send failure means a dead socket
                 dead.append(ws)
         for ws in dead:
             self.disconnect(ws)

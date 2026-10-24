@@ -54,7 +54,7 @@ async def get_face_crop(face_id: int) -> Response:
         )
 
     def _generate_crop() -> bytes:
-        from PIL import ImageOps  # noqa: PLC0415
+        from PIL import ImageOps
 
         with Image.open(row["photo_path"]) as src_img:
             img = ImageOps.exif_transpose(src_img) or src_img

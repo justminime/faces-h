@@ -9,10 +9,9 @@ import aiosqlite
 import numpy as np
 from httpx import ASGITransport, AsyncClient
 
-from db.schema import ALL_TABLES, INDEXES
 from config import DEFAULT_UNCERTAIN_THRESHOLD as _UNCERTAIN_THRESHOLD
+from db.schema import ALL_TABLES, INDEXES
 from services.reeval import ReEvaluationService
-
 
 # ---------------------------------------------------------------------------
 # Helpers (mirrors test_clustering.py pattern)

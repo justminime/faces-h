@@ -5,17 +5,15 @@ import logging
 import os
 from typing import Any
 
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from config import get_config
-from services.backup import backup_file
-from services.scanner import is_network_path
-
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import Response
-
 from db.database import get_db
 from services import image_cache
+from services.backup import backup_file
+from services.scanner import is_network_path
 
 router = APIRouter(prefix="/photos", tags=["photos"])
 logger = logging.getLogger(__name__)
@@ -90,9 +88,8 @@ async def list_blurry_photos(
     get scored on their next scan."""
     if threshold is None or threshold <= 0:
         threshold = get_config().blur_threshold
-    async with get_db() as db:
-        async with db.execute(
-            """
+    async with get_db() as db, db.execute(
+        """
             SELECT id, path, taken_at, blur_score, file_size
               FROM photos
              WHERE missing = 0
@@ -101,9 +98,9 @@ async def list_blurry_photos(
              ORDER BY blur_score ASC
              LIMIT ? OFFSET ?
             """,
-            (threshold, limit, offset),
-        ) as cur:
-            rows = await cur.fetchall()
+        (threshold, limit, offset),
+    ) as cur:
+        rows = await cur.fetchall()
     return [
         {
             "id": int(r["id"]),
@@ -138,7 +135,7 @@ async def trash_photos(body: TrashRequest) -> dict[str, Any]:
         return {"trashed": 0, "deleted_permanently": 0, "failed": []}
 
     try:
-        from send2trash import send2trash  # noqa: PLC0415
+        from send2trash import send2trash
     except ImportError as exc:
         raise HTTPException(status_code=503, detail="send2trash not installed") from exc
 
@@ -193,7 +190,7 @@ async def trash_photos(body: TrashRequest) -> dict[str, Any]:
 
 
 def _sha256_file(path: str) -> str:
-    import hashlib  # noqa: PLC0415
+    import hashlib
 
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -203,7 +200,7 @@ def _sha256_file(path: str) -> str:
 
 
 def _photo_entry(r: Any) -> dict[str, Any]:
-    import os as _os  # noqa: PLC0415
+    import os as _os
 
     return {
         "id": int(r["id"]),

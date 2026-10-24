@@ -46,18 +46,17 @@ def _normalise(v: np.ndarray) -> np.ndarray:
 async def export_library() -> dict[str, Any]:
     """Return a portable bundle of named people and their centroids."""
     people: list[dict[str, str]] = []
-    async with get_db() as db:
-        async with db.execute(
-            "SELECT name, centroid FROM people "
-            "WHERE name IS NOT NULL AND TRIM(name) != '' AND centroid IS NOT NULL"
-        ) as cur:
-            async for row in cur:
-                people.append(
-                    {
-                        "name": row["name"],
-                        "centroid_b64": base64.b64encode(row["centroid"]).decode("ascii"),
-                    }
-                )
+    async with get_db() as db, db.execute(
+        "SELECT name, centroid FROM people "
+        "WHERE name IS NOT NULL AND TRIM(name) != '' AND centroid IS NOT NULL"
+    ) as cur:
+        async for row in cur:
+            people.append(
+                {
+                    "name": row["name"],
+                    "centroid_b64": base64.b64encode(row["centroid"]).decode("ascii"),
+                }
+            )
     return {"version": _EXPORT_VERSION, "exported_at": int(time.time()), "people": people}
 
 
@@ -89,7 +88,7 @@ async def import_library(bundle: ImportBundle) -> dict[str, Any]:
         for person in bundle.people:
             try:
                 raw = np.frombuffer(base64.b64decode(person.centroid_b64), dtype=np.float32).copy()
-            except Exception:
+            except Exception:  # noqa: BLE001 — a malformed centroid is reported, not fatal
                 unmatched.append(person.name)
                 continue
             if raw.size == 0:

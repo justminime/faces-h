@@ -131,9 +131,9 @@ def generate_thumbnail_bytes(photo_path: str, size: int) -> bytes:
     Runs inside a worker thread (asyncio.to_thread) — PIL work in the event
     loop serialized every image request behind one core (#150).
     """
-    import io  # noqa: PLC0415
+    import io
 
-    from PIL import Image, ImageOps  # noqa: PLC0415
+    from PIL import Image, ImageOps
 
     with Image.open(photo_path) as src_img:
         oriented = ImageOps.exif_transpose(src_img) or src_img
@@ -166,10 +166,10 @@ def blur_score_from_jpeg(jpeg_bytes: bytes) -> float | None:
     adds no extra full-resolution decode to the scan. Higher = sharper;
     values below config.blur_threshold count as blurry. None on failure.
     """
-    import io  # noqa: PLC0415
+    import io
 
-    import numpy as np  # noqa: PLC0415
-    from PIL import Image  # noqa: PLC0415
+    import numpy as np
+    from PIL import Image
 
     try:
         with Image.open(io.BytesIO(jpeg_bytes)) as img:
@@ -212,10 +212,10 @@ def dhash_from_jpeg(jpeg_bytes: bytes) -> int | None:
     computed from the already-generated thumbnail, so it costs no extra
     full-resolution decode. None on failure.
     """
-    import io  # noqa: PLC0415
+    import io
 
-    import numpy as np  # noqa: PLC0415
-    from PIL import Image  # noqa: PLC0415
+    import numpy as np
+    from PIL import Image
 
     try:
         with Image.open(io.BytesIO(jpeg_bytes)) as img:

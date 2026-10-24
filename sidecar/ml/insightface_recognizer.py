@@ -57,7 +57,7 @@ class InsightFaceRecognizer(FaceRecognizer):
             try:
                 from PIL import ImageOps as _ImageOps
                 pil_img = _ImageOps.exif_transpose(_PIL.open(image_path))
-            except Exception:
+            except Exception:  # noqa: BLE001 — unreadable image yields no faces
                 return []
 
             # InsightFace expects a uint8 BGR numpy array (OpenCV convention)

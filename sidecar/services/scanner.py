@@ -16,10 +16,11 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Literal
+from typing import Any, Literal
 
 import aiosqlite
 import numpy as np
@@ -125,7 +126,7 @@ def is_network_path(path: str) -> bool:
             DRIVE_REMOTE = 4
             drive_root = path[:3] if len(path) >= 3 else path[:2] + "\\"
             return int(ctypes.windll.kernel32.GetDriveTypeW(drive_root)) == DRIVE_REMOTE  # type: ignore[attr-defined]
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 — unknown drive type counts as local
             pass
     return False
 
@@ -171,7 +172,7 @@ def _open_image(path: str) -> bool:
         with Image.open(path):
             pass
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001 — any read failure means unreachable
         return False
 
 
@@ -196,7 +197,7 @@ def _read_taken_at(path: str) -> int | None:
             return None
         dt_str = raw.decode("ascii") if isinstance(raw, bytes) else str(raw)
         return int(datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S").timestamp())
-    except Exception:
+    except Exception:  # noqa: BLE001 — bad EXIF date means no date
         return None
 
 
@@ -226,7 +227,7 @@ async def _process_file(path: str, db: aiosqlite.Connection) -> ProcessResult:
         # Backfill analysis for photos scanned before #154/#155 shipped —
         # cheap: the thumbnail is usually already in the disk cache.
         if row["blur_score"] is None or row["phash"] is None or row["file_size"] is None:
-            from services import image_cache  # noqa: PLC0415
+            from services import image_cache
             score, phash = await asyncio.to_thread(
                 image_cache.analyze_photo, int(row["id"]), path, mtime
             )
@@ -246,7 +247,7 @@ async def _process_file(path: str, db: aiosqlite.Connection) -> ProcessResult:
             return "error"
 
     taken_at = await asyncio.to_thread(_read_taken_at, path)
-    from services.rotation import read_exif_orientation  # noqa: PLC0415
+    from services.rotation import read_exif_orientation
     exif_orientation = await asyncio.to_thread(read_exif_orientation, path)
 
     try:
@@ -269,7 +270,7 @@ async def _process_file(path: str, db: aiosqlite.Connection) -> ProcessResult:
             (path, mtime, taken_at, file_size, exif_orientation),
         )
         await db.commit()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — logged; one bad file must not stop the scan
         logger.warning("DB insert failed for %s: %s", path, exc)
         return "error"
 
@@ -297,7 +298,7 @@ async def _extract_faces(
     """
     try:
         results = await asyncio.to_thread(recognizer.detect_and_embed, path)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — logged; one bad file must not stop the scan
         logger.warning("detect_and_embed failed for %s: %s", path, exc)
         return
 
@@ -305,7 +306,7 @@ async def _extract_faces(
     # or below the detector-confidence floor; junk embeddings otherwise seed
     # singleton clusters and pollute the uncertain queue. size_px == 0 means
     # the backend didn't report a pixel size — exempt from the size filter.
-    from config import get_config  # noqa: PLC0415
+    from config import get_config
     cfg = get_config()
     kept: list[Any] = []
     for face in results:
@@ -336,9 +337,9 @@ async def _extract_faces(
     stale_face_ids = [int(row["id"]) for row in await cur.fetchall()]
     if stale_face_ids:
         try:
-            from services.face_index import get_face_index  # noqa: PLC0415
+            from services.face_index import get_face_index
             get_face_index().remove(stale_face_ids)
-        except Exception:  # noqa: BLE001 — advisory index; DB recheck covers staleness
+        except Exception:  # noqa: BLE001, S110 — advisory index; DB recheck covers staleness
             pass
     await db.execute(
         "DELETE FROM corrections WHERE face_id IN (SELECT id FROM faces WHERE photo_id = ?)",
@@ -417,17 +418,17 @@ async def run_scan(
     recognizer = None
     clustering = None
     try:
-        from config import get_config  # noqa: PLC0415
-        from ml.factory import get_recognizer  # noqa: PLC0415
-        from services.clustering import ClusteringService  # noqa: PLC0415
+        from config import get_config
+        from ml.factory import get_recognizer
+        from services.clustering import ClusteringService
         recognizer = await asyncio.to_thread(get_recognizer, get_config(), data_dir)
         clustering = ClusteringService()
         logger.info("face recognizer loaded — face detection active")
         # Warm the FAISS candidate index (#106): load from disk or rebuild
         # from the faces table so assignment shortlists work immediately.
-        from services.face_index import get_face_index  # noqa: PLC0415
+        from services.face_index import get_face_index
         await get_face_index().ensure_ready(db)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — logged; fall back to a metadata-only scan
         logger.warning("face recognizer unavailable, metadata-only scan: %s", exc)
 
     unindexed: dict[str, int] = {}
@@ -458,7 +459,7 @@ async def run_scan(
                 # disk-cache read instead of a full-resolution decode (#150),
                 # scoring sharpness (#154) and the perceptual hash (#155)
                 # from the same decode.
-                from services import image_cache  # noqa: PLC0415
+                from services import image_cache
                 score, phash = await asyncio.to_thread(
                     image_cache.analyze_photo, int(row["id"]), path, int(row["mtime"])
                 )
@@ -553,9 +554,9 @@ async def run_scan(
 
     if recognizer is not None:
         try:
-            from services.face_index import get_face_index  # noqa: PLC0415
+            from services.face_index import get_face_index
             get_face_index().save()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110 — advisory index; rebuilt from the DB if missing
             pass
 
     if not preset:
