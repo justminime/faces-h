@@ -6,6 +6,9 @@ import { useTheme } from "../hooks/useTheme";
 import type { Theme } from "../hooks/useTheme";
 import "./Sidebar.css";
 
+/** People listed before "Show all" (#204). */
+export const SIDEBAR_PEOPLE_LIMIT = 200;
+
 interface SidebarProps {
   people: Person[];
   selectedPersonId: number | null;
@@ -91,8 +94,20 @@ export function Sidebar({
   // out of the section naturally.
   const isSingleton = (p: Person) =>
     (p.name === null || p.name === "Unnamed") && p.photoCount <= 1;
-  const mainPeople = people.filter((p) => !isSingleton(p));
+  const allMainPeople = people.filter((p) => !isSingleton(p));
   const singletons = people.filter(isSingleton);
+  // #204: a big library has thousands of multi-photo clusters; rendering a
+  // medallion for each kept the WebView at GBs. Show the biggest first (the
+  // list arrives sorted by photo count) and the rest on request — plus the
+  // selected person, wherever it sits.
+  const [showAllPeople, setShowAllPeople] = useState(false);
+  const mainPeople =
+    showAllPeople || allMainPeople.length <= SIDEBAR_PEOPLE_LIMIT
+      ? allMainPeople
+      : allMainPeople.filter(
+          (p, i) => i < SIDEBAR_PEOPLE_LIMIT || p.id === selectedPersonId,
+        );
+  const hiddenPeople = allMainPeople.length - mainPeople.length;
   // Keep the active row visible even if the section is collapsed.
   const singletonsShown =
     singletonsOpen || singletons.some((p) => p.id === selectedPersonId);
@@ -328,6 +343,18 @@ export function Sidebar({
             </button>
           </li>
         ))}
+        {hiddenPeople > 0 && (
+          <li>
+            <button
+              type="button"
+              className="sidebar__person sidebar__singletons-toggle"
+              onClick={() => setShowAllPeople(true)}
+            >
+              <span className="sidebar__name">Show all people</span>
+              <span className="sidebar__count">+{hiddenPeople.toLocaleString()}</span>
+            </button>
+          </li>
+        )}
         {singletons.length > 0 && (
           <li>
             <button

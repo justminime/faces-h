@@ -38,6 +38,9 @@ _api_token: str = ""
 # emitting sidecar-ready, so it can't include the token yet).
 _TOKEN_EXEMPT = {"/health", "/ws"}
 
+# Seconds after startup before an interrupted scan resumes (#203).
+_RESUME_DELAY_S = 5.0
+
 
 @app.middleware("http")
 async def require_token(request: Request, call_next):  # type: ignore[no-untyped-def]
@@ -163,6 +166,26 @@ async def _purge_expired_backups() -> None:
         await asyncio.to_thread(purge_old_backups)
     except Exception:
         logging.getLogger(__name__).exception("backup purge failed")
+
+
+@app.on_event("startup")
+async def _resume_interrupted_scan() -> None:
+    """Pick up a scan the last session didn't finish (#203).
+
+    Delayed a few seconds so the UI has connected its WebSocket and shows
+    the scan's progress from the start.
+    """
+
+    async def _resume() -> None:
+        await asyncio.sleep(_RESUME_DELAY_S)
+        try:
+            from api.scan import resume_interrupted_scan
+
+            await resume_interrupted_scan()
+        except Exception:
+            logging.getLogger(__name__).exception("resuming the interrupted scan failed")
+
+    asyncio.create_task(_resume())
 
 
 @app.on_event("startup")

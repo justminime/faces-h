@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
@@ -77,6 +78,45 @@ async def websocket_endpoint(
         _manager.disconnect(ws)
 
 
+# scan_state key holding the scan that is running or was cut short (#203):
+# {"kind": "start", "root": <path>} or {"kind": "rescan"}. Written when a scan
+# starts, deleted only when it ends cleanly, so a crash, a closed app or a
+# scan_failed leaves it behind for resume_interrupted_scan().
+_RESUME_KEY = "interrupted_scan"
+
+
+async def _set_resume_marker(marker: dict[str, str] | None) -> None:
+    async with get_db() as db:
+        if marker is None:
+            await db.execute("DELETE FROM scan_state WHERE key = ?", (_RESUME_KEY,))
+        else:
+            await db.execute(
+                "INSERT OR REPLACE INTO scan_state(key, value) VALUES(?, ?)",
+                (_RESUME_KEY, json.dumps(marker)),
+            )
+        await db.commit()
+
+
+def _launch(marker: dict[str, str], body: Callable[[], Awaitable[None]]) -> None:
+    """Run a scan in the background. Failures reach the UI as scan_failed
+    instead of dying in an unretrieved task (#203)."""
+
+    async def _run() -> None:
+        try:
+            await _set_resume_marker(marker)
+            await body()
+            await _set_resume_marker(None)
+        except Exception as exc:  # reported to the UI; the marker lets it resume
+            message = str(exc) or type(exc).__name__
+            get_status().error = message
+            logger.exception("scan stopped early: %s", message)
+            await _manager.broadcast({"type": "scan_failed", "message": message})
+        finally:
+            end_scan()
+
+    asyncio.create_task(_run())
+
+
 @router.post("/scan/start")
 async def start_scan(body: StartScanRequest) -> dict[str, str]:
     if get_status().running:
@@ -90,30 +130,27 @@ async def start_scan(body: StartScanRequest) -> dict[str, str]:
     # /scan/start calls must not both pass the check above (#113).
     begin_scan(body.root_path)
 
-    async def _run() -> None:
-        try:
-            async with get_db() as db:
-                await db.execute(
-                    """INSERT INTO scan_roots(path, added_at, is_network)
-                       VALUES(?, ?, ?)
-                       ON CONFLICT(path) DO UPDATE SET is_network = excluded.is_network""",
-                    (body.root_path, int(time.time()), int(network)),
+    async def _scan() -> None:
+        async with get_db() as db:
+            await db.execute(
+                """INSERT INTO scan_roots(path, added_at, is_network)
+                   VALUES(?, ?, ?)
+                   ON CONFLICT(path) DO UPDATE SET is_network = excluded.is_network""",
+                (body.root_path, int(time.time()), int(network)),
+            )
+            await db.commit()
+            logger.info("scan starting: root=%s network=%s", body.root_path, network)
+            await run_scan(body.root_path, _manager.broadcast, db, preset=True)
+            # Update last_seen_at on successful completion
+            async with get_db() as db2:
+                await db2.execute(
+                    "UPDATE scan_roots SET last_seen_at = ? WHERE path = ?",
+                    (int(time.time()), body.root_path),
                 )
-                await db.commit()
-                logger.info("scan starting: root=%s network=%s", body.root_path, network)
-                await run_scan(body.root_path, _manager.broadcast, db, preset=True)
-                # Update last_seen_at on successful completion
-                async with get_db() as db2:
-                    await db2.execute(
-                        "UPDATE scan_roots SET last_seen_at = ? WHERE path = ?",
-                        (int(time.time()), body.root_path),
-                    )
-                    await db2.commit()
-                logger.info("scan finished: root=%s", body.root_path)
-        finally:
-            end_scan()
+                await db2.commit()
+            logger.info("scan finished: root=%s", body.root_path)
 
-    asyncio.create_task(_run())
+    _launch({"kind": "start", "root": body.root_path}, _scan)
     return {"status": "started"}
 
 
@@ -128,39 +165,72 @@ async def rescan_all() -> dict[str, str]:
     # across roots so progress is one coherent aggregate (#113).
     begin_scan("(rescan)")
 
-    async def _run() -> None:
-        try:
+    async def _scan() -> None:
+        async with get_db() as db:
+            cur = await db.execute("SELECT path FROM scan_roots ORDER BY added_at")
+            roots = [row["path"] for row in await cur.fetchall()]
+        logger.info("scan/rescan: %d root(s) — %s", len(roots), roots)
+        if not roots:
+            await _manager.broadcast({"type": "scan_complete"})
+            return
+        for idx, root in enumerate(roots, 1):
+            # Check reachability before starting — offline network drives get a
+            # warning broadcast but don't block the rest of the rescan.
+            if not check_reachable(root):
+                logger.warning(
+                    "rescan (%d/%d): root unreachable, skipping: %s", idx, len(roots), root
+                )
+                await _manager.broadcast({"type": "drive_offline", "path": root})
+                continue
             async with get_db() as db:
-                cur = await db.execute("SELECT path FROM scan_roots ORDER BY added_at")
-                roots = [row["path"] for row in await cur.fetchall()]
-            logger.info("scan/rescan: %d root(s) — %s", len(roots), roots)
-            if not roots:
-                await _manager.broadcast({"type": "scan_complete"})
-                return
-            for idx, root in enumerate(roots, 1):
-                # Check reachability before starting — offline network drives get a
-                # warning broadcast but don't block the rest of the rescan.
-                if not check_reachable(root):
-                    logger.warning(
-                        "rescan (%d/%d): root unreachable, skipping: %s", idx, len(roots), root
+                logger.info("scan starting (%d/%d): root=%s", idx, len(roots), root)
+                await run_scan(root, _manager.broadcast, db, preset=True)
+                async with get_db() as db2:
+                    await db2.execute(
+                        "UPDATE scan_roots SET last_seen_at = ? WHERE path = ?",
+                        (int(time.time()), root),
                     )
-                    await _manager.broadcast({"type": "drive_offline", "path": root})
-                    continue
-                async with get_db() as db:
-                    logger.info("scan starting (%d/%d): root=%s", idx, len(roots), root)
-                    await run_scan(root, _manager.broadcast, db, preset=True)
-                    async with get_db() as db2:
-                        await db2.execute(
-                            "UPDATE scan_roots SET last_seen_at = ? WHERE path = ?",
-                            (int(time.time()), root),
-                        )
-                        await db2.commit()
-                    logger.info("scan finished (%d/%d): root=%s", idx, len(roots), root)
-        finally:
-            end_scan()
+                    await db2.commit()
+                logger.info("scan finished (%d/%d): root=%s", idx, len(roots), root)
 
-    asyncio.create_task(_run())
+    _launch({"kind": "rescan"}, _scan)
     return {"status": "started"}
+
+
+async def resume_interrupted_scan() -> str | None:
+    """Restart a scan that didn't finish last time (#203).
+
+    Called once at sidecar startup. Already-indexed photos are skipped, so
+    the scan picks up where it stopped. Returns what was resumed — the root
+    path or "(rescan)" — or None.
+    """
+    if get_status().running:
+        return None
+    async with get_db() as db:
+        cur = await db.execute("SELECT value FROM scan_state WHERE key = ?", (_RESUME_KEY,))
+        row = await cur.fetchone()
+        if row is None:
+            return None
+        try:
+            marker = json.loads(row["value"])
+        except (TypeError, ValueError):
+            marker = {}
+        if marker.get("kind") == "rescan":
+            logger.info("resuming an interrupted rescan of all folders")
+            await rescan_all()
+            return "(rescan)"
+        root = marker.get("root") if marker.get("kind") == "start" else None
+        known = None
+        if root:
+            cur = await db.execute("SELECT 1 FROM scan_roots WHERE path = ?", (root,))
+            known = await cur.fetchone()
+    if not root or known is None:
+        # Unreadable marker, or the folder was removed since — nothing to resume.
+        await _set_resume_marker(None)
+        return None
+    logger.info("resuming interrupted scan of %s", root)
+    await start_scan(StartScanRequest(root_path=root))
+    return str(root)
 
 
 @router.get("/scan/roots")
@@ -221,6 +291,7 @@ async def scan_status() -> dict[str, Any]:
         "error_count": s.error_count,
         "skipped_faces": s.skipped_faces,
         "eta_seconds": s.eta_seconds(),
+        "error": s.error,
     }
 
 

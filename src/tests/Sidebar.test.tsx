@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { Sidebar } from "../components/Sidebar";
+import { SIDEBAR_PEOPLE_LIMIT, Sidebar } from "../components/Sidebar";
 
 const base = {
   people: [],
@@ -100,5 +100,34 @@ describe("Sidebar singleton clusters (#141)", () => {
     expect(
       screen.getByRole("button", { name: /single-face clusters/i }),
     ).toHaveAttribute("aria-expanded", "true");
+  });
+});
+
+describe("Sidebar long people lists (#204)", () => {
+  const many = Array.from({ length: SIDEBAR_PEOPLE_LIMIT + 50 }, (_, i) => ({
+    id: i + 1,
+    name: `Person ${i + 1}`,
+    avatarSrc: "",
+    photoCount: 1000 - i,
+  }));
+
+  it("shows the first people and a Show all toggle for the rest", () => {
+    render(<Sidebar {...base} people={many} />);
+    expect(screen.getByText(`Person ${SIDEBAR_PEOPLE_LIMIT}`)).toBeInTheDocument();
+    expect(screen.queryByText(`Person ${SIDEBAR_PEOPLE_LIMIT + 1}`)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /show all people/i }));
+    expect(screen.getByText(`Person ${SIDEBAR_PEOPLE_LIMIT + 50}`)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /show all people/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps the selected person visible past the limit", () => {
+    render(<Sidebar {...base} people={many} selectedPersonId={SIDEBAR_PEOPLE_LIMIT + 10} />);
+    expect(screen.getByText(`Person ${SIDEBAR_PEOPLE_LIMIT + 10}`)).toBeInTheDocument();
+  });
+
+  it("shows no toggle for a short list", () => {
+    render(<Sidebar {...base} people={many.slice(0, 5)} />);
+    expect(screen.queryByRole("button", { name: /show all people/i })).not.toBeInTheDocument();
   });
 });

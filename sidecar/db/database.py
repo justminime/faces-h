@@ -72,7 +72,7 @@ async def get_db() -> AsyncIterator[aiosqlite.Connection]:
         # writer opened while a long-running background job (a scan) holds
         # the write lock gets "database is locked" immediately instead of
         # waiting a moment for it to clear (#174).
-        # TEMP-DISABLED-FOR-VERIFICATION
+        await conn.execute("PRAGMA busy_timeout=5000")
         if path not in _initialized_paths:
             await _apply_schema(conn)
             _initialized_paths.add(path)
