@@ -15,7 +15,9 @@ let _wsToken = "";
 // every event made App.tsx refetch the full people list + queue count each time
 // (~10,000 refetches on a 100k-photo scan). Bump at most once per window during
 // a scan; scan_complete / sweep_complete always bump immediately.
-const SCAN_BUMP_THROTTLE_MS = 5_000;
+// 30 s, not 5 s (#204): each bump refetches and re-renders every person, and on
+// a 77k-photo library that kept the WebView at GBs of memory for the whole scan.
+export const SCAN_BUMP_THROTTLE_MS = 30_000;
 let _lastScanBump = 0;
 
 function bumpScanVersionThrottled(): void {
@@ -92,6 +94,16 @@ export function handleMessage(event: MessageEvent): void {
         : "Scan complete — no new photos";
     useToastStore.getState().addToast(msg);
     log.push(msg, "success");
+    useUIStore.getState().setScanProgress(null);
+    bumpScanVersionNow();
+  } else if (p.type === "scan_failed") {
+    // The engine gave up after retrying (#203) — say so instead of leaving a
+    // progress bar that looks like it is still running. The scan resumes on
+    // the next app start, or with Rescan.
+    const reason = (p.message as string | undefined) ?? "unknown error";
+    const msg = `Scan stopped: ${reason}. It will continue the next time faces-h starts.`;
+    useToastStore.getState().addToast(msg);
+    log.push(msg, "warn");
     useUIStore.getState().setScanProgress(null);
     bumpScanVersionNow();
   } else if (p.type === "reeval_complete") {

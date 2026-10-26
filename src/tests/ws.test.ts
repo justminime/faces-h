@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
-import { handleMessage, resetScanBumpThrottle } from "../api/ws";
+import { SCAN_BUMP_THROTTLE_MS, handleMessage, resetScanBumpThrottle } from "../api/ws";
 import { useUIStore } from "../store/ui";
 import { useToastStore } from "../store/toast";
 import { useLogStore } from "../store/log";
@@ -64,6 +64,17 @@ describe("ws handleMessage", () => {
     expect(progressEntries[0].message).toContain("photo_5.jpg");
   });
 
+  it("scan_failed clears progress, bumps version, and says the scan stopped (#203)", () => {
+    useUIStore.setState({ scanProgress: 0.3 });
+    handleMessage(msg({ type: "scan_failed", message: "database error: disk I/O error" }));
+    expect(useUIStore.getState().scanProgress).toBeNull();
+    expect(scanVersion()).toBe(1);
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts[toasts.length - 1]?.message).toContain("Scan stopped: database error: disk I/O error");
+    const entries = useLogStore.getState().entries;
+    expect(entries[entries.length - 1]?.kind).toBe("warn");
+  });
+
   it("scan_complete clears progress, bumps version, and toasts", () => {
     useUIStore.setState({ scanProgress: 0.9 });
     handleMessage(msg({ type: "scan_complete", scanned: 12, total: 12 }));
@@ -113,7 +124,7 @@ describe("scan_progress refetch throttle (#110)", () => {
     handleMessage(msg({ type: "scan_progress", scanned: 10, total: 100 }));
     expect(scanVersion()).toBe(1);
 
-    vi.advanceTimersByTime(5_000);
+    vi.advanceTimersByTime(SCAN_BUMP_THROTTLE_MS);
     handleMessage(msg({ type: "scan_progress", scanned: 20, total: 100 }));
     expect(scanVersion()).toBe(2);
   });

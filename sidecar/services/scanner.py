@@ -14,6 +14,7 @@ corrupting the DB. The app NEVER writes to, moves, or deletes any photo file.
 import asyncio
 import logging
 import os
+import sqlite3
 import sys
 import time
 from collections.abc import Awaitable, Callable
@@ -50,9 +51,16 @@ _NETWORK_ERROR_LIMIT = 5
 # Seconds to wait between reconnection attempts when a network drive drops.
 _NETWORK_RETRY_DELAY = 5.0
 _NETWORK_RETRY_ATTEMPTS = 3
+# Back-off between retries of a photo whose DB writes failed (#203) — about
+# two minutes in all before the scan gives up.
+_DB_RETRY_DELAYS: tuple[float, ...] = (2.0, 5.0, 15.0, 30.0, 60.0)
 
 BroadcastFn = Callable[[dict[str, Any]], Awaitable[None]]
 ProcessResult = Literal["ok", "skip", "error"]
+
+
+class ScanAborted(Exception):
+    """The database kept failing; the scan stopped and can resume later (#203)."""
 
 
 @dataclass
@@ -67,6 +75,8 @@ class ScanStatus:
     # Detections dropped by the OD-04 size/confidence floor this scan (#111).
     skipped_faces: int = 0
     start_time: float = 0.0
+    # Why the last scan stopped early, "" if it didn't (#203).
+    error: str = ""
 
     def eta_seconds(self) -> int:
         # Rate counts skipped files too — incremental rescans are dominated by
@@ -371,6 +381,91 @@ async def _extract_faces(
     await db.commit()
 
 
+async def _scan_one(
+    path: str,
+    db: aiosqlite.Connection,
+    recognizer: Any,
+    clustering: Any,
+    unindexed: dict[str, int],
+) -> ProcessResult:
+    """Record one file, extract its faces and pre-generate its thumbnail."""
+    result = await _process_file(path, db)
+
+    if result == "ok":
+        row = await (await db.execute(
+            "SELECT id, mtime FROM photos WHERE path = ?", (path,)
+        )).fetchone()
+        if row:
+            if recognizer is not None:
+                # Tracked as unindexed until its faces commit, so a retry —
+                # which sees the file as "skip" — still extracts them (#203).
+                unindexed[path] = int(row["id"])
+                await _extract_faces(path, int(row["id"]), recognizer, clustering, db)
+                unindexed.pop(path, None)
+            # Pre-generate the gallery thumbnail so the first visit is a
+            # disk-cache read instead of a full-resolution decode (#150),
+            # scoring sharpness (#154) and the perceptual hash (#155)
+            # from the same decode.
+            from services import image_cache
+            score, phash = await asyncio.to_thread(
+                image_cache.analyze_photo, int(row["id"]), path, int(row["mtime"])
+            )
+            if score is not None or phash is not None:
+                await db.execute(
+                    "UPDATE photos SET blur_score = COALESCE(?, blur_score),"
+                    " phash = COALESCE(?, phash) WHERE id = ?",
+                    (score, phash, int(row["id"])),
+                )
+                await db.commit()
+    elif result == "skip" and recognizer is not None and path in unindexed:
+        await _extract_faces(path, unindexed[path], recognizer, clustering, db)
+        unindexed.pop(path, None)
+
+    return result
+
+
+async def _rollback_quietly(db: aiosqlite.Connection) -> None:
+    try:
+        await db.rollback()
+    except Exception:  # noqa: BLE001, S110 — nothing to roll back, or the DB is still failing
+        pass
+
+
+async def _scan_one_with_retry(
+    path: str,
+    db: aiosqlite.Connection,
+    recognizer: Any,
+    clustering: Any,
+    unindexed: dict[str, int],
+) -> ProcessResult:
+    """_scan_one, surviving errors (#203).
+
+    A SQLite OperationalError (disk I/O error, locked, out of memory) is
+    usually transient — e.g. Windows briefly out of memory, or the PC
+    waking from sleep — so the photo is rolled back and retried with
+    back-off. If the database keeps failing, ScanAborted stops the scan.
+    Any other error affects only this photo: logged, counted, skipped.
+    """
+    for attempt in range(len(_DB_RETRY_DELAYS) + 1):
+        try:
+            return await _scan_one(path, db, recognizer, clustering, unindexed)
+        except sqlite3.OperationalError as exc:
+            await _rollback_quietly(db)
+            if attempt == len(_DB_RETRY_DELAYS):
+                raise ScanAborted(f"database error: {exc}") from exc
+            delay = _DB_RETRY_DELAYS[attempt]
+            logger.warning(
+                "database error on %s (%s) — retry %d/%d in %.0f s",
+                os.path.basename(path), exc, attempt + 1, len(_DB_RETRY_DELAYS), delay,
+            )
+            await asyncio.sleep(delay)
+        except Exception:
+            await _rollback_quietly(db)
+            logger.exception("scan failed on %s — skipping this photo", path)
+            return "error"
+    return "error"  # unreachable — the loop returns or raises
+
+
 # ── Main scan loop ────────────────────────────────────────────────────────────
 
 async def run_scan(
@@ -444,37 +539,14 @@ async def run_scan(
         while _status.paused:
             await asyncio.sleep(0.1)
 
-        result = await _process_file(path, db)
+        result = await _scan_one_with_retry(path, db, recognizer, clustering, unindexed)
 
         if result == "ok":
             _status.scanned += 1
             consecutive_errors = 0
-            row = await (await db.execute(
-                "SELECT id, mtime FROM photos WHERE path = ?", (path,)
-            )).fetchone()
-            if row:
-                if recognizer is not None:
-                    await _extract_faces(path, int(row["id"]), recognizer, clustering, db)
-                # Pre-generate the gallery thumbnail so the first visit is a
-                # disk-cache read instead of a full-resolution decode (#150),
-                # scoring sharpness (#154) and the perceptual hash (#155)
-                # from the same decode.
-                from services import image_cache
-                score, phash = await asyncio.to_thread(
-                    image_cache.analyze_photo, int(row["id"]), path, int(row["mtime"])
-                )
-                if score is not None or phash is not None:
-                    await db.execute(
-                        "UPDATE photos SET blur_score = COALESCE(?, blur_score),"
-                        " phash = COALESCE(?, phash) WHERE id = ?",
-                        (score, phash, int(row["id"])),
-                    )
-                    await db.commit()
         elif result == "skip":
             _status.skipped += 1
             consecutive_errors = 0
-            if recognizer is not None and path in unindexed:
-                await _extract_faces(path, unindexed[path], recognizer, clustering, db)
         else:
             _status.error_count += 1
             consecutive_errors += 1

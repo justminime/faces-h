@@ -221,7 +221,9 @@ function App() {
       .then(([apiPeople, queueResp]) => {
         const mapped = apiPeople.map(mapPerson);
         setPeople(mapped);
-        savePeopleCache(mapped);
+        // Mid-scan refreshes skip the cache: serializing every person into
+        // localStorage on each refresh is wasted work until the scan ends (#204).
+        if (useUIStore.getState().scanProgress === null) savePeopleCache(mapped);
         setQueueCount(queueResp.count);
       })
       .catch(() => {});
